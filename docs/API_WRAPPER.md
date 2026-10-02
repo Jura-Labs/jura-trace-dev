@@ -1,7 +1,7 @@
 ---
 title: "Jura Trace local REST API"
 description: "What the local REST API on 127.0.0.1:8300 does today, checked against the source: how it starts, authentication, endpoints, request and response shapes, errors, limits, and the planned CLI exit-code contract."
-last-updated: 1 October 2026
+last-updated: 2 October 2026
 status: implemented in the desktop application (v1.0 onwards). Headless binary and CLI planned for v1.2.0.
 ---
 
@@ -47,7 +47,8 @@ and are marked **(v1.2.0)** where they matter to a caller.
 | Address | `127.0.0.1:8300`, fixed | Same by default; `--port`, and an explicit opt-in to listen beyond loopback |
 | Getting an API key | **No supported way.** See [Authentication](#authentication) | `jura-trace-api keys add --name <label>` |
 | Configuration file | None. Nothing reads one | None planned |
-| Readiness endpoint | None; use `GET /api/v1/health` | `GET /api/v1/ready` |
+| Readiness endpoint | None; use `GET /api/v1/health` | [`GET /api/v1/ready`](#checking-it-is-up) |
+| Trust band in the response | None; computed only on screen | [`verdict`](#verdict) on every verification result |
 | CLI | None | `jura verify`, with the exit codes below |
 | Licence tier gate | None. Every installation runs the API | No change planned |
 
@@ -101,12 +102,46 @@ curl -s http://127.0.0.1:8300/api/v1/health
 results produced while it is `false` are degraded. This response is **not**
 wrapped in the [envelope](#response-envelope).
 
+`health` asks the sidecar over HTTP on every call and can take seconds, so it
+is the wrong thing to poll. **(v1.2.0)** `GET /api/v1/ready` answers from
+state the server already holds, needs no key, and is safe to poll:
+
+```bash
+curl -s http://127.0.0.1:8300/api/v1/ready
+```
+
+```json
+{
+  "data": {
+    "server": "ready",
+    "sidecar": "ready",
+    "sidecarSince": "2026-11-02T09:14:07Z",
+    "sidecarPort": 51873,
+    "detail": null
+  },
+  "apiVersion": "1.0",
+  "degraded": false
+}
+```
+
+| `sidecar` | Meaning |
+|---|---|
+| `starting` | Started, not yet answering. Verifications run with reduced detectors |
+| `ready` | Answering |
+| `absent` | None running: not found, not asked for, or stopped by the app's power saver until the next verification |
+| `failed` | Its process exited. The state changes within about a second of the exit |
+
+`sidecarSince` is when it entered that state, or `null` when there is no
+time to give. `detail` is a sentence when the state needs explaining,
+otherwise `null`. `degraded` is `true` unless `sidecar` is `ready`. The
+status is always `200`; read the body.
+
 ---
 
 ## Authentication
 
-Every endpoint except `GET /api/v1/health`, `/openapi.json` and
-`/swagger-ui/` needs an API key:
+Every endpoint except `GET /api/v1/health`, `GET /api/v1/ready` (v1.2.0),
+`/openapi.json` and `/swagger-ui/` needs an API key:
 
 ```
 Authorization: Bearer jt_<key>
@@ -145,7 +180,8 @@ change a key's rate limit after creation.
 
 The mode decides which detectors run. It is sent as a multipart form field
 named `mode` on the upload routes, or a JSON field `mode` on
-`/api/v1/verify/url`.
+`/api/v1/verify/url`. **(v1.2.0)** It may be sent as a query parameter
+instead, on all three verify routes.
 
 | Value | Runs | Notes |
 |---|---|---|
@@ -161,10 +197,11 @@ Three behaviours a caller needs to know:
 2. **Unrecognised values become `standard` without an error.** That includes
    case variants: `Deep` or `DEEP` runs `standard`. Use the lower-case values
    above. The mode actually used is returned in the result's `mode` field.
-3. **`mode` as a query parameter is ignored.** `POST /api/v1/verify?mode=deep`
-   runs the route default. Earlier versions of this document used that form
-   in every example. **(v1.2.0)** `mode` will also be accepted as a query
-   parameter.
+3. **In v1.1.0, `mode` as a query parameter is ignored.** `POST
+   /api/v1/verify?mode=deep` runs the route default. Earlier versions of this
+   document used that form in every example. **(v1.2.0)** The query parameter
+   is read. If the query and the body both carry a mode they must be the same
+   value; if they differ the request is refused with `400 InvalidParameter`.
 
 ---
 
@@ -210,13 +247,14 @@ All paths are under `http://127.0.0.1:8300`. Upload routes take
 | Method and path | Purpose |
 |---|---|
 | `GET /api/v1/health` | Liveness and sidecar status (no key) |
+| `GET /api/v1/ready` | **(v1.2.0)** Sidecar state from the server's own record, cheap to poll (no key) |
 | `POST /api/v1/verify` | Verify one uploaded file |
 | `POST /api/v1/verify/url` | Download a URL and verify it |
 | `POST /api/v1/verify/batch` | Verify up to 20 uploaded files |
 | `POST /api/v1/protect/sign` | Add C2PA Content Credentials to a file |
 | `POST /api/v1/protect/fingerprint` | Perceptual hashes of an image |
-| `POST /api/v1/protect/watermark/embed` | Not available; always `503` |
-| `POST /api/v1/protect/watermark/extract` | Not available; always `503` |
+| `POST /api/v1/protect/watermark/embed` | Not available. `503` in v1.1.0; **(v1.2.0)** the route is gone, `404` |
+| `POST /api/v1/protect/watermark/extract` | Not available. `503` in v1.1.0; **(v1.2.0)** the route is gone, `404` |
 | `POST /api/v1/claims/check` | Check a claim against the knowledge base; normally `503` |
 | `GET /api/v1/stats` | Counts from the local database |
 | `POST /api/v1/auth/keys` | Create a key |
@@ -240,9 +278,10 @@ Other fields are ignored. Returns the envelope with a
 | Status | When |
 |---|---|
 | `200` | Analysed. Includes degraded results and low trust scores |
-| `400` | No `file` field, an empty file, or malformed multipart (`BadRequest`) |
+| `400` | No `file` field, an empty file, or malformed multipart. `BadRequest` for all three in v1.1.0; **(v1.2.0)** `MissingField`, `EmptyFile` and `BadRequest` respectively, plus `InvalidParameter` and `UnsupportedParameter` |
 | `401` | Key problem |
-| `422` | The file could not be read or processed (`FileSystem`, `C2pa`) |
+| `413` | **(v1.2.0)** `PayloadTooLarge`: the body is over 200 MB. v1.1.0 answers `413` with no JSON body |
+| `422` | The file could not be read or processed (`FileSystem`, `C2pa`). **(v1.2.0)** Also `UnsupportedFormat`, for content that is not an image, video, audio or document type the pipeline analyses; v1.1.0 answers `200` with `contentType: "unknown"` and a score no detector stands behind |
 | `429` | Rate limit |
 | `500` | Internal failure |
 | `503` | The analysis service failed in a way the pipeline could not degrade around (`ServiceUnavailable`) |
@@ -281,7 +320,8 @@ applied to all of them.
 - At most **20** files per request; more is `400`. Empty file parts are
   skipped.
 - Files are verified **one after another**, not in parallel.
-- One file failing does not fail the request.
+- One file failing does not fail the request. **(v1.2.0)** That includes a
+  file of an unsupported type, which fails alone with its reason in `error`.
 
 ```json
 {
@@ -362,9 +402,12 @@ A non-image is `422 UnsupportedFormat`; an image that cannot be hashed is
 
 ### POST /api/v1/protect/watermark/embed and /extract
 
-Both routes exist and both return `503 ServiceUnavailable`. Invisible
-watermarking was withdrawn before v1.0 and has not returned. They are listed
-in the OpenAPI document with their former fields; ignore those.
+Invisible watermarking was withdrawn before v1.0 and has not returned. In
+v1.1.0 both routes exist, both return `503 ServiceUnavailable`, and both are
+listed in the OpenAPI document with their former fields. **(v1.2.0)** They
+are compiled out: the paths return `404` and the OpenAPI document does not
+list them. The code is kept behind the `watermark` Cargo feature, which is
+off.
 
 ### POST /api/v1/claims/check
 
@@ -448,9 +491,44 @@ are omitted when absent.
 | `inputSha256` | string or null | SHA-256 of the bytes analysed |
 | `provenance` | object | What produced this result; see below |
 
-The score bands the app uses (Trusted, Uncertain, Untrusted) are computed in
-the frontend and are **not** in the API response today. **(v1.2.0)** A
-`verdict` block computed in Rust will carry the band.
+### `verdict`
+
+In v1.1.0 the band the app shows beside the score is computed in the
+frontend and is **not** in the API response. **(v1.2.0)** Every verification
+result carries it, computed once in `src-tauri/src/verify/verdict.rs`, and
+the app's own screen and reports read the same field:
+
+```json
+"verdict": {
+  "band": "uncertain",
+  "score": 0.82,
+  "ceilingApplied": "noPositiveAuthenticitySignal",
+  "bandBoundaries": { "trusted": 0.7, "uncertain": 0.4 }
+}
+```
+
+| `band` | On screen | When |
+|---|---|---|
+| `trusted` | High Trust | Score at or above 0.7 and no ceiling applies |
+| `uncertain` | Moderate Trust | Score from 0.4 up to 0.7, or a higher score with a ceiling |
+| `untrusted` | Low Trust | Score below 0.4 |
+| `inconclusive` | Inconclusive | Image content where neither ELA nor the deepfake detector ran, at any score |
+
+`score` is `overallTrust` again. `ceilingApplied` is `null` when the band is
+simply the score's band, and otherwise says why it is not:
+
+| `ceilingApplied` | Meaning |
+|---|---|
+| `insufficientSignal` | The core image detectors did not run: the sidecar was unavailable, or the mode was `quick`. The band is `inconclusive` |
+| `noPositiveAuthenticitySignal` | The score alone would be `trusted`, but nothing positive supports it: no camera MakerNote, no valid Content Credentials, no recognised camera make and model with clean EXIF |
+| `deepfakeInconclusive` | The score alone would be `trusted`, but the deepfake detector was inconclusive |
+| `deepfakeSynthetic` | The score alone would be `trusted`, but the deepfake detector judged the image synthetic |
+
+A ceiling only ever lowers `trusted` to `uncertain`, or replaces the band
+with `inconclusive`. Do not band `overallTrust` yourself: a score of 0.82 can
+be `uncertain`, and a client that bands the number alone will disagree with
+the app on those files. A band is a summary of evidence for a person to
+weigh, not a finding that the content is genuine or false.
 
 ### Detector results
 
@@ -528,20 +606,27 @@ not set it, so it is never present. A `429` adds `rateLimitInfo`.
 
 | `code` | Status | Meaning |
 |---|---|---|
-| `BadRequest` | 400 | Malformed request, missing field, empty file, too many batch files, unsafe URL, or a validation failure |
+| `BadRequest` | 400 | Malformed request, too many batch files, unsafe URL, or a validation failure. In v1.1.0 also a missing field and an empty file |
+| `MissingField` | 400 | **(v1.2.0)** A required multipart field was not sent, or a batch had no files |
+| `EmptyFile` | 400 | **(v1.2.0)** The uploaded file had no bytes |
+| `InvalidParameter` | 400 | **(v1.2.0)** `mode` in the query and in the body disagree |
+| `UnsupportedParameter` | 400 | **(v1.2.0)** `mime_type` or `concurrency` was sent; neither is implemented |
+| `PayloadTooLarge` | 413 | **(v1.2.0)** The request body is over 200 MB |
 | `Unauthorized` | 401 | No usable key |
 | `TimestampChoiceRequired` | 409 | Signing in Standard network mode before the timestamp choice is made |
 | `FileSystem` | 422 | The file could not be read or written |
 | `C2pa` | 422 | A Content Credentials operation failed |
-| `UnsupportedFormat` | 422 | Fingerprinting a non-image |
+| `UnsupportedFormat` | 422 | Fingerprinting a non-image. **(v1.2.0)** Also verifying content of a type the pipeline does not analyse |
 | `FingerprintFailed` | 422 | Fingerprinting could not decode the image |
 | `RateLimitExceeded` | 429 | See [Limits](#limits) |
 | `Internal` | 500 | An internal failure, including database errors |
 | `ServiceUnavailable` | 503 | The analysis service failed, or the feature is not available |
 
-`400` currently covers several different problems under one code. **(v1.2.0)**
-Separate codes are planned for an empty file, a missing field, an unsupported
-format and an oversized payload.
+In v1.1.0 `BadRequest` covers several different caller mistakes. From v1.2.0
+they have the separate codes above, with the same HTTP statuses as before
+except where the table says otherwise. A client written against v1.1.0 that
+matches on `BadRequest` for an empty file or a missing field needs the new
+codes added.
 
 ---
 
@@ -572,9 +657,11 @@ authenticated responses also carry the three `X-RateLimit-*` headers.
 the whole of each verification, shared with the desktop app's own Verify page,
 so concurrent requests to the verify routes queue behind each other and
 behind anything the user is verifying in the app. Set client timeouts with
-that in mind. There is no per-request `mime_type` or `concurrency` parameter;
-sending them has no effect. **(v1.2.0)** Sending either will return `400` saying it is not
-supported, instead of being silently ignored.
+that in mind. There is no per-request `mime_type` or `concurrency` parameter.
+In v1.1.0 sending them has no effect. **(v1.2.0)** Sending either as a query
+parameter on a verify route returns `400 UnsupportedParameter` naming it,
+instead of being silently ignored. Other unknown query parameters are
+ignored.
 
 Browser requests are allowed only from the app's own origins
 (`localhost:1420`, `localhost:8300` and their `127.0.0.1` forms); other web

@@ -15,7 +15,7 @@
     runNprOnDemand, runShadowConsistencyOnDemand, runSpliceBoundaryOnDemand,
     findCatalogueMatches,
   } from '$lib/api';
-  import { getTrustLevel, formatFileSize, formatDuration } from '$lib/types';
+  import { getTrustLevel, verdictTrustLevel, formatFileSize, formatDuration } from '$lib/types';
   import type {
     VerificationResult, SidecarHealth, VerifyMode, LicenceTier,
     AnomalyFinding, InputQualityAssessment, ManifestInfo,
@@ -334,6 +334,9 @@
   //     maintain back-compat with old DB records opened in newer builds.
   const insufficientSignal = $derived(() => {
     if (!result) return false;
+    // v1.2.0: the backend decides this once (verify/verdict.rs). What
+    // follows is kept only for results saved before the verdict block.
+    if (result.verdict) return result.verdict.ceilingApplied === 'insufficientSignal';
     const ran: string[] | undefined = result.detectorsRun;
     if (ran && ran.length > 0) {
       // Authoritative path: use the backend list.
@@ -397,7 +400,12 @@
   });
 
   const trustLevel = $derived(() => {
-    if (!rawTrustLevel) return null;
+    if (!rawTrustLevel || !result) return null;
+    // v1.2.0: read the band the backend computed (verify/verdict.rs), the
+    // same one the REST API and the reports give. The rule below is the one
+    // that was ported, kept only for results saved before the verdict block.
+    const fromVerdict = verdictTrustLevel(result);
+    if (fromVerdict) return fromVerdict;
     if (insufficientSignal()) return 'inconclusive' as const;
     // Safety cap (added 2026-05-11 after a re-encoded AI PNG passed as High
     // Trust): cannot claim "Authentic" without positive provenance evidence.

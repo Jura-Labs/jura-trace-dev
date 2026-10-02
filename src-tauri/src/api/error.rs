@@ -26,14 +26,15 @@ pub struct ApiError {
     /// Optional request identifier for log correlation.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub request_id: Option<String>,
-    /// Rate-limit metadata included in 429 responses.
+    /// Rate-limit metadata included in 429 responses. Boxed, with the headers
+    /// below, to keep the error small enough to return by value.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub rate_limit_info: Option<RateLimitInfo>,
+    pub rate_limit_info: Option<Box<RateLimitInfo>>,
     #[serde(skip)]
     pub status: StatusCode,
     /// Rate-limit headers to attach to the response (skipped from JSON).
     #[serde(skip)]
-    pub rate_limit_headers: Option<RateLimitHeaders>,
+    pub rate_limit_headers: Option<Box<RateLimitHeaders>>,
 }
 
 /// Rate limit metadata embedded in 429 JSON bodies.
@@ -71,6 +72,63 @@ impl ApiError {
 
     pub fn bad_request(message: impl Into<String>) -> Self {
         Self::new(StatusCode::BAD_REQUEST, "BadRequest", message)
+    }
+
+    /// A required multipart field was not sent.
+    pub fn missing_field(message: impl Into<String>) -> Self {
+        Self::new(StatusCode::BAD_REQUEST, "MissingField", message)
+    }
+
+    /// The uploaded file had no bytes.
+    pub fn empty_file() -> Self {
+        Self::new(
+            StatusCode::BAD_REQUEST,
+            "EmptyFile",
+            "Uploaded file is empty",
+        )
+    }
+
+    /// A parameter was understood but its value cannot be used.
+    pub fn invalid_parameter(message: impl Into<String>) -> Self {
+        Self::new(StatusCode::BAD_REQUEST, "InvalidParameter", message)
+    }
+
+    /// A parameter that older documentation described and the server has
+    /// never implemented. Refused rather than ignored, so the caller learns
+    /// on the first request and not through a wrong answer.
+    pub fn unsupported_parameter(name: &str) -> Self {
+        Self::new(
+            StatusCode::BAD_REQUEST,
+            "UnsupportedParameter",
+            format!("The '{name}' parameter is not implemented. Remove it and retry."),
+        )
+    }
+
+    /// The content is not something the verification pipeline analyses.
+    pub fn unsupported_format(message: impl Into<String>) -> Self {
+        Self::new(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "UnsupportedFormat",
+            message,
+        )
+    }
+
+    pub fn payload_too_large() -> Self {
+        Self::new(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "PayloadTooLarge",
+            "The request body is larger than the 200 MB limit.",
+        )
+    }
+
+    /// Map a multipart read failure: over the size limit is its own code,
+    /// anything else is a malformed request.
+    pub fn from_multipart(context: &str, e: axum::extract::multipart::MultipartError) -> Self {
+        if e.status() == StatusCode::PAYLOAD_TOO_LARGE {
+            Self::payload_too_large()
+        } else {
+            Self::bad_request(format!("{context}: {e}"))
+        }
     }
 
     pub fn unauthorized() -> Self {
@@ -112,8 +170,8 @@ impl ApiError {
                  Retry after {reset_seconds} seconds."
             ),
             request_id: None,
-            rate_limit_info: Some(info),
-            rate_limit_headers: Some(headers),
+            rate_limit_info: Some(Box::new(info)),
+            rate_limit_headers: Some(Box::new(headers)),
             status: StatusCode::TOO_MANY_REQUESTS,
         }
     }

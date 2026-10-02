@@ -8,25 +8,28 @@
 
 use axum::{
     body::Bytes,
-    extract::{Multipart, Path as AxumPath, State},
+    extract::{Multipart, Path as AxumPath, Query, State},
     http::{header, StatusCode},
     response::{IntoResponse, Response},
     Json,
 };
 use serde_json::json;
+use std::collections::HashMap;
 use std::io::Write;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use tokio::io::AsyncWriteExt;
 
-use crate::{fingerprint, watermark, AppState};
+#[cfg(feature = "watermark")]
+use crate::watermark;
+use crate::{fingerprint, format_router, AppState};
 
 use super::{
     auth::hash_key,
     error::ApiError,
     types::{
         ApiResponse, ClaimCheckRequest, CreateKeyRequest, CreateKeyResponse, FingerprintEntry,
-        FingerprintResponse, HealthResponse, StatsResponse, VerifyUrlRequest,
+        FingerprintResponse, HealthResponse, ReadyResponse, StatsResponse, VerifyUrlRequest,
     },
 };
 
@@ -96,13 +99,149 @@ pub async fn health(State(state): State<SharedState>) -> Json<HealthResponse> {
     })
 }
 
+/// `GET /api/v1/ready` — what the server knows about its sidecar, cheaply.
+///
+/// `GET /api/v1/health` probes the sidecar over HTTP on every call, with a
+/// 10 second timeout, so polling it queues. This reads state the supervisor
+/// already keeps: it is updated when the sidecar becomes ready and when its
+/// process exits, so a dead sidecar reports `failed`, not a stale `ready`.
+///
+/// No authentication required.
+#[utoipa::path(
+    get,
+    path = "/api/v1/ready",
+    tag = "System",
+    operation_id = "ready",
+    summary = "Readiness",
+    description = "Reports whether the analysis sidecar is starting, ready, absent or failed, \
+                   from cached supervisor state. Cheap enough to poll. No auth required.",
+    security(()),
+    responses(
+        (status = 200, description = "Server is running; see `sidecar` for the engine", body = ReadyResponse)
+    )
+)]
+pub async fn ready(State(state): State<SharedState>) -> Json<ApiResponse<ReadyResponse>> {
+    use crate::sidecar_supervisor::{decode, SidecarState};
+    use std::sync::atomic::Ordering;
+
+    let (sidecar_state, since, port, power_saver_idle) = match state.lock() {
+        Ok(g) => {
+            let cached = decode(g.sidecar_startup_status.load(Ordering::Relaxed));
+            match g.sidecar_process.as_ref() {
+                // The desktop app holds its supervisor here.
+                Some(sup) => (sup.state(), sup.since(), g.sidecar_port, false),
+                // The desktop's power saver stops an idle sidecar and takes
+                // the supervisor with it; the next verification starts a
+                // new one. The cached status still says ready, so it is not
+                // used.
+                None if g.power_saver_mode && cached == SidecarState::Ready => {
+                    (SidecarState::Absent, 0, g.sidecar_port, true)
+                }
+                // The headless binary: its supervisor writes these.
+                None => (
+                    cached,
+                    g.sidecar_status_since.load(Ordering::Relaxed),
+                    g.sidecar_port,
+                    false,
+                ),
+            }
+        }
+        Err(_) => (SidecarState::Failed, 0, 0, false),
+    };
+
+    let (sidecar, detail) = match sidecar_state {
+        SidecarState::Ready => ("ready", None),
+        SidecarState::Starting => (
+            "starting",
+            Some("The analysis engine is starting. Verifications run with reduced detectors until it is ready."),
+        ),
+        SidecarState::Absent if power_saver_idle => (
+            "absent",
+            Some("Power saver stopped the idle analysis engine. It starts again on the next verification."),
+        ),
+        SidecarState::Absent => (
+            "absent",
+            Some("No analysis engine is running. Verifications run with reduced detectors."),
+        ),
+        SidecarState::Failed => (
+            "failed",
+            Some("The analysis engine stopped. Verifications run with reduced detectors until the server is restarted."),
+        ),
+    };
+    let sidecar_since = (since > 0)
+        .then(|| chrono::DateTime::from_timestamp(since as i64, 0))
+        .flatten()
+        .map(|t| t.to_rfc3339_opts(chrono::SecondsFormat::Secs, true));
+
+    let data = ReadyResponse {
+        server: "ready",
+        sidecar,
+        sidecar_since,
+        sidecar_port: port,
+        detail: detail.map(str::to_string),
+    };
+    Json(if sidecar_state == SidecarState::Ready {
+        ApiResponse::ok(data)
+    } else {
+        ApiResponse::degraded(data)
+    })
+}
+
 // ── Verify ───────────────────────────────────────────────────────────────────
+
+/// Query parameters older documentation described and nothing implements.
+const UNIMPLEMENTED_PARAMS: [&str; 2] = ["mime_type", "concurrency"];
+
+/// Refuse the parameters in [`UNIMPLEMENTED_PARAMS`]. Other unknown query
+/// parameters are ignored, so an additive change cannot break a client.
+fn reject_unimplemented(query: &HashMap<String, String>) -> Result<(), ApiError> {
+    match UNIMPLEMENTED_PARAMS
+        .iter()
+        .find(|p| query.contains_key(**p))
+    {
+        Some(name) => Err(ApiError::unsupported_parameter(name)),
+        None => Ok(()),
+    }
+}
+
+/// Settle the mode from the query string and the request body. Either may
+/// carry it; if both do they must agree.
+fn resolve_mode(
+    query: &HashMap<String, String>,
+    body: Option<String>,
+    default: Option<&str>,
+) -> Result<Option<String>, ApiError> {
+    match (query.get("mode"), body) {
+        (Some(q), Some(b)) if *q != b => Err(ApiError::invalid_parameter(format!(
+            "The 'mode' query parameter ('{q}') and the 'mode' in the request body ('{b}') \
+             disagree. Send one, or make them match."
+        ))),
+        (_, Some(b)) => Ok(Some(b)),
+        (Some(q), None) => Ok(Some(q.clone())),
+        (None, None) => Ok(default.map(str::to_string)),
+    }
+}
+
+/// Refuse content the pipeline has no analysis for, by the same detection
+/// the pipeline uses. Without this an unrecognised upload came back as a
+/// 200 with a trust score that no detector stood behind.
+fn ensure_supported(path: &std::path::Path) -> Result<(), ApiError> {
+    let info = format_router::detect(path);
+    if info.content_type == format_router::ContentType::Unknown {
+        return Err(ApiError::unsupported_format(format!(
+            "{} is not supported by the verification pipeline",
+            info.mime_type
+        )));
+    }
+    Ok(())
+}
 
 /// `POST /api/v1/verify` — multipart file upload → full verification pipeline.
 ///
 /// The multipart form must contain a field named `file` with the binary
-/// content of the media file.  An optional `mode` text field controls the
-/// investigation depth: `quick`, `standard` (default), `deep`, `archival`.
+/// content of the media file.  An optional `mode`, as a text field or a
+/// query parameter, controls the investigation depth: `quick`, `standard`,
+/// `deep` (default).
 #[utoipa::path(
     post,
     path = "/api/v1/verify",
@@ -114,17 +253,26 @@ pub async fn health(State(state): State<SharedState>) -> Json<HealthResponse> {
         content_type = "multipart/form-data",
         description = "Multipart form with 'file' (binary) and optional 'mode' (string) fields"
     ),
+    params(
+        ("mode" = Option<String>, Query, description = "quick, standard or deep. Default deep. \
+            May be sent as a form field instead; if both are sent they must agree.")
+    ),
     responses(
         (status = 200, description = "Verification result"),
-        (status = 400, description = "Invalid request"),
+        (status = 400, description = "MissingField, EmptyFile, InvalidParameter, UnsupportedParameter or BadRequest"),
         (status = 401, description = "Unauthorized"),
+        (status = 413, description = "PayloadTooLarge"),
+        (status = 422, description = "UnsupportedFormat"),
         (status = 429, description = "Rate limit exceeded"),
     )
 )]
 pub async fn verify_file(
     State(state): State<SharedState>,
+    Query(query): Query<HashMap<String, String>>,
     mut multipart: Multipart,
 ) -> Result<Json<ApiResponse<crate::VerificationResult>>, ApiError> {
+    reject_unimplemented(&query)?;
+
     // Stream the upload directly to a tempfile — avoids holding the full file
     // in memory and eliminates the previous `bytes.clone()` that caused a 2×
     // peak (up to ~400 MB for a 200 MB upload). The temp file is created
@@ -136,12 +284,12 @@ pub async fn verify_file(
     // detectors: 10 automatic + 3 on-demand"). Standard mode runs a reduced
     // 5-detector subset and is available via explicit `mode=standard` form
     // field. Per smoke-test report 2026-06-01.
-    let mut mode: Option<String> = Some("deep".to_string());
+    let mut form_mode: Option<String> = None;
 
     while let Some(mut field) = multipart
         .next_field()
         .await
-        .map_err(|e| ApiError::bad_request(format!("Invalid multipart data: {e}")))?
+        .map_err(|e| ApiError::from_multipart("Invalid multipart data", e))?
     {
         let name = field.name().unwrap_or("").to_string();
         match name.as_str() {
@@ -153,10 +301,10 @@ pub async fn verify_file(
                 let first = field
                     .chunk()
                     .await
-                    .map_err(|e| ApiError::bad_request(format!("Failed to read file chunk: {e}")))?
-                    .ok_or_else(|| ApiError::bad_request("Uploaded file is empty"))?;
+                    .map_err(|e| ApiError::from_multipart("Failed to read file chunk", e))?
+                    .ok_or_else(ApiError::empty_file)?;
                 if first.is_empty() {
-                    return Err(ApiError::bad_request("Uploaded file is empty"));
+                    return Err(ApiError::empty_file());
                 }
                 let ext = infer_extension(&first);
 
@@ -178,7 +326,7 @@ pub async fn verify_file(
                 while let Some(chunk) = field
                     .chunk()
                     .await
-                    .map_err(|e| ApiError::bad_request(format!("Failed to read file chunk: {e}")))?
+                    .map_err(|e| ApiError::from_multipart("Failed to read file chunk", e))?
                 {
                     writer.write_all(&chunk).await.map_err(|e| {
                         ApiError::internal(format!("Failed to write chunk to temp file: {e}"))
@@ -195,13 +343,15 @@ pub async fn verify_file(
                 let text = field.text().await.map_err(|e| {
                     ApiError::bad_request(format!("Failed to read mode field: {e}"))
                 })?;
-                mode = Some(text);
+                form_mode = Some(text);
             }
             _ => {} // ignore unknown fields
         }
     }
 
-    let tmp = tmp_file.ok_or_else(|| ApiError::bad_request("Missing 'file' field"))?;
+    let tmp = tmp_file.ok_or_else(|| ApiError::missing_field("Missing 'file' field"))?;
+    let mode = resolve_mode(&query, form_mode, Some("deep"))?;
+    ensure_supported(tmp.path())?;
 
     let mode_clone = mode.clone();
     let result = tokio::task::spawn_blocking(move || {
@@ -255,9 +405,11 @@ pub async fn verify_file(
 )]
 pub async fn verify_url(
     State(state): State<SharedState>,
+    Query(query): Query<HashMap<String, String>>,
     Json(body): Json<VerifyUrlRequest>,
 ) -> Result<Json<ApiResponse<crate::VerificationResult>>, ApiError> {
-    let mode = body.mode.clone();
+    reject_unimplemented(&query)?;
+    let mode = resolve_mode(&query, body.mode.clone(), None)?;
     let url = body.url.clone();
 
     let result =
@@ -328,7 +480,7 @@ pub async fn protect_sign(
     while let Some(mut field) = multipart
         .next_field()
         .await
-        .map_err(|e| ApiError::bad_request(format!("Invalid multipart data: {e}")))?
+        .map_err(|e| ApiError::from_multipart("Invalid multipart data", e))?
     {
         let name = field.name().unwrap_or("").to_string();
         match name.as_str() {
@@ -339,10 +491,10 @@ pub async fn protect_sign(
                 let first = field
                     .chunk()
                     .await
-                    .map_err(|e| ApiError::bad_request(format!("Failed to read file chunk: {e}")))?
-                    .ok_or_else(|| ApiError::bad_request("Uploaded file is empty"))?;
+                    .map_err(|e| ApiError::from_multipart("Failed to read file chunk", e))?
+                    .ok_or_else(ApiError::empty_file)?;
                 if first.is_empty() {
-                    return Err(ApiError::bad_request("Uploaded file is empty"));
+                    return Err(ApiError::empty_file());
                 }
                 let ext = infer_extension(&first);
                 sniffed_ext = Some(ext);
@@ -363,7 +515,7 @@ pub async fn protect_sign(
                 while let Some(chunk) = field
                     .chunk()
                     .await
-                    .map_err(|e| ApiError::bad_request(format!("Failed to read file chunk: {e}")))?
+                    .map_err(|e| ApiError::from_multipart("Failed to read file chunk", e))?
                 {
                     writer.write_all(&chunk).await.map_err(|e| {
                         ApiError::internal(format!("Failed to write chunk to temp file: {e}"))
@@ -392,10 +544,10 @@ pub async fn protect_sign(
         }
     }
 
-    let src_tmp = src_tmp.ok_or_else(|| ApiError::bad_request("Missing 'file' field"))?;
-    let ext = sniffed_ext.ok_or_else(|| ApiError::bad_request("Uploaded file is empty"))?;
+    let src_tmp = src_tmp.ok_or_else(|| ApiError::missing_field("Missing 'file' field"))?;
+    let ext = sniffed_ext.ok_or_else(ApiError::empty_file)?;
     if creator_name.is_empty() {
-        return Err(ApiError::bad_request("Missing 'creator_name' field"));
+        return Err(ApiError::missing_field("Missing 'creator_name' field"));
     }
 
     let filename_hint = original_filename.as_deref().unwrap_or("upload").to_string();
@@ -538,19 +690,21 @@ pub async fn protect_fingerprint(
     while let Some(field) = multipart
         .next_field()
         .await
-        .map_err(|e| ApiError::bad_request(format!("Invalid multipart data: {e}")))?
+        .map_err(|e| ApiError::from_multipart("Invalid multipart data", e))?
     {
         if field.name().unwrap_or("") == "file" {
-            file_bytes =
-                Some(field.bytes().await.map_err(|e| {
-                    ApiError::bad_request(format!("Failed to read file field: {e}"))
-                })?);
+            file_bytes = Some(
+                field
+                    .bytes()
+                    .await
+                    .map_err(|e| ApiError::from_multipart("Failed to read file field", e))?,
+            );
         }
     }
 
-    let bytes = file_bytes.ok_or_else(|| ApiError::bad_request("Missing 'file' field"))?;
+    let bytes = file_bytes.ok_or_else(|| ApiError::missing_field("Missing 'file' field"))?;
     if bytes.is_empty() {
-        return Err(ApiError::bad_request("Uploaded file is empty"));
+        return Err(ApiError::empty_file());
     }
 
     let hashes = tokio::task::spawn_blocking(move || -> Result<Vec<FingerprintEntry>, ApiError> {
@@ -567,9 +721,7 @@ pub async fn protect_fingerprint(
             "unknown"
         };
         if !fingerprint::supports_fingerprinting(content_type_str) {
-            return Err(ApiError::new(
-                StatusCode::UNPROCESSABLE_ENTITY,
-                "UnsupportedFormat",
+            return Err(ApiError::unsupported_format(
                 "Perceptual fingerprinting requires an image file (JPEG, PNG, WebP, etc.)",
             ));
         }
@@ -610,6 +762,11 @@ pub async fn protect_fingerprint(
 }
 
 // ── Protect: Watermark embed ─────────────────────────────────────────────────
+//
+// Both watermark routes are compiled only with the `watermark` cargo feature,
+// which is off by default: watermarking is not in this release
+// (V1_SHOW_WATERMARK = false, BL-WM-001), and until v1.2.0 the OpenAPI
+// document advertised two routes that could only answer 503.
 
 /// `POST /api/v1/protect/watermark/embed` — embed an invisible watermark.
 ///
@@ -619,6 +776,7 @@ pub async fn protect_fingerprint(
 /// - `strength` (optional) — `1` (low), `2` (medium, default), `3` (high)
 ///
 /// Returns the watermarked image as `image/png`.
+#[cfg(feature = "watermark")]
 #[utoipa::path(
     post,
     path = "/api/v1/protect/watermark/embed",
@@ -666,6 +824,7 @@ pub async fn protect_watermark_embed(
 /// - `file` — image to inspect
 /// - `payload_len_bytes` (optional) — expected payload length in bytes (default: 16)
 /// - `reference_hex` (optional) — expected payload hex for comparison
+#[cfg(feature = "watermark")]
 #[utoipa::path(
     post,
     path = "/api/v1/protect/watermark/extract",
@@ -963,28 +1122,35 @@ pub async fn revoke_api_key(
         content_type = "multipart/form-data",
         description = "Multipart upload with `files` fields and optional `mode` field."
     ),
+    params(
+        ("mode" = Option<String>, Query, description = "quick, standard or deep. Default deep. \
+            May be sent as a form field instead; if both are sent they must agree.")
+    ),
     responses(
         (status = 200, description = "Batch verification results"),
-        (status = 400, description = "No files provided or bad request"),
+        (status = 400, description = "MissingField (no files), InvalidParameter, UnsupportedParameter or BadRequest"),
         (status = 401, description = "Missing or invalid API key")
     )
 )]
 pub async fn verify_batch(
     State(state): State<SharedState>,
+    Query(query): Query<HashMap<String, String>>,
     mut multipart: Multipart,
 ) -> Result<Json<ApiResponse<super::types::BatchVerifyResponse>>, ApiError> {
     use super::types::{BatchVerifyItem, BatchVerifyResponse};
+
+    reject_unimplemented(&query)?;
 
     let mut files: Vec<(String, Bytes)> = Vec::new();
     // Default mode is "deep" so batch verification exercises the full
     // 10-detector automatic pipeline by default (matches the single-file
     // /api/v1/verify endpoint). Explicit `mode=standard` still available.
-    let mut mode: Option<String> = Some("deep".to_string());
+    let mut form_mode: Option<String> = None;
 
     while let Some(field) = multipart
         .next_field()
         .await
-        .map_err(|e| ApiError::bad_request(format!("Invalid multipart data: {e}")))?
+        .map_err(|e| ApiError::from_multipart("Invalid multipart data", e))?
     {
         let name = field.name().unwrap_or("").to_string();
         match name.as_str() {
@@ -993,7 +1159,7 @@ pub async fn verify_batch(
                 let bytes = field
                     .bytes()
                     .await
-                    .map_err(|e| ApiError::bad_request(format!("Failed to read file: {e}")))?;
+                    .map_err(|e| ApiError::from_multipart("Failed to read file", e))?;
                 if !bytes.is_empty() {
                     files.push((filename, bytes));
                 }
@@ -1002,14 +1168,15 @@ pub async fn verify_batch(
                 let text = field.text().await.map_err(|e| {
                     ApiError::bad_request(format!("Failed to read mode field: {e}"))
                 })?;
-                mode = Some(text);
+                form_mode = Some(text);
             }
             _ => {}
         }
     }
+    let mode = resolve_mode(&query, form_mode, Some("deep"))?;
 
     if files.is_empty() {
-        return Err(ApiError::bad_request("No files provided"));
+        return Err(ApiError::missing_field("No files provided"));
     }
 
     if files.len() > 20 {
@@ -1064,12 +1231,15 @@ pub async fn verify_batch(
                 }
             };
 
-            let result = crate::verify_content_inner(
-                &tmp_path.to_string_lossy(),
-                "upload",
-                mode_clone.as_deref(),
-                &state_clone,
-            );
+            let result = match ensure_supported(&tmp_path) {
+                Ok(()) => crate::verify_content_inner(
+                    &tmp_path.to_string_lossy(),
+                    "upload",
+                    mode_clone.as_deref(),
+                    &state_clone,
+                ),
+                Err(e) => Err(crate::error::AppError::Validation(e.message)),
+            };
             let _ = std::fs::remove_file(&tmp_path);
 
             match result {

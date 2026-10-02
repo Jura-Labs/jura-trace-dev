@@ -138,6 +138,10 @@ reqwest = { version = "0.12", features = ["json", "multipart"] }
 default = ["custom-protocol", "api"]
 custom-protocol = ["tauri/custom-protocol"]
 api = ["axum", "tower", "tower-http", "utoipa", "utoipa-swagger-ui", "dashmap", "tokio"]
+# The two REST watermark routes. Off by default: watermarking is not in this
+# release (V1_SHOW_WATERMARK = false, BL-WM-001), so the routes and their
+# OpenAPI entries are compiled out rather than advertised and answered 503.
+watermark = ["api"]
 
 # Dev-profile speedup (2026-06-12): optimise DEPENDENCIES at O2 while keeping
 # this crate's own code unoptimised for fast incremental builds and usable

@@ -8,9 +8,12 @@
 //! - [`input_quality`] — pre-pipeline input quality assessment (`assess_input_quality`,
 //!   `estimate_jpeg_quality`, `detect_screenshot`).
 //! - [`pipeline`] — end-to-end verify orchestration (`verify_content_inner`, `verify_url_inner`).
+//! - [`verdict`] — the trust band and its caps (`compute_verdict`), the one place the
+//!   score becomes trusted / uncertain / untrusted / inconclusive.
 //! - [`types`] — shared result types (`VerificationResult`, `ThumbnailCheck`, `Provenance`, etc.).
 
 pub(crate) mod input_quality;
 pub(crate) mod pipeline;
 pub(crate) mod trust;
 pub(crate) mod types;
+pub(crate) mod verdict;

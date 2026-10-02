@@ -8,6 +8,7 @@
 //!
 //! Endpoints that bypass auth also bypass rate limiting:
 //! - `GET /api/v1/health`
+//! - `GET /api/v1/ready`
 //! - `GET /openapi.json`
 //! - anything under `/swagger-ui`
 
@@ -131,6 +132,8 @@ pub async fn rate_limit_middleware(
     // In a nested router the `/api` prefix is stripped, so check both forms.
     if path == "/v1/health"
         || path == "/api/v1/health"
+        || path == "/v1/ready"
+        || path == "/api/v1/ready"
         || path == "/openapi.json"
         || path.starts_with("/swagger-ui")
     {

@@ -13,7 +13,7 @@ pub struct VerifyUrlRequest {
     /// The URL to download and verify.
     #[schema(example = "https://example.com/image.jpg")]
     pub url: String,
-    /// Investigation mode: `"quick"`, `"standard"` (default), `"deep"`, `"archival"`.
+    /// Investigation mode: `"quick"`, `"standard"` (default), `"deep"`.
     #[schema(example = "standard")]
     pub mode: Option<String>,
 }
@@ -78,6 +78,27 @@ pub struct HealthResponse {
     /// Seconds since the API server started.
     #[schema(example = 3600)]
     pub uptime_seconds: u64,
+}
+
+/// Readiness response: what the server knows about its analysis sidecar,
+/// read from state the supervisor keeps, with no request to the sidecar.
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ReadyResponse {
+    /// Always `"ready"` when the server answers.
+    #[schema(example = "ready")]
+    pub server: &'static str,
+    /// `"starting"`, `"ready"`, `"absent"` or `"failed"`.
+    #[schema(example = "ready")]
+    pub sidecar: &'static str,
+    /// When the sidecar entered that state, RFC 3339 UTC.
+    #[schema(example = "2026-11-02T09:14:07Z")]
+    pub sidecar_since: Option<String>,
+    /// Loopback port the sidecar listens on.
+    #[schema(example = 51873)]
+    pub sidecar_port: u16,
+    /// Set when there is something to explain about the state.
+    pub detail: Option<String>,
 }
 
 /// Request body for `POST /api/v1/auth/keys`.
