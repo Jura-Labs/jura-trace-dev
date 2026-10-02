@@ -1529,6 +1529,75 @@ async fn test_mode_is_read_from_the_query_string() {
     );
 }
 
+/// An unknown or wrong-case mode is refused on all three verify routes. It
+/// used to run `standard` in silence. The accepted values, with their two
+/// synonyms, still work.
+#[tokio::test]
+async fn test_unknown_mode_is_refused() {
+    let (base_url, auth, _) = server_with_key().await;
+    let client = reqwest::Client::new();
+
+    for bad in ["Deep", "DEEP", "fast2", ""] {
+        // As a form field, as a query parameter, in a batch, and as JSON.
+        let form = client.post(format!("{base_url}/api/v1/verify")).multipart(
+            reqwest::multipart::Form::new()
+                .text("mode", bad.to_string())
+                .part("file", png_part()),
+        );
+        let query = client
+            .post(format!("{base_url}/api/v1/verify?mode={bad}"))
+            .multipart(reqwest::multipart::Form::new().part("file", png_part()));
+        let batch = client
+            .post(format!("{base_url}/api/v1/verify/batch?mode={bad}"))
+            .multipart(reqwest::multipart::Form::new().part("files", png_part()));
+        let url = client
+            .post(format!("{base_url}/api/v1/verify/url"))
+            .json(&serde_json::json!({ "url": "https://example.org/a.jpg", "mode": bad }));
+        for (name, request) in [
+            ("form", form),
+            ("query", query),
+            ("batch", batch),
+            ("url", url),
+        ] {
+            let resp = request
+                .header("Authorization", &auth)
+                .send()
+                .await
+                .expect("request");
+            assert_eq!(
+                resp.status(),
+                StatusCode::BAD_REQUEST,
+                "{name} mode={bad:?}"
+            );
+            let body: Value = resp.json().await.expect("json");
+            assert_eq!(
+                body["code"], "InvalidParameter",
+                "{name} mode={bad:?}: {body}"
+            );
+            assert!(
+                body["message"]
+                    .as_str()
+                    .unwrap_or("")
+                    .contains("Unknown mode"),
+                "{name} mode={bad:?}: {body}"
+            );
+        }
+    }
+
+    for (sent, ran) in [("quick", "quick"), ("fast", "quick")] {
+        let resp = client
+            .post(format!("{base_url}/api/v1/verify?mode={sent}"))
+            .header("Authorization", &auth)
+            .multipart(reqwest::multipart::Form::new().part("file", png_part()))
+            .send()
+            .await
+            .expect("request");
+        assert_eq!(resp.status(), StatusCode::OK, "mode={sent}");
+        let body: Value = resp.json().await.expect("json");
+        assert_eq!(body["data"]["mode"], ran, "mode={sent}: {body}");
+    }
+}
+
 /// `mime_type` and `concurrency` were documented and never implemented.
 /// They are refused by name; any other unknown parameter is ignored.
 #[tokio::test]
