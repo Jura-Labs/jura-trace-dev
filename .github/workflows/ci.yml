@@ -256,6 +256,53 @@ jobs:
           cd src-tauri
           cargo test --test headless_api
 
+  # ── The `jura` CLI (cli/) ──────────────────────────────────────────────────
+  # A crate of its own, with its own Cargo.lock (see cli/Cargo.toml for why it
+  # is not in a workspace with src-tauri). Its tests run the built binary
+  # against a stub API and assert every exit code, so the contract in
+  # docs/API_WRAPPER.md is checked on each platform it will ship for. No Tauri
+  # dependencies, so neither the frontend build nor the sidecar placeholder.
+  cli:
+    name: CLI (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install Rust 1.90
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable @ 2026-09
+        with:
+          toolchain: "1.90"
+          components: clippy, rustfmt
+
+      - name: Cache Cargo
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            cli/target/
+          key: cargo-cli-${{ runner.os }}-${{ hashFiles('cli/Cargo.lock') }}
+          restore-keys: cargo-cli-${{ runner.os }}-
+
+      - name: cargo fmt
+        if: runner.os == 'Linux'
+        run: cd cli && cargo fmt --check
+
+      - name: cargo clippy
+        run: cd cli && cargo clippy --all-targets --locked -- -D warnings
+
+      # JURA_NO_KEYRING keeps the tests off any OS keyring on the runner; the
+      # tests set it themselves too, this is belt and braces.
+      - name: cargo test
+        env:
+          JURA_NO_KEYRING: "1"
+        run: cd cli && cargo test --locked
+
   frontend:
     name: Frontend
     runs-on: ubuntu-latest

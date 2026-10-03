@@ -33,7 +33,7 @@ and are marked **(v1.2.0)** where they matter to a caller.
 - [Errors](#errors)
 - [Limits](#limits)
 - [Schema as a public API contract](#schema-as-a-public-api-contract)
-- [CLI exit-code contract (planned)](#cli-exit-code-contract-planned)
+- [The `jura` CLI](#the-jura-cli)
 - [Examples](#examples)
 - [Related documents](#related-documents)
 
@@ -49,7 +49,7 @@ and are marked **(v1.2.0)** where they matter to a caller.
 | Configuration file | None. Nothing reads one | None planned |
 | Readiness endpoint | None; use `GET /api/v1/health` | [`GET /api/v1/ready`](#checking-it-is-up) |
 | Trust band in the response | None; computed only on screen | [`verdict`](#verdict) on every verification result |
-| CLI | None | `jura verify`, with the exit codes below |
+| CLI | None | [`jura`](#the-jura-cli): `verify`, `version`, `auth`, with the exit codes below |
 | Licence tier gate | None. Every installation runs the API | No change planned |
 
 There is no `jura-trace-api` binary, no `jura-trace --api` flag and no TOML
@@ -692,31 +692,85 @@ changes are recorded in `CHANGELOG.md` with the prefix `[schema]`.
 
 ---
 
-## CLI exit-code contract (planned)
+## The `jura` CLI
 
-**(v1.2.0)** The `jura` command-line client does not exist yet. It will be a
-thin client of this API, and its exit codes are published now so that scripts
-can be written against them. This is the single authoritative table; it
-replaces the two inconsistent tables earlier versions of this document
-carried. Codes 0 to 6 keep their published meanings, with the two
-corrections below. New codes are only ever added, never reassigned.
+**(v1.2.0)** `jura` is a thin client of this API, in `cli/` in this
+repository. It uploads, waits, prints the response, and exits with a code
+from the table below. Every analysis runs in the server. Until it ships in
+the installers (planned for v1.2.0, stage 5), build it with
+`cargo install --path cli`.
+
+```bash
+jura verify photo.jpg                       # 0 whenever an analysis was produced
+jura verify a.jpg b.png --format json       # one JSON document per file
+jura verify --url https://example.org/a.jpg --mode quick
+jura verify photo.jpg --fail-on uncertain   # 20 if the band is uncertain or untrusted
+jura verify photo.jpg --require-complete    # 8 if the result is degraded
+jura verify photo.jpg --wait-ready          # wait up to 300 s for the analysis engine
+jura version                                # client, engine and API versions
+jura auth set-key -                         # store a key in the OS keyring, read from stdin
+jura auth show-key                          # which key, from where, masked
+jura auth status                            # does the server accept it
+jura auth clear-key
+```
+
+**Where the address and key come from**, first match wins:
+
+```
+--api-url <url>  >  JURA_API_URL  >  http://127.0.0.1:8300
+--api-key <key>  >  JURA_API_KEY  >  OS keyring  >  none
+```
+
+`--api-key` puts the key in shell history and the process list, so prefer
+the other two. `JURA_NO_KEYRING=1` skips the keyring, for CI runners and
+containers that have none.
+
+**Output.** `--format text`, the default, is for people and may change in
+any release. `--format json` prints the API response body (pretty-printed;
+with `--compact`, one line per document), so the schema and the
+compatibility rules above apply to it unchanged. Errors go to stderr, never
+to stdout. The format never depends on whether stdout is a terminal.
+
+**Several files.** They are sent one after another, and every one is tried.
+The exit code is that of the first failure if there was one, otherwise 20 if
+any verdict met `--fail-on`, otherwise 0. A server that cannot be reached
+or refuses the key stops the run, because every later file would fail the
+same way.
+
+**`--timeout`** is per request, 600 seconds by default; `0` waits
+indefinitely. Verifications queue behind each other (see [Limits](#limits)),
+so a busy server can need it.
+
+### Exit codes
+
+This is the single authoritative table; it replaces the two inconsistent
+tables earlier versions of this document carried. Codes 0 to 6 keep their
+published meanings, with the two corrections below. New codes are only ever
+added, never reassigned.
 
 | Code | Name | Meaning |
 |---|---|---|
 | 0 | success | The command completed. For `verify`, an analysis was produced, **whatever the verdict** |
-| 1 | usage | Bad arguments, an unknown subcommand, or conflicting flags |
-| 2 | unreachable | Could not connect to the API |
-| 3 | auth | No key, a malformed key, or a rejected key |
-| 4 | file | A local input problem: missing, unreadable, empty, or over the size limit |
-| 5 | format | The server rejected the content as unsupported |
-| 6 | server | The server failed (HTTP 5xx) |
-| 7 | timeout | The request exceeded `--timeout`, or `--wait-ready` expired |
-| 8 | incomplete | `--require-complete` was given and the response was degraded |
+| 1 | usage | Bad arguments, an unknown subcommand, or conflicting flags; or the server refused the request as malformed (`MissingField`, `InvalidParameter`, `UnsupportedParameter`, `BadRequest`) |
+| 2 | unreachable | Could not connect to the API; or `--wait-ready` ran out with nothing answering |
+| 3 | auth | No key, a malformed key, or a rejected key (`Unauthorized`) |
+| 4 | file | A local input problem: missing, unreadable, empty, or over 200 MB (also `EmptyFile`, `PayloadTooLarge`) |
+| 5 | format | The server refused the content (`UnsupportedFormat`, `FileSystem`, `C2pa`) |
+| 6 | server | The server failed (HTTP 5xx, `RateLimitExceeded`), or answered with something that is not the API's JSON |
+| 7 | timeout | The request exceeded `--timeout`; or `--wait-ready` expired with the server answering, or found the engine `failed` or `absent` |
+| 8 | incomplete | No usable verdict: `--require-complete` and a degraded response, or `--fail-on` and an `inconclusive` band |
 | 20 | verdict | `--fail-on` was given and the verdict met the threshold |
 
 Codes 1 to 8 mean no usable verification was produced; 0 and 20 mean one was.
 A low trust score is not a failure: without `--fail-on`, a file that scores
 0.02 exits 0 and the caller reads the verdict from the output.
+
+`--fail-on untrusted` exits 20 for `untrusted`; `--fail-on uncertain` for
+`uncertain` or `untrusted`. The band is the server's
+[`verdict`](#verdict); the client never bands a score itself. An
+`inconclusive` band exits **8**, not 20, because there is no verdict to meet a
+threshold (decided 3 October 2026). A server from before v1.2.0 sends no
+band, so `--fail-on` against it also exits 8.
 
 The two corrections to what was published before:
 
