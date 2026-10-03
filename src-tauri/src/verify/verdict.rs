@@ -149,7 +149,7 @@ fn has_positive_authenticity_signal(i: &VerdictInputs<'_>) -> bool {
         return true;
     }
     // (b) Valid Content Credentials that declare no source type, or declare
-    // a camera capture and nothing else.
+    // camera captures and nothing else.
     if i.c2pa_valid == Some(true) && !declares_non_capture_source_type(i) {
         return true;
     }
@@ -174,10 +174,12 @@ fn has_positive_authenticity_signal(i: &VerdictInputs<'_>) -> bool {
     false
 }
 
-/// The one declared source type that leaves valid Content Credentials
-/// counting as positive evidence: a camera capture. Decided 2 October 2026.
-/// Until then any declared type, this one included, stopped them counting.
-const CAPTURE_SOURCE_TYPE: &str = "digitalCapture";
+/// The declared source types that leave valid Content Credentials counting
+/// as positive evidence: a camera capture, plain or computational (what a
+/// phone camera that merges several exposures declares). Decided 2 October
+/// 2026. Until then any declared type, these included, stopped them
+/// counting.
+const CAPTURE_SOURCE_TYPES: [&str; 2] = ["digitalCapture", "computationalCapture"];
 
 /// True when any manifest in the chain (active first, then ingredients)
 /// declares a `digitalSourceType` other than a camera capture, on an
@@ -193,7 +195,11 @@ fn declares_non_capture_source_type(i: &VerdictInputs<'_>) -> bool {
     let is_other = |v: Option<&serde_json::Value>| {
         v.and_then(|v| v.as_str())
             .filter(|s| !s.is_empty())
-            .is_some_and(|s| s.rsplit(['/', '#']).next() != Some(CAPTURE_SOURCE_TYPE))
+            .is_some_and(|s| {
+                !s.rsplit(['/', '#'])
+                    .next()
+                    .is_some_and(|name| CAPTURE_SOURCE_TYPES.contains(&name))
+            })
     };
     manifests
         .iter()
@@ -403,6 +409,10 @@ mod tests {
             r#"{"actions":[{"action":"c2pa.created","digitalSourceType":"http://cv.iptc.org/newscodes/digitalsourcetype/digitalCapture"}]}"#,
             r#"{"digitalSourceType":"digitalCapture"}"#,
             r#"{"schema_org":{"digitalSourceType":"digitalCapture"}}"#,
+            r#"{"actions":[{"action":"c2pa.created","digitalSourceType":"http://cv.iptc.org/newscodes/digitalsourcetype/computationalCapture"}]}"#,
+            r#"{"digitalSourceType":"computationalCapture"}"#,
+            // The two capture types together are still only captures.
+            r#"{"actions":[{"digitalSourceType":"digitalCapture"},{"digitalSourceType":"computationalCapture"}]}"#,
         ] {
             let m = manifest(declared);
             let mut i = inputs(0.8, IMAGE_RUN);
@@ -422,8 +432,10 @@ mod tests {
             r#"{"actions":[{"action":"c2pa.created","digitalSourceType":"http://cv.iptc.org/newscodes/digitalsourcetype/trainedAlgorithmicMedia"}]}"#,
             r#"{"digitalSourceType":"trainedAlgorithmicMedia"}"#,
             r#"{"schema_org":{"digitalSourceType":"compositeWithTrainedAlgorithmicMedia"}}"#,
-            r#"{"digitalSourceType":"computationalCapture"}"#,
+            r#"{"digitalSourceType":"compositeCapture"}"#,
+            r#"{"digitalSourceType":"algorithmicMedia"}"#,
             r#"{"digitalSourceType":"notdigitalCapture"}"#,
+            r#"{"actions":[{"digitalSourceType":"computationalCapture"},{"digitalSourceType":"trainedAlgorithmicMedia"}]}"#,
             // A capture on one action does not excuse an AI type on another.
             r#"{"actions":[{"digitalSourceType":"digitalCapture"},{"digitalSourceType":"trainedAlgorithmicMedia"}]}"#,
             // Nor a capture at the top level an AI type under schema_org.

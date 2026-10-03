@@ -522,7 +522,7 @@ simply the score's band, and otherwise says why it is not:
 | `ceilingApplied` | Meaning |
 |---|---|
 | `insufficientSignal` | The core image detectors did not run: the sidecar was unavailable, or the mode was `quick`. The band is `inconclusive` |
-| `noPositiveAuthenticitySignal` | The score alone would be `trusted`, but nothing positive supports it: no camera MakerNote, no recognised camera make and model with clean EXIF, and no valid Content Credentials that count. Valid credentials count when they declare no `digitalSourceType`, or declare `digitalCapture` and nothing else; any other declared type, in any manifest of the chain, stops them counting |
+| `noPositiveAuthenticitySignal` | The score alone would be `trusted`, but nothing positive supports it: no camera MakerNote, no recognised camera make and model with clean EXIF, and no valid Content Credentials that count. Valid credentials count when they declare no `digitalSourceType`, or declare only camera captures (`digitalCapture`, `computationalCapture`); any other declared type, in any manifest of the chain, stops them counting |
 | `deepfakeInconclusive` | The score alone would be `trusted`, but the deepfake detector was inconclusive |
 | `deepfakeSynthetic` | The score alone would be `trusted`, but the deepfake detector judged the image synthetic |
 
