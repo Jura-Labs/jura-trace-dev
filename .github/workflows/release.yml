@@ -1490,12 +1490,17 @@ jobs:
       # osslsigncode). Neither gate below looked at them; both scanned the
       # sidecar tree only. Smart App Control blocks unsigned code as it loads.
       #
-      # The same lesson as the sidecar tree above: sign what goes into the
-      # installer before it goes in. So the build is split: compile with
-      # --no-bundle, sign every executable the installers will carry, then
-      # `cargo tauri bundle`, which packs the binaries already on disk
-      # without rebuilding them. --features api,cli adds jura-trace-api and
-      # jura (v1.2.0 stage 5).
+      # So the build is split. Compile with --no-bundle; sign jura-trace-api
+      # and jura, which go into the installers unchanged; then
+      # `cargo tauri bundle`, which packs the binaries already on disk.
+      # jura-trace.exe cannot be signed beforehand: the bundler PATCHES the
+      # main executable (it writes the bundle type into it for the updater),
+      # which broke a signature made earlier (HashMismatch inside both
+      # installers, smoke run 37207009853). So the bundler signs it itself,
+      # after patching, through bundle.windows.signCommand, which runs
+      # scripts/ci/azure-sign.ps1 (Microsoft's signtool and Artifact Signing
+      # client, installed by the signing action steps). --features api,cli
+      # adds jura-trace-api and jura (v1.2.0 stage 5).
       #
       # TAURI_SIGNING_PRIVATE_KEY is the minisign key for the updater .sig,
       # not Authenticode. The .sig made here is stale once Azure countersigns
@@ -1508,8 +1513,9 @@ jobs:
           cargo tauri build --target ${{ matrix.target }} --features api,cli --no-bundle
           if ($LASTEXITCODE -ne 0) { throw "cargo tauri build failed with $LASTEXITCODE" }
           $rel = "src-tauri\target\${{ matrix.target }}\release"
-          $exes = "jura-trace.exe", "jura-trace-api.exe", "jura.exe"
-          foreach ($e in $exes) { if (-not (Test-Path "$rel\$e")) { throw "$e was not built at $rel" } }
+          foreach ($e in "jura-trace.exe", "jura-trace-api.exe", "jura.exe") { if (-not (Test-Path "$rel\$e")) { throw "$e was not built at $rel" } }
+          # jura-trace.exe is signed by the bundler after it patches it; see above.
+          $exes = "jura-trace-api.exe", "jura.exe"
           # Paths relative to src-tauri\, where the catalog lives: the signing
           # action resolves each line against the catalog's own folder, so an
           # absolute path became "src-tauri\D:\..." and failed (smoke run
@@ -1538,22 +1544,34 @@ jobs:
         env:
           TAURI_SIGNING_PRIVATE_KEY:          ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # For scripts/ci/azure-sign.ps1, run by the bundler as signCommand.
+          AZURE_TENANT_ID:     ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID:     ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
         run: |
           $ErrorActionPreference = "Stop"
           $files = @(Get-Content src-tauri\app-sign-catalog.txt | ForEach-Object { "src-tauri\$_" })
-          if ($files.Count -ne 3) { throw "expected 3 executables in the catalog, found $($files.Count)" }
+          if ($files.Count -ne 2) { throw "expected 2 executables in the catalog, found $($files.Count)" }
           foreach ($f in $files) {
             $sig = Get-AuthenticodeSignature $f
             if ($sig.Status -ne "Valid") { throw "$f is $($sig.Status) after signing: $($sig.StatusMessage)" }
             Write-Host "signed: $f ($($sig.SignerCertificate.Subject))"
           }
           Remove-Item src-tauri\app-sign-catalog.txt
-          $before = (Get-FileHash "src-tauri\target\${{ matrix.target }}\release\jura-trace.exe").Hash
-          cargo tauri bundle --target ${{ matrix.target }} --features api,cli
+          # A config overlay, so the signCommand applies to release builds
+          # only and not to every developer's `cargo tauri build`.
+          $script = (Resolve-Path scripts\ci\azure-sign.ps1).Path
+          @{ bundle = @{ windows = @{ signCommand = @{ cmd = "pwsh"; args = @("-NoProfile", "-File", $script, "%1") } } } } |
+            ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8 src-tauri\windows-signing.conf.json
+          Get-Content src-tauri\windows-signing.conf.json
+          # Absolute: tauri-cli may resolve a relative --config path from
+          # src-tauri\ rather than from here.
+          $overlay = (Resolve-Path src-tauri\windows-signing.conf.json).Path
+          cargo tauri bundle --target ${{ matrix.target }} --features api,cli --config $overlay
           if ($LASTEXITCODE -ne 0) { throw "cargo tauri bundle failed with $LASTEXITCODE" }
-          # The bundle step must pack the signed bytes, not rebuild them.
-          $after = (Get-FileHash "src-tauri\target\${{ matrix.target }}\release\jura-trace.exe").Hash
-          if ($before -ne $after) { throw "cargo tauri bundle rebuilt jura-trace.exe, discarding its signature" }
+          Remove-Item src-tauri\windows-signing.conf.json
+          # Whether the bundler's signing reached the bytes that ship is
+          # checked by "Every PE in the shipped installers is signed" below.
 
       # ── Updater signatures: generated AFTER Azure signing ───────────────
       # The empty-signature gate used to live HERE, before Azure Trusted
