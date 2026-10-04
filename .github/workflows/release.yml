@@ -985,7 +985,10 @@ jobs:
           tauriScript: cargo tauri
           # --bundles app — produce only the .app at this stage. DMG +
           # updater payload are regenerated after per-file signing.
-          args: --target ${{ matrix.target }} --bundles app
+          # --features api,cli: tauri-cli bundles a [[bin]] only when its
+          # required features are passed, so this is what puts
+          # jura-trace-api and jura in Contents/MacOS (v1.2.0 stage 5).
+          args: --target ${{ matrix.target }} --bundles app --features api,cli
 
       # ── Linux: unchanged single-shot tauri-action build ──────────────────
       - name: Build release artefacts (Linux)
@@ -1026,7 +1029,9 @@ jobs:
           # and nothing else, which is exactly what the 7 September failure
           # produced. -v flips the logger to debug and streams linuxdeploy's
           # stderr into the CI log. BL-REL-005.
-          args: -v --target ${{ matrix.target }} --bundles deb,appimage
+          # --features api,cli puts jura-trace-api and jura in /usr/bin
+          # beside the app (v1.2.0 stage 5).
+          args: -v --target ${{ matrix.target }} --bundles deb,appimage --features api,cli
 
       # If the Linux bundle fails, capture the state that would explain it.
       #
@@ -1170,6 +1175,19 @@ jobs:
           echo "Per-file signed $count nested .so/.dylib files."
           codesign --force --sign "$APPLE_SIGNING_IDENTITY" --options runtime --timestamp "$sidecar_root/jura-sidecar"
           echo "Signed bootloader."
+          # The two command-line binaries (v1.2.0 stage 5), signed explicitly
+          # rather than trusted to tauri's pass, and required to be present:
+          # a release built without --features api,cli would lack them.
+          for bin in jura-trace-api jura; do
+            f="$app_path/Contents/MacOS/$bin"
+            [ -x "$f" ] || { echo "::error::$bin is not in Contents/MacOS; was the app built with --features api,cli?"; exit 1; }
+            codesign --force --sign "$APPLE_SIGNING_IDENTITY" --options runtime --timestamp "$f"
+            team=$(codesign --display --verbose=2 "$f" 2>&1 | awk -F= '/^TeamIdentifier=/{print $2}')
+            flags=$(codesign --display --verbose=2 "$f" 2>&1 | grep -o 'flags=0x[0-9a-f]*([^)]*)' || true)
+            echo "Signed $bin: team $team, $flags"
+            [ "$team" = "Y82C4P9L7F" ] || { echo "::error::$bin is signed by '$team', not Y82C4P9L7F"; exit 1; }
+            case "$flags" in *runtime*) ;; *) echo "::error::$bin lacks the hardened runtime: $flags"; exit 1 ;; esac
+          done
           codesign --force --sign "$APPLE_SIGNING_IDENTITY" --options runtime --timestamp "$app_path"
           echo "Re-sealed .app top level."
           codesign --verify --deep --strict --verbose=2 "$app_path" 2>&1 | tail -3
@@ -1247,7 +1265,9 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          cargo tauri bundle --bundles dmg,updater --target aarch64-apple-darwin
+          # The same features as the build, so the bundler expects the same
+          # binaries in the .app.
+          cargo tauri bundle --bundles dmg,updater --target aarch64-apple-darwin --features api,cli
           echo "--- regenerated bundle contents ---"
           ls -la src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/ || true
           ls -la src-tauri/target/aarch64-apple-darwin/release/bundle/macos/ || true
@@ -1460,30 +1480,78 @@ jobs:
           fi
           echo "Upload complete."
 
-      # Windows: build only — do not pass releaseId so tauri-action does not
-      # attempt to upload the unsigned artefacts to the GitHub Release.
-      # Signing and upload are handled by the two steps that follow.
-      - name: Build release artefacts (Windows, unsigned)
+      # ── Windows: build, sign the app's own executables, then bundle ─────
+      #
+      # Until v1.2.0 this was one tauri-action call that built and bundled
+      # in one go, and Azure Trusted Signing then signed only what was in
+      # bundle\ (the MSI and setup.exe). The executables INSIDE them were
+      # never signed: in the published v1.1.0 setup.exe, jura-trace.exe and
+      # gen-detectors.exe carry no signature (checked 4 October 2026 with
+      # osslsigncode). Neither gate below looked at them; both scanned the
+      # sidecar tree only. Smart App Control blocks unsigned code as it loads.
+      #
+      # The same lesson as the sidecar tree above: sign what goes into the
+      # installer before it goes in. So the build is split: compile with
+      # --no-bundle, sign every executable the installers will carry, then
+      # `cargo tauri bundle`, which packs the binaries already on disk
+      # without rebuilding them. --features api,cli adds jura-trace-api and
+      # jura (v1.2.0 stage 5).
+      #
+      # TAURI_SIGNING_PRIVATE_KEY is the minisign key for the updater .sig,
+      # not Authenticode. The .sig made here is stale once Azure countersigns
+      # the installers, and is regenerated in "Re-sign the updater payloads".
+      - name: Build the Windows executables (not bundled yet)
         if: runner.os == 'Windows'
-        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          cargo tauri build --target ${{ matrix.target }} --features api,cli --no-bundle
+          if ($LASTEXITCODE -ne 0) { throw "cargo tauri build failed with $LASTEXITCODE" }
+          $rel = "src-tauri\target\${{ matrix.target }}\release"
+          $exes = "jura-trace.exe", "jura-trace-api.exe", "jura.exe"
+          foreach ($e in $exes) { if (-not (Test-Path "$rel\$e")) { throw "$e was not built at $rel" } }
+          # Absolute paths, so the catalog does not depend on how the signing
+          # action resolves relative ones.
+          $exes | ForEach-Object { (Resolve-Path "$rel\$_").Path } | Set-Content -Encoding utf8 src-tauri\app-sign-catalog.txt
+          Write-Host "to sign: $($exes -join ', ')"
+
+      - name: Sign the app executables with Azure Trusted Signing
+        if: runner.os == 'Windows'
+        uses: Azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
+        with:
+          azure-tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret:   ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint:              ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name:  ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name:     ${{ secrets.AZURE_CERT_PROFILE }}
+          files-catalog:         src-tauri/app-sign-catalog.txt
+          file-digest:           SHA256
+          timestamp-rfc3161:     http://timestamp.acs.microsoft.com
+          timestamp-digest:      SHA256
+
+      - name: Verify the app executables are signed, then bundle (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # ── Windows Authenticode signing ──────────────────────────────────
-          # Authenticode signing is performed by Azure Trusted Signing (step
-          # below). TAURI_SIGNING_PRIVATE_KEY is separate — it signs the
-          # Tauri updater payload (.msi.zip) with the minisign key whose
-          # public half lives in tauri.conf.json's plugins.updater.pubkey.
-          # Without these env vars, the updater .sig is empty and the Tauri
-          # updater silently refuses to apply any update — a critical
-          # security gap. The "Verify updater signatures" step below
-          # catches missing/empty signatures before upload.
           TAURI_SIGNING_PRIVATE_KEY:          ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        with:
-          # releaseId intentionally omitted — unsigned binaries must not be
-          # published to the GitHub Release; only the signed copies go up.
-          tauriScript: cargo tauri
-          args: --target ${{ matrix.target }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $files = @(Get-Content src-tauri\app-sign-catalog.txt)
+          if ($files.Count -ne 3) { throw "expected 3 executables in the catalog, found $($files.Count)" }
+          foreach ($f in $files) {
+            $sig = Get-AuthenticodeSignature $f
+            if ($sig.Status -ne "Valid") { throw "$f is $($sig.Status) after signing: $($sig.StatusMessage)" }
+            Write-Host "signed: $f ($($sig.SignerCertificate.Subject))"
+          }
+          Remove-Item src-tauri\app-sign-catalog.txt
+          $before = (Get-FileHash "src-tauri\target\${{ matrix.target }}\release\jura-trace.exe").Hash
+          cargo tauri bundle --target ${{ matrix.target }} --features api,cli
+          if ($LASTEXITCODE -ne 0) { throw "cargo tauri bundle failed with $LASTEXITCODE" }
+          # The bundle step must pack the signed bytes, not rebuild them.
+          $after = (Get-FileHash "src-tauri\target\${{ matrix.target }}\release\jura-trace.exe").Hash
+          if ($before -ne $after) { throw "cargo tauri bundle rebuilt jura-trace.exe, discarding its signature" }
 
       # ── Updater signatures: generated AFTER Azure signing ───────────────
       # The empty-signature gate used to live HERE, before Azure Trusted
@@ -1658,8 +1726,13 @@ jobs:
             foreach ($f in "jura-sidecar.exe", "sidecar-bundle\jura-sidecar.exe", "sidecar-bundle\_internal") {
               if (-not (Test-Path "$root\$f")) { throw "${kind}: $f is missing from the installer payload" }
             }
+            # The app's own executables too. Until v1.2.0 this scanned the
+            # sidecar only, and jura-trace.exe shipped unsigned unnoticed.
+            $app = @("jura-trace.exe", "jura-trace-api.exe", "jura.exe")
+            foreach ($f in $app) { if (-not (Test-Path "$root\$f")) { throw "${kind}: $f is missing from the installer payload" } }
+            if (Test-Path "$root\gen-detectors.exe") { throw "${kind}: gen-detectors.exe is in the installer; it is a build tool and must not ship" }
             $pe = @(Get-ChildItem $sb[0].FullName -Recurse -File | Where-Object { $_.Extension -in ".exe", ".dll", ".pyd" }) +
-                  @(Get-Item "$root\jura-sidecar.exe")
+                  @(Get-Item "$root\jura-sidecar.exe") + @($app | ForEach-Object { Get-Item "$root\$_" })
             if ($pe.Count -lt 200) { throw "${kind}: only $($pe.Count) native files found; an empty or wrong scan is not a pass" }
             $bad = @($pe | ForEach-Object { $sig = Get-AuthenticodeSignature $_.FullName; if ($sig.Status -ne "Valid") { "$($sig.Status)  $($_.FullName.Substring($root.Length))" } })
             if ($bad.Count -gt 0) {

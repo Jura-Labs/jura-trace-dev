@@ -147,6 +147,13 @@ jobs:
       - name: cargo clippy
         run: cd src-tauri && cargo clippy -- -D warnings
 
+      # The feature set release.yml builds with (--features api,cli), which
+      # adds the jura-trace-api and jura binaries. Without this the shipped
+      # jura target, built from cli/src with this crate's dependency
+      # versions, would first compile in a release run.
+      - name: cargo clippy (release feature set)
+        run: cd src-tauri && cargo clippy --features api,cli --bins -- -D warnings
+
       - name: cargo fmt
         run: cd src-tauri && cargo fmt --check
 

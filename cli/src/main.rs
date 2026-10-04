@@ -11,6 +11,7 @@
 mod client;
 mod config;
 mod exit;
+mod pretty;
 mod verdict;
 
 use std::io::{IsTerminal, Read, Write};
@@ -209,9 +210,7 @@ impl Ctx {
     fn print(&self, label: &str, resp: &client::Response) {
         let out = match self.global.format {
             Format::Json if self.global.compact => resp.raw.trim().to_string(),
-            Format::Json => {
-                serde_json::to_string_pretty(&resp.json).unwrap_or_else(|_| resp.raw.clone())
-            }
+            Format::Json => pretty::pretty(resp.raw.trim()),
             Format::Text => verdict::text(label, &resp.json).trim_end().to_string(),
         };
         let mut stdout = std::io::stdout().lock();

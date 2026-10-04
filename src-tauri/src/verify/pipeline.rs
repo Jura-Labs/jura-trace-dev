@@ -1541,13 +1541,13 @@ pub fn verify_content_inner(
     //
     // ── CODEGEN CONTRACT ─────────────────────────────────────────────────
     // The TypeScript "Not run in this analysis" PDF rows are generated from
-    // the MODE_MATRIX constant in src-tauri/src/bin/gen_detectors.rs, which
+    // the MODE_MATRIX constant in src-tauri/src/gen_detectors.rs, which
     // is the single source of truth for the expected-detector matrix.
     //
     // When you ADD a detector here:
     //   1. Add the push("your_new_id") below.
     //   2. Add "your_new_id" to the appropriate rows in MODE_MATRIX inside
-    //      src-tauri/src/bin/gen_detectors.rs.
+    //      src-tauri/src/gen_detectors.rs.
     //   3. Run: cargo run --bin gen-detectors -- <repo-root>
     //      (or `npm run predev` — it does this automatically).
     //   4. Commit both files together.

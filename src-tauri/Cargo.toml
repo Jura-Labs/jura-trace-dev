@@ -23,30 +23,43 @@ crate-type = ["lib", "cdylib", "staticlib"]
 # Generates ui/src/lib/generated/expectedDetectors.ts from the Rust
 # MODE_MATRIX constant — the single source of truth for expected detectors
 # per (mode × content-type) combination.  Run via:
-#   cargo run --bin gen-detectors -- <repo-root>
+#   cargo run --features codegen --bin gen-detectors -- <repo-root>
 # or let `npm run predev` / `npm run prebuild` invoke it automatically.
 # The REST API without the desktop window (v1.2.0 B2a). The logic is in the
 # library's `headless` module; this target only passes it the arguments.
 #
-# Not in any installer yet, and two things keep it out; both matter.
-# 1. The source is NOT in src/bin/. tauri-cli bundles every file in src/bin
-#    by its file stem: 2.10.1 (the local CLI on 1 October 2026) does so
-#    regardless of required-features, so src/bin/jura_trace_api.rs made the
-#    macOS bundle step fail looking for an unbuilt "jura_trace_api".
-# 2. required-features = ["api"]. tauri-cli 2.11.4 (release.yml) bundles a
-#    [[bin]] only when its required features are passed explicitly with
-#    --features, and neither release.yml nor build-local-mac.sh passes any.
-# Checked by bundling with both CLIs: the app holds jura-trace, jura-sidecar
-# and gen-detectors only. Shipping this binary is stage 5 of the design.
+# Shipped from v1.2.0 (stage 5). tauri-cli bundles a [[bin]] only when its
+# required features are passed with --features, so release.yml and
+# build-local-mac.sh build with `--features api,cli`, and a plain
+# `cargo tauri build` produces an app without this or `jura`. The source is
+# NOT in src/bin/: tauri-cli 2.10.1 bundles every file there by file stem
+# whatever its required features, which broke the macOS bundle step when
+# this lived at src/bin/jura_trace_api.rs (1 October 2026).
 [[bin]]
 name = "jura-trace-api"
 path = "src/headless_main.rs"
 required-features = ["api"]
 
+# The `jura` command-line client, built from cli/ so the installers can ship
+# it beside the app and sign it with the app (v1.2.0 stage 5). cli/ stays a
+# crate of its own for development and its tests (`cargo test` there); this
+# target compiles the same source with this crate's dependency versions and
+# reports the app's version. Its two extra dependencies are optional and
+# behind `cli`, so a default build does not pull them in.
+[[bin]]
+name = "jura"
+path = "../cli/src/main.rs"
+required-features = ["cli"]
+
+# Behind `codegen` and outside src/bin/ so that no installer ships it. Until
+# v1.2.0 it had no required features, so tauri-cli bundled it: every
+# installer carried a 225 KB build-time tool beside the app (unsigned on
+# Windows, and first in /usr/bin on Linux). `npm run predev` and `prebuild`
+# pass --features codegen.
 [[bin]]
 name = "gen-detectors"
-path = "src/bin/gen_detectors.rs"
-required-features = []
+path = "src/gen_detectors.rs"
+required-features = ["codegen"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -99,6 +112,10 @@ image_hasher = "3.1"
 
 # HTTP client for Python ML sidecar (Phase 2)
 reqwest = { version = "0.12", features = ["blocking", "multipart", "json"] }
+# For the `jura` binary only (feature `cli`), at the versions cli/Cargo.toml
+# names.
+clap = { version = "4.6", features = ["derive"], optional = true }
+keyring = { version = "4.2", optional = true }
 url = "2"
 
 # Temp files for URL verification
@@ -138,6 +155,10 @@ reqwest = { version = "0.12", features = ["json", "multipart"] }
 default = ["custom-protocol", "api"]
 custom-protocol = ["tauri/custom-protocol"]
 api = ["axum", "tower", "tower-http", "utoipa", "utoipa-swagger-ui", "dashmap", "tokio"]
+# The `gen-detectors` build tool. See its [[bin]] entry.
+codegen = []
+# The `jura` binary. See its [[bin]] entry.
+cli = ["dep:clap", "dep:keyring"]
 # The two REST watermark routes. Off by default: watermarking is not in this
 # release (V1_SHOW_WATERMARK = false, BL-WM-001), so the routes and their
 # OpenAPI entries are compiled out rather than advertised and answered 503.
