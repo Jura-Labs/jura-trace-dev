@@ -106,9 +106,9 @@ impl Client {
     }
 
     fn send(&self, req: reqwest::blocking::RequestBuilder) -> Result<Response, Failure> {
-        let resp = req.send().map_err(|e| transport_failure(&self.base, &e))?;
+        let resp = req.send().map_err(|e| self.transport_failure(&e))?;
         let status = resp.status();
-        let raw = resp.text().map_err(|e| transport_failure(&self.base, &e))?;
+        let raw = resp.text().map_err(|e| self.transport_failure(&e))?;
         let json: Option<Value> = serde_json::from_str(&raw).ok();
         if status.is_success() {
             return match json {
@@ -140,6 +140,77 @@ impl Client {
             },
         ))
     }
+
+    fn transport_failure(&self, e: &reqwest::Error) -> Failure {
+        let base = &self.base;
+        if e.is_timeout() {
+            return Failure::new(
+                Exit::Timeout,
+                format!("no answer from {base} within the timeout"),
+            );
+        }
+        if e.is_builder() {
+            return Failure::new(Exit::Usage, format!("bad API address {base}: {e}"));
+        }
+        if e.is_connect() || !reachable(base) {
+            return Failure::new(
+                Exit::Unreachable,
+                format!(
+                    "could not connect to {base}. Is Jura Trace or jura-trace-api running? \
+                     Start one with `jura-trace-api`"
+                ),
+            );
+        }
+        // The server is there, but the request broke before its answer
+        // could be read. While a file is uploading, the server's middleware
+        // can refuse the request (401 for the key, 429 for the rate limit)
+        // and close the connection before reading the body; the client then
+        // sees a broken pipe and never the response. Found 4 October 2026 on
+        // a Linux CI runner, where a rejected key exited 6, not 3. Ask the
+        // question again with a request that has no body.
+        if let Some(f) = self.probe_key() {
+            return f;
+        }
+        Failure::new(Exit::Server, format!("request to {base} failed: {e}"))
+    }
+
+    /// `GET /api/v1/stats` with the key and no body, after an opaque
+    /// failure. Returns the failure it reveals, if any.
+    fn probe_key(&self) -> Option<Failure> {
+        let req = self
+            .http
+            .get(self.url("/api/v1/stats"))
+            .timeout(Duration::from_secs(10));
+        let req = match &self.key {
+            Some(k) => req.bearer_auth(k),
+            None => req,
+        };
+        match req.send() {
+            Ok(resp) if resp.status().is_success() => None,
+            Ok(resp) => {
+                let status = resp.status().as_u16();
+                let body: Option<Value> = resp.json().ok();
+                let code = body
+                    .as_ref()
+                    .and_then(|j| j.get("code"))
+                    .and_then(Value::as_str);
+                let message = body
+                    .as_ref()
+                    .and_then(|j| j.get("message"))
+                    .and_then(Value::as_str)
+                    .unwrap_or("the server refused the request");
+                Some(Failure::new(
+                    from_api_error(status, code),
+                    format!(
+                        "{message} ({}HTTP {status}; the upload was cut off before this answer \
+                         could be read)",
+                        code.map(|c| format!("{c}, ")).unwrap_or_default()
+                    ),
+                ))
+            }
+            Err(_) => None,
+        }
+    }
 }
 
 /// Whether anything accepts a TCP connection at the API address. Used when
@@ -162,27 +233,6 @@ fn reachable(base: &str) -> bool {
     addrs
         .into_iter()
         .any(|a| TcpStream::connect_timeout(&a, Duration::from_secs(2)).is_ok())
-}
-
-fn transport_failure(base: &str, e: &reqwest::Error) -> Failure {
-    if e.is_timeout() {
-        Failure::new(
-            Exit::Timeout,
-            format!("no answer from {base} within the timeout"),
-        )
-    } else if e.is_connect() || !reachable(base) {
-        Failure::new(
-            Exit::Unreachable,
-            format!(
-                "could not connect to {base}. Is Jura Trace or jura-trace-api running? \
-                 Start one with `jura-trace-api`"
-            ),
-        )
-    } else if e.is_builder() {
-        Failure::new(Exit::Usage, format!("bad API address {base}: {e}"))
-    } else {
-        Failure::new(Exit::Server, format!("request to {base} failed: {e}"))
-    }
 }
 
 /// Refuse what the server would refuse anyway, before uploading it.
