@@ -8,6 +8,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased: v1.2.0
 
+Command-line client:
+
+- New `jura` CLI in `cli/`: `jura verify` (files or `--url`), `jura version`
+  and `jura auth` (`set-key`, `show-key`, `status`, `clear-key`), with the
+  exit-code contract in `docs/API_WRAPPER.md`. `--fail-on` exits 20 on a
+  band and 8 on an inconclusive one; `--require-complete` exits 8 on a
+  degraded result; `--wait-ready` waits for the analysis engine. Not yet in
+  the installers: `cargo install --path cli`.
+
 Local REST API (`docs/API_WRAPPER.md`):
 
 - `[schema]` Every verification result has a new `verdict` object: `band`
