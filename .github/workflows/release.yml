@@ -1510,9 +1510,11 @@ jobs:
           $rel = "src-tauri\target\${{ matrix.target }}\release"
           $exes = "jura-trace.exe", "jura-trace-api.exe", "jura.exe"
           foreach ($e in $exes) { if (-not (Test-Path "$rel\$e")) { throw "$e was not built at $rel" } }
-          # Absolute paths, so the catalog does not depend on how the signing
-          # action resolves relative ones.
-          $exes | ForEach-Object { (Resolve-Path "$rel\$_").Path } | Set-Content -Encoding utf8 src-tauri\app-sign-catalog.txt
+          # Paths relative to src-tauri\, where the catalog lives: the signing
+          # action resolves each line against the catalog's own folder, so an
+          # absolute path became "src-tauri\D:\..." and failed (smoke run
+          # 37203813879). The sidecar catalog above has the same shape.
+          $exes | ForEach-Object { "target\${{ matrix.target }}\release\$_" } | Set-Content -Encoding utf8 src-tauri\app-sign-catalog.txt
           Write-Host "to sign: $($exes -join ', ')"
 
       - name: Sign the app executables with Azure Trusted Signing
@@ -1538,7 +1540,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           $ErrorActionPreference = "Stop"
-          $files = @(Get-Content src-tauri\app-sign-catalog.txt)
+          $files = @(Get-Content src-tauri\app-sign-catalog.txt | ForEach-Object { "src-tauri\$_" })
           if ($files.Count -ne 3) { throw "expected 3 executables in the catalog, found $($files.Count)" }
           foreach ($f in $files) {
             $sig = Get-AuthenticodeSignature $f
