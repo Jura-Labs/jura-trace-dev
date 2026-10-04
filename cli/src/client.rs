@@ -142,13 +142,35 @@ impl Client {
     }
 }
 
+/// Whether anything accepts a TCP connection at the API address. Used when
+/// a request fails in a way that hides the cause: with a file to upload,
+/// reqwest's blocking client reports a refused connection as a body error
+/// ("SendError { kind: Disconnected }"), not as a connect error. Found
+/// 4 October 2026 with a 163 KB JPEG, which exited 6 instead of 2.
+fn reachable(base: &str) -> bool {
+    use std::net::{TcpStream, ToSocketAddrs};
+    let Ok(url) = reqwest::Url::parse(base) else {
+        return true;
+    };
+    let (Some(host), Some(port)) = (url.host_str(), url.port_or_known_default()) else {
+        return true;
+    };
+    let host = host.trim_start_matches('[').trim_end_matches(']');
+    let Ok(addrs) = (host, port).to_socket_addrs() else {
+        return false;
+    };
+    addrs
+        .into_iter()
+        .any(|a| TcpStream::connect_timeout(&a, Duration::from_secs(2)).is_ok())
+}
+
 fn transport_failure(base: &str, e: &reqwest::Error) -> Failure {
     if e.is_timeout() {
         Failure::new(
             Exit::Timeout,
             format!("no answer from {base} within the timeout"),
         )
-    } else if e.is_connect() {
+    } else if e.is_connect() || !reachable(base) {
         Failure::new(
             Exit::Unreachable,
             format!(

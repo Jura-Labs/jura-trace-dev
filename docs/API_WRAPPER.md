@@ -582,6 +582,16 @@ a result.
 | `verificationMode` | string | `quick`, `standard` or `deep` |
 | `timestampUtc` | string | RFC 3339 time the verification completed |
 
+### Same file, same result
+
+Verifying the same bytes twice in the same mode, on the same installation,
+gives the same response apart from `provenance.timestampUtc` and
+`methodology.analysedAt`. **(v1.2.0)** A test holds the server to this
+(`test_a8_the_same_file_gives_the_same_result`), so an archived result can
+be reproduced. A different version, different models (see
+`provenance.modelHashes`) or a sidecar that was unavailable for one of the
+two runs can give a different result, and the response says which.
+
 ### `methodology`
 
 An older block with overlapping content, kept because the PDF and case

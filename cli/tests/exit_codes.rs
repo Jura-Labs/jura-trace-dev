@@ -324,6 +324,18 @@ fn exit_2_when_nothing_is_listening() {
         "{}",
         stderr(&out)
     );
+    // A file large enough that the upload is under way when the connection
+    // is refused: reqwest calls that a body error, not a connect error.
+    // Found 4 October 2026 with a 163 KB JPEG, which exited 6.
+    let dir = tempfile::tempdir().unwrap();
+    let big = dir.path().join("big.jpg");
+    std::fs::write(&big, vec![0xffu8; 2 * 1024 * 1024]).unwrap();
+    let out = jura(
+        &format!("http://127.0.0.1:{port}"),
+        Some(KEY),
+        &["verify", p(&big)],
+    );
+    assert_eq!(code(&out), 2, "{}", stderr(&out));
 }
 
 // ── 3: auth ─────────────────────────────────────────────────────────────────
