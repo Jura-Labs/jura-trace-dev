@@ -1315,6 +1315,250 @@ fn verify_row_persisted() {
     drop(tmp_png);
 }
 
+// ── v1.2.0 B2a stage 4: assertions A6 and A8 (design section 11) ───────────────
+
+/// Every object key in a JSON value, at any depth.
+fn all_keys(v: &Value, out: &mut std::collections::BTreeSet<String>) {
+    match v {
+        Value::Object(map) => {
+            for (k, child) in map {
+                out.insert(k.clone());
+                all_keys(child, out);
+            }
+        }
+        Value::Array(items) => items.iter().for_each(|i| all_keys(i, out)),
+        _ => {}
+    }
+}
+
+/// A8. The same file verified twice gives the same JSON, apart from the
+/// fields that record when it ran. Callers archive these bodies as
+/// evidence; a result that changed between identical runs could not be
+/// reproduced.
+#[tokio::test]
+async fn test_a8_the_same_file_gives_the_same_result() {
+    let (base_url, auth, _) = server_with_key().await;
+    let client = reqwest::Client::new();
+    let mut bodies = Vec::new();
+    for _ in 0..2 {
+        let resp = client
+            .post(format!("{base_url}/api/v1/verify"))
+            .header("Authorization", &auth)
+            .multipart(reqwest::multipart::Form::new().part("file", png_part()))
+            .send()
+            .await
+            .expect("request");
+        assert_eq!(resp.status(), StatusCode::OK);
+        let mut body: Value = resp.json().await.expect("json");
+        // The floor: a real result, not two identical empty ones.
+        assert!(body["data"]["overallTrust"].is_number(), "{body}");
+        assert!(body["data"]["verdict"]["band"].is_string(), "{body}");
+        for time_field in [
+            "/data/provenance/timestampUtc",
+            "/data/methodology/analysedAt",
+        ] {
+            let slot = body
+                .pointer_mut(time_field)
+                .unwrap_or_else(|| panic!("{time_field} missing"));
+            assert!(slot.is_string(), "{time_field} should be a timestamp");
+            *slot = Value::Null;
+        }
+        bodies.push(body);
+    }
+    if bodies[0] != bodies[1] {
+        let (a, b) = (bodies[0].to_string(), bodies[1].to_string());
+        let at = a
+            .bytes()
+            .zip(b.bytes())
+            .position(|(x, y)| x != y)
+            .unwrap_or(0);
+        panic!(
+            "two verifications of one file differ near byte {at}:\n  {}\n  {}",
+            &a[at.saturating_sub(80)..(at + 80).min(a.len())],
+            &b[at.saturating_sub(80)..(at + 80).min(b.len())]
+        );
+    }
+}
+
+/// A6. Every field name in a JSON example in `docs/API_WRAPPER.md` exists in
+/// a real response from this server, so the document cannot drift from the
+/// wire again (BL-API-001: twenty rows of drift found in September 2026).
+///
+/// Names are taken from the ```json blocks with a pattern rather than a JSON
+/// parser, because several examples are fragments. The floor: the pattern
+/// must find more than thirty names, so a formatting change that made it
+/// find none cannot pass as a clean run.
+#[tokio::test]
+async fn test_a6_the_api_document_matches_the_wire() {
+    let doc = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../docs/API_WRAPPER.md"
+    ))
+    .expect("read docs/API_WRAPPER.md");
+    let mut documented = std::collections::BTreeSet::new();
+    let mut in_json = false;
+    for line in doc.lines() {
+        let t = line.trim_start();
+        if t.starts_with("```") {
+            in_json = t == "```json";
+            continue;
+        }
+        if !in_json {
+            continue;
+        }
+        let mut rest = line;
+        while let Some(start) = rest.find('"') {
+            let after = &rest[start + 1..];
+            let Some(end) = after.find('"') else { break };
+            let name = &after[..end];
+            let tail = after[end + 1..].trim_start();
+            if tail.starts_with(':')
+                && !name.is_empty()
+                && name.chars().next().unwrap().is_ascii_alphabetic()
+                && name.chars().all(|c| c.is_ascii_alphanumeric())
+            {
+                documented.insert(name.to_string());
+            }
+            rest = &after[end + 1..];
+        }
+    }
+    assert!(
+        documented.len() > 30,
+        "found only {} field names in the document's JSON examples; has its formatting changed? {documented:?}",
+        documented.len()
+    );
+
+    // Responses from every route the examples describe.
+    let (base_url, auth, _) = server_with_key().await;
+    let client = reqwest::Client::new();
+    let mut seen = std::collections::BTreeSet::new();
+    let mut take = |v: Value| all_keys(&v, &mut seen);
+
+    take(
+        reqwest::get(format!("{base_url}/api/v1/health"))
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap(),
+    );
+    take(
+        reqwest::get(format!("{base_url}/api/v1/ready"))
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap(),
+    );
+    let get = |path: &str| {
+        client
+            .get(format!("{base_url}{path}"))
+            .header("Authorization", &auth)
+            .send()
+    };
+    take(get("/api/v1/stats").await.unwrap().json().await.unwrap());
+    take(
+        get("/api/v1/auth/keys")
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap(),
+    );
+    let post_form = |path: &str, form: reqwest::multipart::Form| {
+        client
+            .post(format!("{base_url}{path}"))
+            .header("Authorization", &auth)
+            .multipart(form)
+            .send()
+    };
+    take(
+        post_form(
+            "/api/v1/verify",
+            reqwest::multipart::Form::new().part("file", png_part()),
+        )
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap(),
+    );
+    take(
+        post_form(
+            "/api/v1/verify/batch",
+            reqwest::multipart::Form::new()
+                .part("files", png_part())
+                .text("mode", "quick"),
+        )
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap(),
+    );
+    take(
+        post_form(
+            "/api/v1/protect/fingerprint",
+            reqwest::multipart::Form::new().part("file", png_part()),
+        )
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap(),
+    );
+    // An error body.
+    take(
+        post_form(
+            "/api/v1/verify",
+            reqwest::multipart::Form::new().text("mode", "quick"),
+        )
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap(),
+    );
+    // A new key, then a 429 from a key limited to one request a minute.
+    let created: Value = client
+        .post(format!("{base_url}/api/v1/auth/keys"))
+        .header("Authorization", &auth)
+        .json(&serde_json::json!({ "name": "a6", "rate_limit": 1 }))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let limited = format!(
+        "Bearer {}",
+        created["data"]["key"].as_str().expect("new key")
+    );
+    take(created);
+    for _ in 0..2 {
+        let resp = client
+            .get(format!("{base_url}/api/v1/stats"))
+            .header("Authorization", &limited)
+            .send()
+            .await
+            .unwrap();
+        take(resp.json().await.unwrap());
+    }
+
+    // The request bodies in the examples are not responses; their fields
+    // are checked against the request types instead.
+    let request_fields = ["url", "mode", "claim", "context", "name", "rate_limit"];
+    let missing: Vec<&String> = documented
+        .iter()
+        .filter(|f| !seen.contains(*f) && !request_fields.contains(&f.as_str()))
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "docs/API_WRAPPER.md shows fields no response has: {missing:?}. \
+         The server is the contract; correct the document."
+    );
+}
+
 // ── URL route: local and private addresses ───────────────────────────────────
 
 async fn post_verify_url(target: &str) -> (StatusCode, Value) {

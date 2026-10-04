@@ -324,6 +324,18 @@ fn exit_2_when_nothing_is_listening() {
         "{}",
         stderr(&out)
     );
+    // A file large enough that the upload is under way when the connection
+    // is refused: reqwest calls that a body error, not a connect error.
+    // Found 4 October 2026 with a 163 KB JPEG, which exited 6.
+    let dir = tempfile::tempdir().unwrap();
+    let big = dir.path().join("big.jpg");
+    std::fs::write(&big, vec![0xffu8; 2 * 1024 * 1024]).unwrap();
+    let out = jura(
+        &format!("http://127.0.0.1:{port}"),
+        Some(KEY),
+        &["verify", p(&big)],
+    );
+    assert_eq!(code(&out), 2, "{}", stderr(&out));
 }
 
 // ── 3: auth ─────────────────────────────────────────────────────────────────
@@ -340,6 +352,34 @@ fn exit_3_with_no_key_before_any_request() {
         stderr(&out)
     );
     assert!(seen.lock().unwrap().is_empty());
+}
+
+/// A server that refuses the key before reading the upload, and closes the
+/// connection, as the real server's middleware can. The client never reads
+/// that 401 while it is still sending; it must still exit 3, not 6.
+#[test]
+fn exit_3_when_the_key_is_refused_mid_upload() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+    std::thread::spawn(move || {
+        for mut stream in listener.incoming().flatten() {
+            let mut head = [0u8; 1024];
+            let _ = stream.read(&mut head);
+            let body = r#"{"code":"Unauthorized","message":"Valid API key required."}"#;
+            let _ = write!(
+                stream,
+                "HTTP/1.1 401 Unauthorized\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            // Close without draining the upload, so the client's write fails.
+            let _ = stream.shutdown(std::net::Shutdown::Both);
+        }
+    });
+    let dir = tempfile::tempdir().unwrap();
+    let big = dir.path().join("big.jpg");
+    std::fs::write(&big, vec![0xffu8; 8 * 1024 * 1024]).unwrap();
+    let out = jura(&base, Some(KEY), &["verify", p(&big)]);
+    assert_eq!(code(&out), 3, "{}", stderr(&out));
 }
 
 #[test]

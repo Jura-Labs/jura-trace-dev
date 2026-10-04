@@ -153,6 +153,17 @@ jobs:
       - name: cargo test
         run: cd src-tauri && cargo test
 
+      # Design section 11, assertions A4 and A5 against a real server: the
+      # built `jura` against jura-trace-api with no sidecar (exit codes from
+      # real responses), then against a sidecar that answers its health
+      # checks and analyses nothing, where scripts/assert_sidecar_ran.py
+      # must fail. The script fails unless every one of its cases ran.
+      - name: jura against a real jura-trace-api, and the A4 guard self-test
+        run: |
+          (cd src-tauri && cargo build --bin jura-trace-api)
+          (cd cli && cargo build --locked)
+          scripts/ci/cli-against-server.sh src-tauri/target/debug/jura-trace-api cli/target/debug/jura
+
       # Audit Rust dependencies against the RustSec advisory database.
       # Companion to pip-audit in the python job and the cross-ecosystem
       # OSV-Scanner workflow. Defence in depth: native scanners often pick

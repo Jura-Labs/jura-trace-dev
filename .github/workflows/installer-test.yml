@@ -62,7 +62,9 @@ jobs:
   linux-deb:
     name: Linux (deb)
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # 25 until the A3 step: building the CLI and waiting up to five minutes
+    # for a cold sidecar.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -239,6 +241,46 @@ jobs:
           fi
           echo "OK: the installed app runs and agrees with the tag."
 
+      # Design section 11, assertion A3 on the bytes that ship: the `jura` CLI
+      # from this checkout verifies a JPEG through the INSTALLED app, and the
+      # result must show the sidecar really ran (degraded false; ela, noise
+      # and deepfake present; at least ten detectors in deep mode), and must
+      # name the tag's version as its engine. The installers do not carry
+      # jura-trace-api yet, so the key is written straight into the installed
+      # app's database (scripts/ci/add_api_key.py).
+      - name: Verify a JPEG through the installed app with jura (A3)
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+          JURA_NO_KEYRING: "1"
+        run: |
+          set -uo pipefail
+          db=$(find "$HOME/.local/share/org.juralabs.trace" -name jura_trace.db 2>/dev/null | head -1)
+          if [ -z "$db" ]; then
+            echo "::error::No jura_trace.db under ~/.local/share/org.juralabs.trace; the app's data directory is not where startup.rs says."
+            ls -la "$HOME/.local/share" || true
+            exit 1
+          fi
+          export JURA_API_KEY=$(python3 scripts/ci/add_api_key.py "$db")
+          (cd cli && cargo build --locked --quiet)
+          jura=cli/target/debug/jura
+          "$jura" version | tee artefacts/jura-version.txt
+
+          "$jura" verify docs/c2pa-conformance/test-vectors/unsigned.jpg \
+            --mode deep --format json --wait-ready 300 --timeout 600 \
+            > artefacts/verify-unsigned.json 2> artefacts/verify-unsigned.err
+          rc=$?
+          cat artefacts/verify-unsigned.err
+          if [ "$rc" != 0 ]; then
+            echo "::error::jura verify exited $rc through the installed app (2 unreachable, 3 key refused, 7 the engine never became ready)."
+            exit 1
+          fi
+          python3 scripts/assert_sidecar_ran.py artefacts/verify-unsigned.json || {
+            echo "::error::The installed app answered, but its sidecar did not analyse the file (A3)."; exit 1; }
+          engine=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["data"]["provenance"]["engineVersion"])' artefacts/verify-unsigned.json)
+          echo "engine version: $engine (tag ${VERSION%%-*})"
+          [ "$engine" = "${VERSION%%-*}" ] || { echo "::error::The verification reports engine $engine, not ${VERSION%%-*}."; exit 1; }
+          echo "OK: a real verification through the installed app, with the sidecar."
+
       # A screenshot is not an assertion, and is not treated as one. It is for
       # a human to glance at, which is how the C2PA panel's "Tool: [object
       # Object]" would have been caught.
@@ -270,15 +312,15 @@ jobs:
             echo ""
             echo "**Proved:** the .deb downloads, declares the tag's version, installs,"
             echo "launches, and the running app answers /api/v1/health with a version"
-            echo "matching the tag."
+            echo "matching the tag. Then \`jura verify\` runs a deep verification of a"
+            echo "JPEG through the installed app and the result shows the sidecar ran"
+            echo "(A3) and names the tag's version as its engine."
             echo ""
-            echo "Sidecar available at probe time: \`${SIDECAR:-unknown}\`. This is"
-            echo "reported, not asserted: the sidecar starts asynchronously and a"
-            echo "cold runner is not evidence about a user's machine."
+            echo "Sidecar available at the first probe: \`${SIDECAR:-unknown}\`. The"
+            echo "A3 step waits up to five minutes for it before verifying."
             echo ""
-            echo "**Not proved by this job:** that the UI renders, that a verification"
-            echo "runs, or that an update applies. Those are the smoke flow and the"
-            echo "updater leg, which are still to be built. See BL-TEST-001."
+            echo "**Not proved by this job:** that the UI renders, or that an update"
+            echo "applies. See BL-TEST-001."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload artefacts
@@ -293,7 +335,8 @@ jobs:
   windows:
     name: Windows (MSI + NSIS)
     runs-on: windows-latest
-    timeout-minutes: 40
+    # 40 until the A3 step: a CLI build and up to five minutes for the sidecar.
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -552,6 +595,37 @@ jobs:
           if ($health.status -ne "ok") { throw "health status is '$($health.status)', expected 'ok'." }
           if ($health.version -ne $core) { throw "The running app reports '$($health.version)' but the tag is '$core'." }
           Write-Host "OK: the installed app runs and agrees with the tag."
+
+      # A3 on the installed Windows app: the same check as the Linux job.
+      - name: Verify a JPEG through the installed app with jura (A3)
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.tag.outputs.version }}
+          JURA_NO_KEYRING: "1"
+        run: |
+          $db = Get-ChildItem -Path "$env:APPDATA\org.juralabs.trace","$env:LOCALAPPDATA\org.juralabs.trace" `
+                  -Filter jura_trace.db -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $db) { throw "No jura_trace.db under %APPDATA% or %LOCALAPPDATA%\org.juralabs.trace." }
+          Write-Host "database: $($db.FullName)"
+          $env:JURA_API_KEY = (python scripts/ci/add_api_key.py $db.FullName).Trim()
+          if ($LASTEXITCODE -ne 0) { throw "could not add an API key" }
+          Push-Location cli; cargo build --locked --quiet; $built = $LASTEXITCODE; Pop-Location
+          if ($built -ne 0) { throw "cargo build of the CLI failed with $built" }
+          $jura = "cli\target\debug\jura.exe"
+          & $jura version | Tee-Object artefacts\jura-version.txt
+
+          & $jura verify docs\c2pa-conformance\test-vectors\unsigned.jpg --mode deep --format json `
+              --wait-ready 300 --timeout 600 1> artefacts\verify-unsigned.json 2> artefacts\verify-unsigned.err
+          $rc = $LASTEXITCODE
+          Get-Content artefacts\verify-unsigned.err
+          if ($rc -ne 0) { throw "jura verify exited $rc through the installed app (2 unreachable, 3 key refused, 7 the engine never became ready)." }
+          python scripts/assert_sidecar_ran.py artefacts\verify-unsigned.json
+          if ($LASTEXITCODE -ne 0) { throw "The installed app answered, but its sidecar did not analyse the file (A3)." }
+          $engine = (Get-Content artefacts\verify-unsigned.json -Raw | ConvertFrom-Json).data.provenance.engineVersion
+          $core = $env:VERSION.Split("-")[0]
+          Write-Host "engine version: $engine (tag $core)"
+          if ($engine -ne $core) { throw "The verification reports engine $engine, not $core." }
+          Write-Host "OK: a real verification through the installed app, with the sidecar."
 
       - name: Stop the app
         if: always()
