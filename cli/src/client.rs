@@ -105,40 +105,71 @@ impl Client {
         self.send(req)
     }
 
+    /// Upload one file to `POST /api/v1/protect/sign`. Returns the signed
+    /// file's bytes and the filename the server suggests.
+    pub fn sign_file(
+        &self,
+        path: &Path,
+        creator: &str,
+        license: Option<&str>,
+        timestamp: Option<bool>,
+    ) -> Result<(Vec<u8>, Option<String>), Failure> {
+        check_local_file(path)?;
+        let part = reqwest::blocking::multipart::Part::file(path).map_err(|e| {
+            Failure::new(Exit::File, format!("{}: cannot read: {e}", path.display()))
+        })?;
+        let mut form = reqwest::blocking::multipart::Form::new()
+            .part("file", part)
+            .text("creator_name", creator.to_string());
+        if let Some(l) = license {
+            form = form.text("license", l.to_string());
+        }
+        if let Some(t) = timestamp {
+            form = form.text("timestamp", if t { "yes" } else { "no" });
+        }
+        let req = self.authorised(
+            self.http
+                .post(self.url("/api/v1/protect/sign"))
+                .multipart(form),
+        )?;
+        let resp = req.send().map_err(|e| self.transport_failure(&e))?;
+        let status = resp.status();
+        let suggested = resp
+            .headers()
+            .get(reqwest::header::CONTENT_DISPOSITION)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.split("filename=").nth(1))
+            .map(|f| f.trim_matches(|c| c == '"' || c == ' ').to_string());
+        let bytes = resp.bytes().map_err(|e| self.transport_failure(&e))?;
+        if !status.is_success() {
+            return Err(api_failure(status, &String::from_utf8_lossy(&bytes)));
+        }
+        if bytes.is_empty() {
+            return Err(Failure::new(
+                Exit::Server,
+                format!("{} answered {status} with an empty file", self.base),
+            ));
+        }
+        Ok((bytes.to_vec(), suggested))
+    }
+
     fn send(&self, req: reqwest::blocking::RequestBuilder) -> Result<Response, Failure> {
         let resp = req.send().map_err(|e| self.transport_failure(&e))?;
         let status = resp.status();
         let raw = resp.text().map_err(|e| self.transport_failure(&e))?;
-        let json: Option<Value> = serde_json::from_str(&raw).ok();
-        if status.is_success() {
-            return match json {
-                Some(json) => Ok(Response { raw, json }),
-                None => Err(Failure::new(
-                    Exit::Server,
-                    format!(
-                        "{} answered {status} with a body that is not JSON",
-                        self.base
-                    ),
-                )),
-            };
+        if !status.is_success() {
+            return Err(api_failure(status, &raw));
         }
-        let code = json
-            .as_ref()
-            .and_then(|j| j.get("code"))
-            .and_then(Value::as_str);
-        let message = json
-            .as_ref()
-            .and_then(|j| j.get("message"))
-            .and_then(Value::as_str)
-            .unwrap_or_else(|| status.canonical_reason().unwrap_or("error"));
-        let exit = from_api_error(status.as_u16(), code);
-        Err(Failure::new(
-            exit,
-            match code {
-                Some(code) => format!("{message} ({code}, HTTP {})", status.as_u16()),
-                None => format!("{message} (HTTP {})", status.as_u16()),
-            },
-        ))
+        match serde_json::from_str(&raw) {
+            Ok(json) => Ok(Response { raw, json }),
+            Err(_) => Err(Failure::new(
+                Exit::Server,
+                format!(
+                    "{} answered {status} with a body that is not JSON",
+                    self.base
+                ),
+            )),
+        }
     }
 
     fn transport_failure(&self, e: &reqwest::Error) -> Failure {
@@ -211,6 +242,28 @@ impl Client {
             Err(_) => None,
         }
     }
+}
+
+/// The failure an error response means: its `code` decides, then its HTTP
+/// status (design 7.3).
+fn api_failure(status: reqwest::StatusCode, raw: &str) -> Failure {
+    let json: Option<Value> = serde_json::from_str(raw).ok();
+    let code = json
+        .as_ref()
+        .and_then(|j| j.get("code"))
+        .and_then(Value::as_str);
+    let message = json
+        .as_ref()
+        .and_then(|j| j.get("message"))
+        .and_then(Value::as_str)
+        .unwrap_or_else(|| status.canonical_reason().unwrap_or("error"));
+    Failure::new(
+        from_api_error(status.as_u16(), code),
+        match code {
+            Some(code) => format!("{message} ({code}, HTTP {})", status.as_u16()),
+            None => format!("{message} (HTTP {})", status.as_u16()),
+        },
+    )
 }
 
 /// Whether anything accepts a TCP connection at the API address. Used when

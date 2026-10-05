@@ -77,7 +77,10 @@ pub fn from_api_error(status: u16, code: Option<&str>) -> Exit {
         Some("MissingField")
         | Some("InvalidParameter")
         | Some("UnsupportedParameter")
-        | Some("BadRequest") => Exit::Usage,
+        | Some("BadRequest")
+        // Signing in Standard network mode before anyone has chosen whether
+        // to timestamp: answered with --timestamp or --no-timestamp.
+        | Some("TimestampChoiceRequired") => Exit::Usage,
         Some("RateLimitExceeded") | Some("ServiceUnavailable") | Some("Internal") => Exit::Server,
         _ => match status {
             401 | 403 => Exit::Auth,

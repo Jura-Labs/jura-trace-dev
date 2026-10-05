@@ -100,9 +100,16 @@ fn serve(mut stream: TcpStream, handler: &Handler, log: &Mutex<Vec<Seen>>) {
     log.lock().unwrap().push(seen.clone());
     let (status, payload, delay) = handler(&seen);
     std::thread::sleep(delay);
+    // The sign route answers with the file and a suggested name, as the
+    // real server does.
+    let disposition = if seen.path == "/api/v1/protect/sign" && status == 200 {
+        "Content-Disposition: attachment; filename=\"photo_signed.jpg\"\r\n"
+    } else {
+        ""
+    };
     let _ = write!(
         stream,
-        "HTTP/1.1 {status} X\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{payload}",
+        "HTTP/1.1 {status} X\r\nContent-Type: application/json\r\n{disposition}Content-Length: {}\r\nConnection: close\r\n\r\n{payload}",
         payload.len()
     );
 }
@@ -601,6 +608,120 @@ fn verify_url_posts_json_with_the_mode() {
         body,
         json!({ "url": "https://example.org/a.jpg", "mode": "quick" })
     );
+}
+
+// ── sign ────────────────────────────────────────────────────────────────────
+
+fn sign_server() -> (String, Arc<Mutex<Vec<Seen>>>) {
+    stub(|s| match s.path.as_str() {
+        "/api/v1/protect/sign" => (200, "SIGNED-BYTES".into(), Duration::ZERO),
+        _ => err(404, "NotFound"),
+    })
+}
+
+#[test]
+fn sign_writes_the_copy_beside_the_original() {
+    let (base, seen) = sign_server();
+    let (dir, file) = photo();
+    let out = jura(
+        &base,
+        Some(KEY),
+        &[
+            "sign",
+            p(&file),
+            "--creator",
+            "Ada Lovelace",
+            "--license",
+            "CC-BY-4.0",
+        ],
+    );
+    assert_eq!(code(&out), 0, "{}", stderr(&out));
+    let signed = dir.path().join("photo_signed.jpg");
+    assert_eq!(std::fs::read(&signed).unwrap(), b"SIGNED-BYTES");
+    assert!(
+        stdout(&out).contains("photo_signed.jpg"),
+        "{}",
+        stdout(&out)
+    );
+    let req = seen.lock().unwrap()[0].clone();
+    assert!(req.body.contains("name=\"creator_name\"") && req.body.contains("Ada Lovelace"));
+    assert!(req.body.contains("CC-BY-4.0"));
+    assert!(
+        !req.body.contains("name=\"timestamp\""),
+        "no timestamp field unless asked"
+    );
+    // The original is untouched.
+    assert_ne!(std::fs::read(&file).unwrap(), b"SIGNED-BYTES");
+
+    // An existing copy is not replaced without --force, and nothing is sent.
+    let before = seen.lock().unwrap().len();
+    let out = jura(
+        &base,
+        Some(KEY),
+        &["sign", p(&file), "--creator", "Ada", "-o", p(&signed)],
+    );
+    assert_eq!(code(&out), 4, "{}", stderr(&out));
+    assert_eq!(seen.lock().unwrap().len(), before);
+    let out = jura(
+        &base,
+        Some(KEY),
+        &[
+            "sign",
+            p(&file),
+            "--creator",
+            "Ada",
+            "-o",
+            p(&signed),
+            "--force",
+            "--no-timestamp",
+        ],
+    );
+    assert_eq!(code(&out), 0, "{}", stderr(&out));
+    let last = seen.lock().unwrap().last().unwrap().clone();
+    assert!(
+        last.body.contains("name=\"timestamp\"") && last.body.contains("\r\n\r\nno\r\n"),
+        "{}",
+        last.body.len()
+    );
+}
+
+#[test]
+fn sign_exit_codes() {
+    let (_d, file) = photo();
+    // The timestamp question, unanswered: 1, with the server's advice.
+    let (base, _) = stub(|_| err(409, "TimestampChoiceRequired"));
+    let out = jura(&base, Some(KEY), &["sign", p(&file), "--creator", "Ada"]);
+    assert_eq!(code(&out), 1, "{}", stderr(&out));
+    assert!(stderr(&out).contains("TimestampChoiceRequired"));
+    // A format the server cannot sign: 5.
+    let (base, _) = stub(|_| err(422, "C2pa"));
+    assert_eq!(
+        code(&jura(
+            &base,
+            Some(KEY),
+            &["sign", p(&file), "--creator", "Ada"]
+        )),
+        5
+    );
+    // No --creator, or both timestamp flags: usage, before any request.
+    let (base, seen) = sign_server();
+    assert_eq!(code(&jura(&base, Some(KEY), &["sign", p(&file)])), 1);
+    assert_eq!(
+        code(&jura(
+            &base,
+            Some(KEY),
+            &[
+                "sign",
+                p(&file),
+                "--creator",
+                "A",
+                "--timestamp",
+                "--no-timestamp"
+            ]
+        )),
+        1
+    );
+    assert!(seen.lock().unwrap().is_empty());
 }
 
 // ── version and auth ────────────────────────────────────────────────────────

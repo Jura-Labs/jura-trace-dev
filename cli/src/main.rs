@@ -81,11 +81,45 @@ enum Command {
     /// Use --fail-on to exit 20 on a band, and --require-complete to exit 8 on
     /// a degraded result.
     Verify(VerifyArgs),
+    /// Add Content Credentials (a C2PA manifest) naming you as the creator,
+    /// and write the signed copy.
+    ///
+    /// The original is never changed. The signed copy goes beside it as
+    /// <name>_signed.<ext> unless --output says otherwise.
+    Sign(SignArgs),
     /// Print the versions of this client, the server and its API.
     Version,
     /// Store, inspect or test the API key.
     #[command(subcommand)]
     Auth(AuthCommand),
+}
+
+#[derive(Args)]
+struct SignArgs {
+    /// The file to sign.
+    #[arg(value_name = "PATH")]
+    path: PathBuf,
+    /// The creator or rights holder to name in the credentials.
+    #[arg(long, value_name = "NAME")]
+    creator: String,
+    /// An SPDX licence identifier to record, such as CC-BY-4.0.
+    #[arg(long, value_name = "SPDX")]
+    license: Option<String>,
+    /// Where to write the signed copy.
+    #[arg(long, short = 'o', value_name = "PATH")]
+    output: Option<PathBuf>,
+    /// Replace the output file if it exists.
+    #[arg(long)]
+    force: bool,
+    /// Ask for a trusted timestamp in the signature. Only needed when the
+    /// installation is in Standard network mode and nobody has chosen; it
+    /// must agree with a choice already made.
+    #[arg(long, conflicts_with = "no_timestamp")]
+    timestamp: bool,
+    /// Sign without a trusted timestamp (no network request). The same
+    /// conditions as --timestamp.
+    #[arg(long)]
+    no_timestamp: bool,
 }
 
 #[derive(Args)]
@@ -225,6 +259,7 @@ fn run(cli: Cli) -> Result<Exit, Failure> {
     let ctx = Ctx { global: cli.global };
     match cli.command {
         Command::Verify(args) => verify(&ctx, args),
+        Command::Sign(args) => sign(&ctx, args),
         Command::Version => version(&ctx),
         Command::Auth(cmd) => auth(&ctx, cmd),
     }
@@ -280,6 +315,98 @@ fn verify(ctx: &Ctx, args: VerifyArgs) -> Result<Exit, Failure> {
         (Some(code), _) => code,
         (None, true) => Exit::Verdict,
         (None, false) => Exit::Success,
+    })
+}
+
+fn sign(ctx: &Ctx, args: SignArgs) -> Result<Exit, Failure> {
+    let timestamp = match (args.timestamp, args.no_timestamp) {
+        (true, _) => Some(true),
+        (_, true) => Some(false),
+        _ => None,
+    };
+    let client = ctx.client()?;
+    // Decide the output path first, so an existing file fails before the
+    // upload rather than after.
+    let fallback = || {
+        let stem = args
+            .path
+            .file_stem()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "file".into());
+        let ext = args
+            .path
+            .extension()
+            .map(|e| format!(".{}", e.to_string_lossy()))
+            .unwrap_or_default();
+        args.path.with_file_name(format!("{stem}_signed{ext}"))
+    };
+    if let Some(out) = &args.output {
+        refuse_existing(out, args.force)?;
+    }
+    let (bytes, suggested) = client.sign_file(
+        &args.path,
+        &args.creator,
+        args.license.as_deref(),
+        timestamp,
+    )?;
+    // The server names the copy from the format it detected, which can
+    // correct a wrong extension; keep it, in the original's directory.
+    let output = args.output.clone().unwrap_or_else(|| {
+        suggested
+            .filter(|n| !n.contains(['/', '\\']) && !n.starts_with('.'))
+            .map(|n| args.path.with_file_name(n))
+            .unwrap_or_else(fallback)
+    });
+    refuse_existing(&output, args.force)?;
+    write_atomically(&output, &bytes)?;
+
+    match ctx.global.format {
+        Format::Json => {
+            let doc = serde_json::json!({
+                "input": args.path.display().to_string(),
+                "output": output.display().to_string(),
+                "bytes": bytes.len(),
+            });
+            println!("{doc}");
+        }
+        Format::Text => println!(
+            "{} -> {} ({} bytes, Content Credentials naming {})",
+            args.path.display(),
+            output.display(),
+            bytes.len(),
+            args.creator
+        ),
+    }
+    Ok(Exit::Success)
+}
+
+fn refuse_existing(path: &std::path::Path, force: bool) -> Result<(), Failure> {
+    if path.exists() && !force {
+        return Err(Failure::new(
+            Exit::File,
+            format!(
+                "{} already exists; use --force to replace it",
+                path.display()
+            ),
+        ));
+    }
+    Ok(())
+}
+
+/// Write beside the target and rename, so a failure never leaves half a
+/// file under the final name.
+fn write_atomically(path: &std::path::Path, bytes: &[u8]) -> Result<(), Failure> {
+    let tmp = path.with_file_name(format!(
+        ".{}.jura-partial",
+        path.file_name()
+            .map(|n| n.to_string_lossy())
+            .unwrap_or_default()
+    ));
+    let fail = |e: std::io::Error| Failure::new(Exit::File, format!("{}: {e}", path.display()));
+    std::fs::write(&tmp, bytes).map_err(fail)?;
+    std::fs::rename(&tmp, path).map_err(|e| {
+        let _ = std::fs::remove_file(&tmp);
+        fail(e)
     })
 }
 

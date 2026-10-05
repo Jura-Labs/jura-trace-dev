@@ -2126,6 +2126,98 @@ async fn test_ready_turns_failed_when_the_sidecar_dies() {
         .expect("join");
 }
 
+// ── v1.2.0 B2a stage 6: signing with no window to ask in ─────────────────────
+
+/// Put the test server's installation into Standard network mode, with or
+/// without a remembered answer about timestamps.
+fn set_standard_mode(state: &Arc<Mutex<AppState>>, remembered: Option<bool>) {
+    let db_path = std::path::PathBuf::from(&state.lock().unwrap().db_path);
+    let mut config = serde_json::json!({ "mode": "standard" });
+    if let Some(answer) = remembered {
+        config["standard_mode_timestamp"] = Value::Bool(answer);
+    }
+    std::fs::write(
+        db_path.parent().unwrap().join("network_mode.json"),
+        config.to_string(),
+    )
+    .unwrap();
+}
+
+async fn sign(base_url: &str, auth: &str, timestamp: Option<&str>) -> reqwest::Response {
+    let mut form = reqwest::multipart::Form::new()
+        .part("file", png_part())
+        .text("creator_name", "Test Creator");
+    if let Some(t) = timestamp {
+        form = form.text("timestamp", t.to_string());
+    }
+    reqwest::Client::new()
+        .post(format!("{base_url}/api/v1/protect/sign"))
+        .header("Authorization", auth)
+        .multipart(form)
+        .send()
+        .await
+        .expect("request")
+}
+
+/// In Standard mode with nobody asked, a caller with no window can answer
+/// for one request; it is not remembered. Every case here signs without a
+/// timestamp or refuses, so none of them reaches the network.
+#[tokio::test]
+async fn test_sign_takes_a_timestamp_answer_only_when_nobody_has_chosen() {
+    let (base_url, auth, state) = server_with_key().await;
+    set_standard_mode(&state, None);
+
+    let resp = sign(&base_url, &auth, None).await;
+    assert_eq!(resp.status(), StatusCode::CONFLICT);
+    let body: Value = resp.json().await.unwrap();
+    assert_eq!(body["code"], "TimestampChoiceRequired", "{body}");
+    assert!(
+        body["message"].as_str().unwrap().contains("timestamp=no"),
+        "{body}"
+    );
+
+    let resp = sign(&base_url, &auth, Some("maybe")).await;
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    let body: Value = resp.json().await.unwrap();
+    assert_eq!(body["code"], "InvalidParameter", "{body}");
+
+    let resp = sign(&base_url, &auth, Some("no")).await;
+    assert_eq!(resp.status(), StatusCode::OK);
+    let bytes = resp.bytes().await.unwrap();
+    assert!(bytes.starts_with(b"\x89PNG"), "a PNG comes back");
+    assert!(
+        bytes.windows(4).any(|w| w == b"c2pa"),
+        "the PNG carries a C2PA manifest"
+    );
+
+    // Not remembered: the next request without the field is asked again.
+    let resp = sign(&base_url, &auth, None).await;
+    assert_eq!(resp.status(), StatusCode::CONFLICT);
+}
+
+/// A remembered choice is never overridden by the request.
+#[tokio::test]
+async fn test_sign_refuses_to_contradict_a_remembered_choice() {
+    let (base_url, auth, state) = server_with_key().await;
+    set_standard_mode(&state, Some(false));
+
+    let resp = sign(&base_url, &auth, Some("yes")).await;
+    assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    let body: Value = resp.json().await.unwrap();
+    assert_eq!(body["code"], "InvalidParameter", "{body}");
+    assert!(
+        body["message"].as_str().unwrap().contains("without"),
+        "{body}"
+    );
+
+    // Agreeing with it, or not mentioning it, signs.
+    assert_eq!(
+        sign(&base_url, &auth, Some("no")).await.status(),
+        StatusCode::OK
+    );
+    assert_eq!(sign(&base_url, &auth, None).await.status(), StatusCode::OK);
+}
+
 // ── Test image helper ─────────────────────────────────────────────────────────
 
 /// A valid 16×16 pixel PNG in raw bytes.

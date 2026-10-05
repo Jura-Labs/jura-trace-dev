@@ -104,6 +104,19 @@ JURA_API_KEY="jt_$(printf '0%.0s' $(seq 1 64))" expect 3 "a rejected key" verify
 JURA_API_KEY="" expect 3 "no key" verify "$FIXTURE"
 JURA_API_URL="http://127.0.0.1:$(free_port)" expect 2 "nothing listening" verify "$FIXTURE"
 
+# jura sign against the real server. Standard network mode with nobody
+# asked, so the signature must be made with --no-timestamp and nothing goes
+# to a timestamp server; the copy must then carry Content Credentials.
+printf '{"mode":"standard"}' > "$(dirname "$DB1")/network_mode.json"
+expect 1 "sign with the timestamp question unanswered" sign "$FIXTURE" --creator "CI" -o "$W/signed.jpg"
+expect 0 "sign without a timestamp" sign "$FIXTURE" --creator "CI" --no-timestamp -o "$W/signed.jpg"
+expect 0 "verify the signed copy" verify "$W/signed.jpg" --mode quick --format json --compact
+if python3 -c 'import json,sys; b=json.load(open(sys.argv[1])); m=b["data"]["c2paManifest"]; assert m and m["assertions"], m' "$W/out"; then
+  PASS=$((PASS + 1)); echo "PASS  the signed copy carries a C2PA manifest"
+else
+  FAIL=$((FAIL + 1)); echo "FAIL  the signed copy has no C2PA manifest"; head -c 400 "$W/out"; echo
+fi
+
 # ── Part 2: the guard self-test (A4) ──────────────────────────────────────
 
 DB2="$W/two.db"
@@ -135,7 +148,7 @@ fi
 
 # ── Verdict ───────────────────────────────────────────────────────────────
 
-EXPECTED=19
+EXPECTED=23
 echo
 echo "$PASS passed, $FAIL failed, of $EXPECTED"
 [ "$FAIL" = 0 ] && [ "$PASS" = "$EXPECTED" ] || exit 1
