@@ -802,8 +802,8 @@
   }
 
   // ── API Key Management ──────────────────────────────────────────────────
-  // Available on Professional and Enterprise tiers (Team retired 2026-05-04).
-  // Keys authenticate against the local REST API on port 8300.
+  // Every tier from v1.2.0. Keys authenticate against the local REST API on
+  // port 8300.
 
   let apiKeys = $state<ApiKeyInfo[]>([]);
   let apiKeysLoading = $state(false);
@@ -815,7 +815,6 @@
   let apiKeyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
   let pendingRevokeId = $state<string | null>(null);
 
-  const apiKeysAvailable = $derived(currentTier === 'professional' || currentTier === 'enterprise');
   const activeKeyCount = $derived(apiKeys.filter(k => !k.revoked).length);
 
   async function loadApiKeys() {
@@ -2934,12 +2933,10 @@
   </section>
   {/if}
 
-  <!-- API Key Management — hidden in v1.0 Community-only launch.
-       V1_SHOW_API_KEYS=false hides the entire section. Backend (`api_keys`
-       table, listApiKeys / createApiKey / revokeApiKey IPC, Axum auth
-       middleware on port 8300) stays in tree; flipping the flag in
-       $lib/featureFlags.ts re-enables this surface alongside the v1.1
-       Pro-tier UI unhide (JTV-170-176). -->
+  <!-- API Key Management. Shown to every tier from v1.2.0: the REST API and
+       the jura CLI are free in Community (decided 23 September 2026). Hidden
+       until then, which also hid that keys made here never authenticated
+       (they were hashed with their jt_ prefix; fixed in api::auth::new_key). -->
   {#if V1_SHOW_API_KEYS}
   <section
     class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-6"
@@ -2950,20 +2947,16 @@
       <ContextualHelpLink href="/help/settings#api-keys" label="Learn about API key management" />
     </div>
     <p class="text-xs muted-help mb-4">
-      Manage authentication keys for the local REST API on port 8300. Keys allow external tools (CI pipelines, n8n workflows, custom scripts) to call the Jura Trace verification engine programmatically.
+      Keys for the local REST API on 127.0.0.1:8300, which lets scripts and other tools (CI pipelines, n8n workflows, the <code>jura</code> command-line client) run the same analysis as this app, on this machine. A key is shown once, when you create it.
+    </p>
+    <p class="text-xs muted-help mb-4">
+      The <code>jura</code> and <code>jura-trace-api</code> programs are installed beside the app.
+      <a
+        href="/help/settings#api-keys"
+        class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+      >Help</a> says where they are and how to run a first verification.
     </p>
 
-    {#if !apiKeysAvailable}
-      <div class="p-4 rounded-lg border border-lapis/20 bg-lapis/5">
-        <p class="text-sm text-flint-dark dark:text-flint-light">
-          A local REST API listens on 127.0.0.1:8300, but managing its keys is not yet possible in the app, so it cannot be used yet. Full API access is planned for a coming release and will be free in the Community edition. For early API access enquiries, email
-          <a
-            href="mailto:consultancy@juralabs.org"
-            class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
-          >consultancy@juralabs.org</a>.
-        </p>
-      </div>
-    {:else}
       <!-- Newly created key banner (shown once, dismissed by user) -->
       {#if newlyCreatedKey}
         <div
@@ -3150,7 +3143,6 @@
           {activeKeyCount} active key{activeKeyCount === 1 ? '' : 's'} &middot; {apiKeys.length} total
         </p>
       {/if}
-    {/if}
   </section>
   {/if}
 

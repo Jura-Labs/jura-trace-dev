@@ -251,16 +251,12 @@ fn mint_key(
     name: &str,
     rate_limit: i64,
 ) -> Result<(String, String), String> {
-    let raw = format!(
-        "{}{}",
-        uuid::Uuid::new_v4().simple(),
-        uuid::Uuid::new_v4().simple()
-    );
+    let (key, hash) = crate::api::auth::new_key();
     let key_id = uuid::Uuid::new_v4().to_string();
     database
-        .create_api_key(&key_id, name, &crate::api::auth::hash_key(&raw), rate_limit)
+        .create_api_key(&key_id, name, &hash, rate_limit)
         .map_err(|e| format!("could not store the key: {e}"))?;
-    Ok((format!("jt_{raw}"), key_id))
+    Ok((key, key_id))
 }
 
 fn keys_add(name: &str, rate_limit: i64, db: Option<PathBuf>) -> i32 {

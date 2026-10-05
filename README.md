@@ -102,7 +102,8 @@ jura verify photo.jpg --wait-ready
 ```
 
 See [docs/CLI_QUICKSTART.md](docs/CLI_QUICKSTART.md) for where each installer
-puts them and how to script with them.
+puts them and how to script with them. In the app, Help, Settings, "API keys
+and the command line" covers the same ground.
 
 ## Documentation
 

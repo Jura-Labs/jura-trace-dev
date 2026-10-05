@@ -36,21 +36,14 @@
 export const V1_SHOW_CONFORMANT_SIGNING = false;
 
 /**
- * API Keys section in Settings (key creation, revocation, rate-limit picker).
+ * API key management in Settings.
  *
- * v1.0:  false  — hide the entire section. The REST API on port 8300 ships
- *                 in v1.0 (CLI groundwork JTV-181/182 lands as additive
- *                 fields) but key-based authentication is a Pro-tier UX
- *                 surface that has no audience in the Community-only launch.
- *                 Backend (`api_keys` table, `listApiKeys` / `createApiKey`
- *                 / `revokeApiKey` IPC commands, Axum auth middleware) stays
- *                 in tree — flipping this flag re-enables the UI.
- * v1.1:  true   — re-enable alongside the Pro tier UI unhide (paired with
- *                 project_v102_pro_launch, JTV-170-176). At that point the
- *                 existing `apiKeysAvailable = currentTier === 'professional'
- *                 || currentTier === 'enterprise'` derived state takes over.
+ * v1.0 to v1.1: false, hidden with the Pro-tier UI.
+ * v1.2.0: true, for every tier. The REST API and the jura CLI are free in
+ *         Community (decided 23 September 2026), and the installers ship
+ *         jura and jura-trace-api, so a user needs somewhere to make a key.
  */
-export const V1_SHOW_API_KEYS = false;
+export const V1_SHOW_API_KEYS = true;
 
 /**
  * Invisible-watermark embed UI (Protect page: single-asset embed form,

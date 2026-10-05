@@ -25,7 +25,6 @@ use crate::watermark;
 use crate::{fingerprint, format_router, AppState};
 
 use super::{
-    auth::hash_key,
     error::ApiError,
     types::{
         ApiResponse, ClaimCheckRequest, CreateKeyRequest, CreateKeyResponse, FingerprintEntry,
@@ -1039,13 +1038,8 @@ pub async fn create_api_key(
         // entropy matches the sidecar shared secret pattern. SHA-256 hashed
         // before storage; entropy of the raw key is the only thing that
         // matters for resistance to brute force.
-        let raw_key = format!(
-            "{}{}",
-            uuid::Uuid::new_v4().simple(),
-            uuid::Uuid::new_v4().simple(),
-        );
+        let (key, key_hash) = super::auth::new_key();
         let key_id = uuid::Uuid::new_v4().to_string();
-        let key_hash = hash_key(&raw_key);
         let now = chrono::Utc::now().to_rfc3339();
 
         let guard = state
@@ -1059,7 +1053,7 @@ pub async fn create_api_key(
 
         Ok(CreateKeyResponse {
             key_id,
-            key: format!("jt_{raw_key}"),
+            key,
             name,
             rate_limit,
             created_at: now,
