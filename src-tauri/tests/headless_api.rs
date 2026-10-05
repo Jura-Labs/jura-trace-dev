@@ -163,3 +163,76 @@ fn usage_errors_exit_1() {
         assert_eq!(out.status.code(), Some(1), "{args:?}");
     }
 }
+
+/// --ephemeral: a fresh database and data folder, a key printed once, and
+/// nothing left behind after a clean stop.
+#[test]
+fn ephemeral_session_leaves_nothing_behind() {
+    let port = free_port();
+    let mut child = Command::new(BIN)
+        .args(["--port", &port.to_string(), "--no-sidecar", "--ephemeral"])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut out = BufReader::new(child.stdout.take().unwrap());
+    let mut key_line = String::new();
+    out.read_line(&mut key_line).unwrap();
+    let key = key_line
+        .trim()
+        .strip_prefix("jura-trace-api: ephemeral key ")
+        .unwrap_or_else(|| panic!("first line should carry the key: {key_line:?}"))
+        .to_string();
+    let mut listening = String::new();
+    out.read_line(&mut listening).unwrap();
+    assert!(
+        listening.contains(&format!("127.0.0.1:{port}")),
+        "{listening}"
+    );
+
+    // Where the session lives, from stderr.
+    let mut err = BufReader::new(child.stderr.take().unwrap());
+    let mut folder = None;
+    for _ in 0..50 {
+        let mut line = String::new();
+        if err.read_line(&mut line).unwrap() == 0 {
+            break;
+        }
+        if let Some(rest) = line.split("ephemeral session in ").nth(1) {
+            folder = Some(std::path::PathBuf::from(
+                rest.split(". It is deleted").next().unwrap(),
+            ));
+            break;
+        }
+    }
+    let folder = folder.expect("stderr names the session folder");
+    assert!(
+        folder.join("jura_trace.db").is_file(),
+        "{}",
+        folder.display()
+    );
+    assert!(folder.join("network_mode.json").is_file());
+
+    // The printed key works, and nothing else does.
+    let (status, body) = get(port, "/api/v1/stats", Some(&key));
+    assert_eq!(status, 200, "{body}");
+    assert_eq!(get(port, "/api/v1/stats", None).0, 401);
+
+    if cfg!(unix) {
+        assert_eq!(stop(child), Some(0));
+        assert!(!folder.exists(), "{} was left behind", folder.display());
+    } else {
+        // A killed process on Windows does not run the cleanup; covered on Unix.
+        stop(child);
+    }
+}
+
+#[test]
+fn ephemeral_and_db_together_is_a_usage_error() {
+    let out = Command::new(BIN)
+        .args(["--ephemeral", "--db", "/tmp/x.db", "--no-sidecar"])
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("--ephemeral"));
+}
