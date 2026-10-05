@@ -56,7 +56,8 @@ struct Global {
     #[arg(long, global = true, value_name = "KEY")]
     api_key: Option<String>,
     /// Output format. `text` is for people and may change in any release;
-    /// scripts use `json`, which is the API response body.
+    /// scripts use `json`, which is the API response body, or `ndjson`, one
+    /// line per input naming the input and its exit code.
     #[arg(long, global = true, value_enum, default_value_t = Format::Text)]
     format: Format,
     /// With --format json, one line per document instead of pretty-printed.
@@ -71,6 +72,10 @@ struct Global {
 enum Format {
     Text,
     Json,
+    /// One line per input for `verify`:
+    /// {"input": ..., "exit": n, "response": <the API body>} on success,
+    /// {"input": ..., "exit": n, "error": {"message": ...}} on failure.
+    Ndjson,
 }
 
 #[derive(Subcommand)]
@@ -244,6 +249,8 @@ impl Ctx {
     fn print(&self, label: &str, resp: &client::Response) {
         let out = match self.global.format {
             Format::Json if self.global.compact => resp.raw.trim().to_string(),
+            // `verify` writes its own NDJSON lines; elsewhere it is compact JSON.
+            Format::Ndjson => pretty::compact(resp.raw.trim()),
             Format::Json => pretty::pretty(resp.raw.trim()),
             Format::Text => verdict::text(label, &resp.json).trim_end().to_string(),
         };
@@ -253,7 +260,7 @@ impl Ctx {
 }
 
 fn run(cli: Cli) -> Result<Exit, Failure> {
-    if cli.global.compact && cli.global.format != Format::Json {
+    if cli.global.compact && cli.global.format == Format::Text {
         return Err(Failure::new(Exit::Usage, "--compact needs --format json"));
     }
     let ctx = Ctx { global: cli.global };
@@ -295,10 +302,24 @@ fn verify(ctx: &Ctx, args: VerifyArgs) -> Result<Exit, Failure> {
             Input::Url(url) => (url.clone(), client.verify_url(url, mode)),
             Input::File(path) => (path.display().to_string(), client.verify_file(path, mode)),
         };
+        let ndjson = ctx.global.format == Format::Ndjson;
+        let mut written = false;
         let outcome = sent.and_then(|resp| {
-            ctx.print(&label, &resp);
-            verdict::judge(&resp.json, args.fail_on, args.require_complete)
+            written = true;
+            let judged = verdict::judge(&resp.json, args.fail_on, args.require_complete);
+            if ndjson {
+                let exit = judged.as_ref().map_or_else(|f| f.exit, |e| *e);
+                ndjson_line(&label, exit, Some(&resp.raw), None);
+            } else {
+                ctx.print(&label, &resp);
+            }
+            judged
         });
+        // A failure with no response (unreachable, refused, a local file
+        // problem) still gets its line; one with a response was written above.
+        if let (true, false, Err(f)) = (ndjson, written, &outcome) {
+            ndjson_line(&label, f.exit, None, Some(&f.message));
+        }
         match outcome {
             Ok(Exit::Verdict) => threshold_met = true,
             Ok(_) => {}
@@ -316,6 +337,25 @@ fn verify(ctx: &Ctx, args: VerifyArgs) -> Result<Exit, Failure> {
         (None, true) => Exit::Verdict,
         (None, false) => Exit::Success,
     })
+}
+
+/// One NDJSON line. The API body is embedded as the server sent it, with
+/// whitespace removed and nothing reordered.
+fn ndjson_line(input: &str, exit: Exit, response: Option<&str>, error: Option<&str>) {
+    let input = serde_json::to_string(input).unwrap_or_else(|_| "\"\"".into());
+    let tail = match (response, error) {
+        (Some(raw), _) => format!("\"response\":{}", pretty::compact(raw.trim())),
+        (None, msg) => format!(
+            "\"error\":{{\"message\":{}}}",
+            serde_json::to_string(msg.unwrap_or("")).unwrap_or_else(|_| "\"\"".into())
+        ),
+    };
+    let mut stdout = std::io::stdout().lock();
+    let _ = writeln!(
+        stdout,
+        "{{\"input\":{input},\"exit\":{},{tail}}}",
+        exit.code()
+    );
 }
 
 fn sign(ctx: &Ctx, args: SignArgs) -> Result<Exit, Failure> {
@@ -361,7 +401,7 @@ fn sign(ctx: &Ctx, args: SignArgs) -> Result<Exit, Failure> {
     write_atomically(&output, &bytes)?;
 
     match ctx.global.format {
-        Format::Json => {
+        Format::Json | Format::Ndjson => {
             let doc = serde_json::json!({
                 "input": args.path.display().to_string(),
                 "output": output.display().to_string(),
@@ -493,7 +533,7 @@ fn version(ctx: &Ctx) -> Result<Exit, Failure> {
     });
 
     match ctx.global.format {
-        Format::Json => {
+        Format::Json | Format::Ndjson => {
             let doc = serde_json::json!({
                 "cli": cli_version,
                 "server": client.base(),

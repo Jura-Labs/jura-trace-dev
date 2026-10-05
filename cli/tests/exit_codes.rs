@@ -587,6 +587,54 @@ fn a_failure_outranks_a_met_threshold_and_every_input_is_tried() {
 }
 
 #[test]
+fn ndjson_is_one_line_per_input_with_its_exit_code() {
+    let (base, _) = verify_server("untrusted", false);
+    let (_d, file) = photo();
+    let missing = file.with_file_name("missing.jpg");
+    let out = jura(
+        &base,
+        Some(KEY),
+        &[
+            "verify",
+            p(&file),
+            p(&missing),
+            p(&file),
+            "--fail-on",
+            "untrusted",
+            "--format",
+            "ndjson",
+        ],
+    );
+    // A failure outranks a met threshold, as in every format.
+    assert_eq!(code(&out), 4, "{}", stderr(&out));
+    let printed = stdout(&out);
+    let lines: Vec<Value> = printed
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap_or_else(|e| panic!("not JSON ({e}): {l}")))
+        .collect();
+    assert_eq!(
+        lines.len(),
+        3,
+        "one line per input, the failure included:\n{printed}"
+    );
+    assert_eq!(lines[0]["input"], p(&file));
+    assert_eq!(lines[0]["exit"], 20);
+    assert_eq!(
+        lines[0]["response"],
+        result("untrusted", false),
+        "the body, unchanged"
+    );
+    assert_eq!(lines[1]["input"], p(&missing));
+    assert_eq!(lines[1]["exit"], 4);
+    assert!(lines[1]["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("no such file"));
+    assert!(lines[1].get("response").is_none());
+    assert_eq!(lines[2]["exit"], 20);
+}
+
+#[test]
 fn verify_url_posts_json_with_the_mode() {
     let (base, seen) = verify_server("trusted", false);
     let out = jura(
