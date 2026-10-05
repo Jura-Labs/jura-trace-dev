@@ -368,6 +368,7 @@ local certificate (the per-install Sovereign mode), with the action
 | `file` | yes | The file to sign |
 | `creator_name` | yes | Creator or rights holder |
 | `license` | no | SPDX licence identifier |
+| `timestamp` | no | **(v1.2.0)** `yes` or `no`: whether the signature carries a trusted timestamp. Only needed in Standard network mode when nobody has chosen; it answers for this request and is not remembered. One that contradicts a choice already made is `400 InvalidParameter` |
 
 On success the response is the signed file itself, **not** JSON, as
 `application/octet-stream` with `Content-Disposition: attachment;
@@ -377,7 +378,7 @@ filename="<name>_signed.<ext>"`.
 |---|---|
 | `200` | Signed file in the body |
 | `400` | Missing `file` or `creator_name`, or an empty file |
-| `409` | `TimestampChoiceRequired`: the app is in Standard network mode and nobody has yet chosen whether signatures should carry a trusted timestamp. The API cannot ask, so it refuses. Sign once in the app, or set it in Settings, Network Access, then retry |
+| `409` | `TimestampChoiceRequired`: the app is in Standard network mode and nobody has yet chosen whether signatures should carry a trusted timestamp. The API cannot ask, so it refuses. Send `timestamp` (v1.2.0), sign once in the app, or set it in Settings, Network Access, then retry |
 | `422` | `C2pa`: the format cannot be signed or the certificate failed |
 
 ### POST /api/v1/protect/fingerprint
@@ -673,7 +674,10 @@ that in mind. There is no per-request `mime_type` or `concurrency` parameter.
 In v1.1.0 sending them has no effect. **(v1.2.0)** Sending either as a query
 parameter on a verify route returns `400 UnsupportedParameter` naming it,
 instead of being silently ignored. Other unknown query parameters are
-ignored.
+ignored. `concurrency` is refused rather than implemented because it could
+not do anything: verifications run one at a time by design, so two never
+interleave their detectors, and a batch with more than one worker would only
+queue at the same place.
 
 Browser requests are allowed only from the app's own origins
 (`localhost:1420`, `localhost:8300` and their `127.0.0.1` forms); other web
@@ -713,6 +717,7 @@ to get a key. The source is `cli/` (`cargo install --path cli` builds it).
 ```bash
 jura verify photo.jpg                       # 0 whenever an analysis was produced
 jura verify a.jpg b.png --format json       # one JSON document per file
+jura verify *.jpg --format ndjson           # one line per file, with its exit code
 jura verify --url https://example.org/a.jpg --mode quick
 jura verify photo.jpg --fail-on uncertain   # 20 if the band is uncertain or untrusted
 jura verify photo.jpg --require-complete    # 8 if the result is degraded
@@ -722,6 +727,7 @@ jura auth set-key -                         # store a key in the OS keyring, rea
 jura auth show-key                          # which key, from where, masked
 jura auth status                            # does the server accept it
 jura auth clear-key
+jura sign photo.jpg --creator "Ada Lovelace" --license CC-BY-4.0
 ```
 
 **Where the address and key come from**, first match wins:
@@ -740,6 +746,20 @@ any release. `--format json` prints the API response body (pretty-printed;
 with `--compact`, one line per document), so the schema and the
 compatibility rules above apply to it unchanged. Errors go to stderr, never
 to stdout. The format never depends on whether stdout is a terminal.
+
+**NDJSON.** `--format ndjson` writes one line per input to `verify`:
+`{"input": "a.jpg", "exit": 0, "response": {…}}`, where `response` is the
+API body exactly as `--format json` would print it, or
+`{"input": "b.jpg", "exit": 4, "error": {"message": "…"}}` when no analysis
+came back. `exit` is that input's own code from the table below; the process
+exits with the rule for several files.
+
+**Signing.** `jura sign <file> --creator <name>` adds Content Credentials
+through `POST /api/v1/protect/sign` and writes the signed copy beside the
+original as `<name>_signed.<ext>` (or `--output`). It never replaces an
+existing file without `--force`. In Standard network mode with nobody asked,
+pass `--timestamp` or `--no-timestamp`; otherwise it exits 1 with the
+server's `TimestampChoiceRequired`.
 
 **Several files.** They are sent one after another, and every one is tried.
 The exit code is that of the first failure if there was one, otherwise 20 if
