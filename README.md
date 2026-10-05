@@ -89,8 +89,25 @@ cd ui && npm run dev          # Terminal 1
 cd src-tauri && cargo tauri dev  # Terminal 2
 ```
 
+## Command line and scripts
+
+From v1.2.0 the installers include `jura`, a command-line client, and
+`jura-trace-api`, the analysis server without the window. Analysis still
+runs on your machine.
+
+```bash
+jura-trace-api keys add --name my-laptop   # once
+jura auth set-key -                        # paste the key
+jura verify photo.jpg --wait-ready
+```
+
+See [docs/CLI_QUICKSTART.md](docs/CLI_QUICKSTART.md) for where each installer
+puts them and how to script with them.
+
 ## Documentation
 
+- [Command line quickstart](docs/CLI_QUICKSTART.md) — `jura` and `jura-trace-api`
+- [Local REST API](docs/API_WRAPPER.md) — endpoints, the verification result, errors, exit codes
 - [Architecture](docs/ARCHITECTURE.md) — system design, data flow, four-layer stack
 - [Technical Architecture](docs/ARCHITECTURE.md) — system design
 - [Brand Guidelines](docs/BRAND_GUIDELINES.md) — visual identity

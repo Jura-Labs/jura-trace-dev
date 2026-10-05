@@ -704,11 +704,11 @@ changes are recorded in `CHANGELOG.md` with the prefix `[schema]`.
 
 ## The `jura` CLI
 
-**(v1.2.0)** `jura` is a thin client of this API, in `cli/` in this
-repository. It uploads, waits, prints the response, and exits with a code
-from the table below. Every analysis runs in the server. Until it ships in
-the installers (planned for v1.2.0, stage 5), build it with
-`cargo install --path cli`.
+**(v1.2.0)** `jura` is a thin client of this API. It uploads, waits, prints
+the response, and exits with a code from the table below. Every analysis
+runs in the server. It ships in every installer beside the app, with
+`jura-trace-api`; [CLI_QUICKSTART.md](CLI_QUICKSTART.md) says where, and how
+to get a key. The source is `cli/` (`cargo install --path cli` builds it).
 
 ```bash
 jura verify photo.jpg                       # 0 whenever an analysis was produced

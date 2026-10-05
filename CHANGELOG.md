@@ -10,12 +10,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Command-line client:
 
-- New `jura` CLI in `cli/`: `jura verify` (files or `--url`), `jura version`
-  and `jura auth` (`set-key`, `show-key`, `status`, `clear-key`), with the
+- New `jura` CLI: `jura verify` (files or `--url`), `jura version` and
+  `jura auth` (`set-key`, `show-key`, `status`, `clear-key`), with the
   exit-code contract in `docs/API_WRAPPER.md`. `--fail-on` exits 20 on a
   band and 8 on an inconclusive one; `--require-complete` exits 8 on a
-  degraded result; `--wait-ready` waits for the analysis engine. Not yet in
-  the installers: `cargo install --path cli`.
+  degraded result; `--wait-ready` waits for the analysis engine.
+- Every installer now includes `jura` and `jura-trace-api` (the analysis
+  server without the window) beside the app. See `docs/CLI_QUICKSTART.md`.
+
+Installers:
+
+- Windows: the app's own executables are now signed. In v1.1.0 the
+  installers were signed and the sidecar was signed, but `jura-trace.exe`
+  inside them was not, which Smart App Control can block.
+- `gen-detectors`, a build tool, is no longer installed.
 
 Local REST API (`docs/API_WRAPPER.md`):
 

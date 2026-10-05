@@ -177,8 +177,9 @@ jobs:
           pkg=$(cat /tmp/pkgname)
           # Match the application binary by name, not "the first executable".
           #
-          # This package installs three: gen-detectors (a 459 KB build-time
-          # tool), jura-sidecar, and jura-trace. dpkg lists them
+          # Up to v1.1.0 this package installed three: gen-detectors (a 459 KB
+          # build-time tool), jura-sidecar, and jura-trace; from v1.2.0, jura,
+          # jura-sidecar, jura-trace and jura-trace-api. dpkg lists them
           # alphabetically, so `head -1` picks gen-detectors, and the job
           # would then fail with "the installed app did not answer
           # /api/v1/health" — an error naming the wrong thing entirely.
@@ -260,9 +261,24 @@ jobs:
             ls -la "$HOME/.local/share" || true
             exit 1
           fi
-          export JURA_API_KEY=$(python3 scripts/ci/add_api_key.py "$db")
-          (cd cli && cargo build --locked --quiet)
-          jura=cli/target/debug/jura
+          # From v1.2.0 the package ships both command-line binaries; use the
+          # installed ones, because they are what a user runs. Older releases
+          # do not have them, so build jura from this checkout and write the
+          # key straight into the database instead.
+          if [ -x /usr/bin/jura ] && [ -x /usr/bin/jura-trace-api ]; then
+            echo "using the installed jura and jura-trace-api"
+            export JURA_API_KEY=$(/usr/bin/jura-trace-api keys add --name ci --db "$db" 2>/dev/null | grep -o 'jt_[0-9a-f]*' | head -1)
+            jura=/usr/bin/jura
+          else
+            echo "this release ships no jura; building it from the checkout"
+            export JURA_API_KEY=$(python3 scripts/ci/add_api_key.py "$db")
+            (cd cli && cargo build --locked --quiet)
+            jura=cli/target/debug/jura
+          fi
+          [ -n "$JURA_API_KEY" ] || { echo "::error::could not create an API key"; exit 1; }
+          if [ -e /usr/bin/gen-detectors ]; then
+            echo "::warning::gen-detectors, a build tool, is installed in /usr/bin by this release."
+          fi
           "$jura" version | tee artefacts/jura-version.txt
 
           "$jura" verify docs/c2pa-conformance/test-vectors/unsigned.jpg \
@@ -494,8 +510,15 @@ jobs:
             foreach ($f in "jura-sidecar.exe", "sidecar-bundle\jura-sidecar.exe", "sidecar-bundle\_internal") {
               if (-not (Test-Path "$root\$f")) { throw "$root has no $f; this is not an onedir install" }
             }
+            # The app's own executables, whichever this release ships. Until
+            # v1.2.0 only the sidecar was checked, and jura-trace.exe shipped
+            # unsigned in v1.1.0 without this step noticing, so releases
+            # before v1.2.0 fail here, correctly.
+            $app = @("jura-trace.exe", "jura-trace-api.exe", "jura.exe", "gen-detectors.exe" |
+                     Where-Object { Test-Path "$root\$_" } | ForEach-Object { Get-Item "$root\$_" })
+            if (-not ($app | Where-Object { $_.Name -eq "jura-trace.exe" })) { throw "$root has no jura-trace.exe" }
             $pe = @(Get-ChildItem "$root\sidecar-bundle" -Recurse -File | Where-Object { $_.Extension -in ".exe", ".dll", ".pyd" }) +
-                  @(Get-Item "$root\jura-sidecar.exe")
+                  @(Get-Item "$root\jura-sidecar.exe") + $app
             if ($pe.Count -lt 200) { throw "only $($pe.Count) native files under $root; an empty or wrong scan is not a pass" }
             $bad = @($pe | ForEach-Object { $sig = Get-AuthenticodeSignature $_.FullName; if ($sig.Status -ne "Valid") { "$($sig.Status)  $($_.FullName)" } })
             if ($bad.Count -gt 0) { $bad | Select-Object -First 30 | ForEach-Object { Write-Host "::error::$_" }; throw "$($bad.Count) of $($pe.Count) installed native files under $root are not validly signed" }
@@ -607,11 +630,23 @@ jobs:
                   -Filter jura_trace.db -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
           if (-not $db) { throw "No jura_trace.db under %APPDATA% or %LOCALAPPDATA%\org.juralabs.trace." }
           Write-Host "database: $($db.FullName)"
-          $env:JURA_API_KEY = (python scripts/ci/add_api_key.py $db.FullName).Trim()
-          if ($LASTEXITCODE -ne 0) { throw "could not add an API key" }
-          Push-Location cli; cargo build --locked --quiet; $built = $LASTEXITCODE; Pop-Location
-          if ($built -ne 0) { throw "cargo build of the CLI failed with $built" }
-          $jura = "cli\target\debug\jura.exe"
+          # The installed command-line binaries from v1.2.0; older releases
+          # have none, so build jura and write the key into the database.
+          $root = Split-Path (Get-Content artefacts/after-msi-paths.txt | Select-Object -First 1) -Parent
+          if ((Test-Path "$root\jura.exe") -and (Test-Path "$root\jura-trace-api.exe")) {
+            Write-Host "using the installed jura and jura-trace-api from $root"
+            $out = & "$root\jura-trace-api.exe" keys add --name ci --db $db.FullName 2>$null
+            $env:JURA_API_KEY = ([regex]::Match(($out -join "`n"), 'jt_[0-9a-f]+')).Value
+            $jura = "$root\jura.exe"
+          } else {
+            Write-Host "this release ships no jura; building it from the checkout"
+            $env:JURA_API_KEY = (python scripts/ci/add_api_key.py $db.FullName).Trim()
+            if ($LASTEXITCODE -ne 0) { throw "could not add an API key" }
+            Push-Location cli; cargo build --locked --quiet; $built = $LASTEXITCODE; Pop-Location
+            if ($built -ne 0) { throw "cargo build of the CLI failed with $built" }
+            $jura = "cli\target\debug\jura.exe"
+          }
+          if (-not $env:JURA_API_KEY) { throw "could not create an API key" }
           & $jura version | Tee-Object artefacts\jura-version.txt
 
           & $jura verify docs\c2pa-conformance\test-vectors\unsigned.jpg --mode deep --format json `

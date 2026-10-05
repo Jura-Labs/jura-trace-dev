@@ -15,7 +15,7 @@ import {
   C2PA_STATUS_INVALID,
 } from './c2pa-labels';
 // ── Single source of truth for the expected-detector matrix ──────────────
-// Generated from src-tauri/src/bin/gen_detectors.rs (MODE_MATRIX const).
+// Generated from src-tauri/src/gen_detectors.rs (MODE_MATRIX const).
 // DO NOT edit this import or the file it points to by hand — run:
 //   cargo run --bin gen-detectors -- <repo-root>
 // or let `npm run predev` / `npm run prebuild` regenerate it automatically.

@@ -356,16 +356,30 @@ pub fn resolve_sidecar_binary(explicit: Option<&Path>) -> Option<PathBuf> {
     } else {
         "jura-sidecar"
     };
-    let beside = std::env::current_exe().ok()?.parent()?.join(name);
+    let exe = std::env::current_exe().ok()?;
+    // Through a symlink (the CLI quickstart suggests one in /usr/local/bin on
+    // macOS), current_exe() can be the link, not the app's binary. Resolve
+    // it on Unix. Not on Windows, where canonicalize() returns a \\?\ path.
+    #[cfg(unix)]
+    let exe = std::fs::canonicalize(&exe).unwrap_or(exe);
+    let beside = exe.parent()?.join(name);
     beside.is_file().then_some(beside)
 }
 
-/// The models directory that belongs with a sidecar binary: the bundle's
-/// `Resources/models` on macOS, `models` beside it elsewhere.
+/// Where the installers put the models, relative to the directory holding
+/// the sidecar: macOS `Contents/MacOS/../Resources/models`; Windows
+/// `models` beside it; Linux .deb and AppImage `usr/bin/../lib/Jura
+/// Trace/models` (Tauri's resource directory, named after productName).
+/// Until v1.2.0 the Linux layout was missing, so `jura-trace-api` on an
+/// installed Linux system would have started the sidecar without its models.
+const MODEL_DIRS: [&str; 3] = ["../Resources/models", "models", "../lib/Jura Trace/models"];
+
+/// The models directory that belongs with a sidecar binary.
 pub fn models_dir_for(sidecar_binary: &Path) -> Option<PathBuf> {
     let dir = sidecar_binary.parent()?;
-    [dir.join("../Resources/models"), dir.join("models")]
-        .into_iter()
+    MODEL_DIRS
+        .iter()
+        .map(|rel| dir.join(rel))
         .find(|p| p.is_dir())
 }
 
@@ -652,4 +666,42 @@ pub(crate) fn pick_ephemeral_port() -> Option<u16> {
     let port = listener.local_addr().ok()?.port();
     drop(listener);
     Some(port)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Each installer's layout, built in a temporary directory.
+    #[test]
+    fn models_are_found_in_every_installed_layout() {
+        for (bin_dir, models) in [
+            (
+                "Jura Trace.app/Contents/MacOS",
+                "Jura Trace.app/Contents/Resources/models",
+            ),
+            ("Jura Trace", "Jura Trace/models"),
+            ("usr/bin", "usr/lib/Jura Trace/models"),
+        ] {
+            let root = tempfile::tempdir().unwrap();
+            std::fs::create_dir_all(root.path().join(bin_dir)).unwrap();
+            std::fs::create_dir_all(root.path().join(models)).unwrap();
+            let sidecar = root.path().join(bin_dir).join("jura-sidecar");
+            std::fs::write(&sidecar, b"").unwrap();
+            let found = models_dir_for(&sidecar).unwrap_or_else(|| panic!("{bin_dir}: no models"));
+            assert_eq!(
+                std::fs::canonicalize(found).unwrap(),
+                std::fs::canonicalize(root.path().join(models)).unwrap(),
+                "{bin_dir}"
+            );
+        }
+    }
+
+    #[test]
+    fn no_models_is_none() {
+        let root = tempfile::tempdir().unwrap();
+        let sidecar = root.path().join("jura-sidecar");
+        std::fs::write(&sidecar, b"").unwrap();
+        assert_eq!(models_dir_for(&sidecar), None);
+    }
 }

@@ -336,13 +336,20 @@ ok "No stray model files."
 log "Invalidating cargo macro cache + rebuilding (forces fresh frontend embed)"
 rm -f "$CARGO_TARGET_BASE/${TARGET}/release/jura-trace"
 rm -rf "$CARGO_TARGET_BASE/${TARGET}/release/.fingerprint/jura-trace-"*
-(cd src-tauri && cargo build --release --target "$TARGET")
+# --features api,cli builds jura-trace-api and jura as well, and the bundle
+# steps below pass the same features so tauri-cli puts them in the .app
+# (v1.2.0 stage 5; tauri-cli bundles a [[bin]] only when its required
+# features are passed).
+(cd src-tauri && cargo build --release --target "$TARGET" --features api,cli)
 [[ -x "$CARGO_TARGET_BASE/${TARGET}/release/jura-trace" ]] || die "cargo build --release did not produce the binary."
+for bin in jura-trace-api jura; do
+  [[ -x "$CARGO_TARGET_BASE/${TARGET}/release/$bin" ]] || die "cargo build --release did not produce $bin."
+done
 ok "Macro cache invalidated and binary rebuilt."
 
 # ── Phase 1: build + sign .app only (NO DMG, NO notarisation yet) ─────
 log "Phase 1: cargo tauri bundle --bundles app (signs .app top level)"
-(cd src-tauri && cargo tauri bundle --bundles app --target "$TARGET")
+(cd src-tauri && cargo tauri bundle --bundles app --target "$TARGET" --features api,cli)
 
 APP_PATH=$(find "$BUNDLE_DIR/macos" -maxdepth 1 -name "*.app" -type d | head -1)
 [[ -n "$APP_PATH" ]] || die "No .app found under $BUNDLE_DIR/macos after Phase 1."
@@ -383,6 +390,15 @@ ok "Per-file signed $count nested .so/.dylib files."
 # Sign bootloader
 codesign --force --sign "$SIGNING_IDENTITY" --options runtime --timestamp "$SIDECAR_ROOT/jura-sidecar"
 ok "Signed sidecar bootloader."
+
+# The command-line binaries (v1.2.0 stage 5), signed explicitly and
+# required to be present.
+for bin in jura-trace-api jura; do
+  f="$APP_PATH/Contents/MacOS/$bin"
+  [[ -x "$f" ]] || die "$bin is not in Contents/MacOS; the bundle was built without --features api,cli."
+  codesign --force --sign "$SIGNING_IDENTITY" --options runtime --timestamp "$f"
+  ok "Signed $bin."
+done
 
 # Re-seal .app top level so nested hashes are embedded
 codesign --force --sign "$SIGNING_IDENTITY" --options runtime --timestamp "$APP_PATH"
@@ -431,7 +447,7 @@ done < <(find "$SIDECAR_ROOT" -type f \( -name "*.dylib" -o -name "*.so" \) | he
 # .sig from that signed state, and then builds the DMG from it. Phase 6.5
 # opens the archive and proves it.
 log "Phase 6: cargo tauri bundle --bundles app,dmg (re-signs, then archives, then DMG)"
-(cd src-tauri && cargo tauri bundle --bundles app,dmg --target "$TARGET")
+(cd src-tauri && cargo tauri bundle --bundles app,dmg --target "$TARGET" --features api,cli)
 
 DMG_PATH=$(find "$BUNDLE_DIR/dmg" -maxdepth 1 -name "*.dmg" | head -1)
 [[ -n "$DMG_PATH" ]] || die "No DMG found after Phase 6 regenerate."
