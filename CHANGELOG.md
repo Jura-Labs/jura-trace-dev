@@ -17,6 +17,16 @@ Command-line client:
   degraded result; `--wait-ready` waits for the analysis engine.
 - Every installer now includes `jura` and `jura-trace-api` (the analysis
   server without the window) beside the app. See `docs/CLI_QUICKSTART.md`.
+- `jura sign` adds Content Credentials from the command line.
+- `jura verify --format ndjson`: one line per file with its own exit code.
+- `jura-trace-api --ephemeral`: a session whose database is deleted when it
+  stops.
+- A Linux server tarball (`JuraTrace-<version>-Linux-x86_64-server.tar.gz`)
+  with `jura-trace-api`, `jura`, the analysis engine and models, for
+  servers without a desktop.
+- `[schema]` `POST /api/v1/protect/sign` takes an optional `timestamp`
+  field (`yes`/`no`) that answers the Standard-mode timestamp question for
+  one request when nobody has.
 
 Installers:
 

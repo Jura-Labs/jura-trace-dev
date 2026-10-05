@@ -31,9 +31,15 @@ genuine or fake.
 | macOS | `/Applications/Jura Trace.app/Contents/MacOS/jura` | `/Applications/Jura Trace.app/Contents/MacOS/jura-trace-api` |
 | Windows (setup.exe or .msi) | `%LOCALAPPDATA%\Jura Trace\jura.exe` | `%LOCALAPPDATA%\Jura Trace\jura-trace-api.exe` |
 | Linux, .deb | `/usr/bin/jura` | `/usr/bin/jura-trace-api` |
+| Linux server tarball | `jura` in the folder you unpack | `jura-trace-api` beside it |
 
 On Linux the .deb puts both on your `PATH`. The AppImage carries them inside
 the image, where they are not easily run; use the .deb for command-line work.
+
+**A Linux server with no desktop** can use the server tarball from the
+release page, `JuraTrace-<version>-Linux-x86_64-server.tar.gz`. It holds
+`jura-trace-api`, `jura`, the analysis engine and its models, needs no
+desktop libraries (only glibc 2.35 or later), and has a `README.txt`.
 
 **macOS**, to type `jura` rather than the full path, link both into a
 directory on your `PATH`:
@@ -138,6 +144,41 @@ Every exit code is in [API_WRAPPER.md](API_WRAPPER.md#exit-codes), with
 `--require-complete` (exit 8 when some analysis services were unavailable)
 and the rest of the options. `jura --help` and `jura verify --help` list them
 too.
+
+## Several files at once
+
+```bash
+jura verify *.jpg --format ndjson > results.ndjson
+```
+
+writes one line per file, each naming the file, its own exit code, and
+either the full result or the error. The whole command exits non-zero if any
+file failed.
+
+## Signing
+
+```bash
+jura sign photo.jpg --creator "Ada Lovelace" --license CC-BY-4.0
+```
+
+adds Content Credentials naming you as the creator and writes
+`photo_signed.jpg` beside the original, which is left unchanged. If Jura
+Trace is in Standard network mode and nobody has chosen whether signatures
+carry a trusted timestamp (which means a request to a timestamp server), add
+`--timestamp` or `--no-timestamp`.
+
+## A session that leaves nothing behind
+
+```bash
+jura-trace-api --ephemeral
+```
+
+starts a server with a new, empty database in the temporary directory and
+prints a key for that session. When you stop it with Ctrl+C, the database and
+everything the session wrote are deleted. It also uses Standard network mode,
+so it makes no network request you did not ask for. A process that is killed
+rather than stopped leaves its folder behind; the server prints where it is
+when it starts.
 
 ## Running `jura-trace-api` as a service
 

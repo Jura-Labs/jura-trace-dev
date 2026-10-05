@@ -100,9 +100,16 @@ fn serve(mut stream: TcpStream, handler: &Handler, log: &Mutex<Vec<Seen>>) {
     log.lock().unwrap().push(seen.clone());
     let (status, payload, delay) = handler(&seen);
     std::thread::sleep(delay);
+    // The sign route answers with the file and a suggested name, as the
+    // real server does.
+    let disposition = if seen.path == "/api/v1/protect/sign" && status == 200 {
+        "Content-Disposition: attachment; filename=\"photo_signed.jpg\"\r\n"
+    } else {
+        ""
+    };
     let _ = write!(
         stream,
-        "HTTP/1.1 {status} X\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{payload}",
+        "HTTP/1.1 {status} X\r\nContent-Type: application/json\r\n{disposition}Content-Length: {}\r\nConnection: close\r\n\r\n{payload}",
         payload.len()
     );
 }
@@ -580,6 +587,54 @@ fn a_failure_outranks_a_met_threshold_and_every_input_is_tried() {
 }
 
 #[test]
+fn ndjson_is_one_line_per_input_with_its_exit_code() {
+    let (base, _) = verify_server("untrusted", false);
+    let (_d, file) = photo();
+    let missing = file.with_file_name("missing.jpg");
+    let out = jura(
+        &base,
+        Some(KEY),
+        &[
+            "verify",
+            p(&file),
+            p(&missing),
+            p(&file),
+            "--fail-on",
+            "untrusted",
+            "--format",
+            "ndjson",
+        ],
+    );
+    // A failure outranks a met threshold, as in every format.
+    assert_eq!(code(&out), 4, "{}", stderr(&out));
+    let printed = stdout(&out);
+    let lines: Vec<Value> = printed
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap_or_else(|e| panic!("not JSON ({e}): {l}")))
+        .collect();
+    assert_eq!(
+        lines.len(),
+        3,
+        "one line per input, the failure included:\n{printed}"
+    );
+    assert_eq!(lines[0]["input"], p(&file));
+    assert_eq!(lines[0]["exit"], 20);
+    assert_eq!(
+        lines[0]["response"],
+        result("untrusted", false),
+        "the body, unchanged"
+    );
+    assert_eq!(lines[1]["input"], p(&missing));
+    assert_eq!(lines[1]["exit"], 4);
+    assert!(lines[1]["error"]["message"]
+        .as_str()
+        .unwrap()
+        .contains("no such file"));
+    assert!(lines[1].get("response").is_none());
+    assert_eq!(lines[2]["exit"], 20);
+}
+
+#[test]
 fn verify_url_posts_json_with_the_mode() {
     let (base, seen) = verify_server("trusted", false);
     let out = jura(
@@ -601,6 +656,120 @@ fn verify_url_posts_json_with_the_mode() {
         body,
         json!({ "url": "https://example.org/a.jpg", "mode": "quick" })
     );
+}
+
+// ── sign ────────────────────────────────────────────────────────────────────
+
+fn sign_server() -> (String, Arc<Mutex<Vec<Seen>>>) {
+    stub(|s| match s.path.as_str() {
+        "/api/v1/protect/sign" => (200, "SIGNED-BYTES".into(), Duration::ZERO),
+        _ => err(404, "NotFound"),
+    })
+}
+
+#[test]
+fn sign_writes_the_copy_beside_the_original() {
+    let (base, seen) = sign_server();
+    let (dir, file) = photo();
+    let out = jura(
+        &base,
+        Some(KEY),
+        &[
+            "sign",
+            p(&file),
+            "--creator",
+            "Ada Lovelace",
+            "--license",
+            "CC-BY-4.0",
+        ],
+    );
+    assert_eq!(code(&out), 0, "{}", stderr(&out));
+    let signed = dir.path().join("photo_signed.jpg");
+    assert_eq!(std::fs::read(&signed).unwrap(), b"SIGNED-BYTES");
+    assert!(
+        stdout(&out).contains("photo_signed.jpg"),
+        "{}",
+        stdout(&out)
+    );
+    let req = seen.lock().unwrap()[0].clone();
+    assert!(req.body.contains("name=\"creator_name\"") && req.body.contains("Ada Lovelace"));
+    assert!(req.body.contains("CC-BY-4.0"));
+    assert!(
+        !req.body.contains("name=\"timestamp\""),
+        "no timestamp field unless asked"
+    );
+    // The original is untouched.
+    assert_ne!(std::fs::read(&file).unwrap(), b"SIGNED-BYTES");
+
+    // An existing copy is not replaced without --force, and nothing is sent.
+    let before = seen.lock().unwrap().len();
+    let out = jura(
+        &base,
+        Some(KEY),
+        &["sign", p(&file), "--creator", "Ada", "-o", p(&signed)],
+    );
+    assert_eq!(code(&out), 4, "{}", stderr(&out));
+    assert_eq!(seen.lock().unwrap().len(), before);
+    let out = jura(
+        &base,
+        Some(KEY),
+        &[
+            "sign",
+            p(&file),
+            "--creator",
+            "Ada",
+            "-o",
+            p(&signed),
+            "--force",
+            "--no-timestamp",
+        ],
+    );
+    assert_eq!(code(&out), 0, "{}", stderr(&out));
+    let last = seen.lock().unwrap().last().unwrap().clone();
+    assert!(
+        last.body.contains("name=\"timestamp\"") && last.body.contains("\r\n\r\nno\r\n"),
+        "{}",
+        last.body.len()
+    );
+}
+
+#[test]
+fn sign_exit_codes() {
+    let (_d, file) = photo();
+    // The timestamp question, unanswered: 1, with the server's advice.
+    let (base, _) = stub(|_| err(409, "TimestampChoiceRequired"));
+    let out = jura(&base, Some(KEY), &["sign", p(&file), "--creator", "Ada"]);
+    assert_eq!(code(&out), 1, "{}", stderr(&out));
+    assert!(stderr(&out).contains("TimestampChoiceRequired"));
+    // A format the server cannot sign: 5.
+    let (base, _) = stub(|_| err(422, "C2pa"));
+    assert_eq!(
+        code(&jura(
+            &base,
+            Some(KEY),
+            &["sign", p(&file), "--creator", "Ada"]
+        )),
+        5
+    );
+    // No --creator, or both timestamp flags: usage, before any request.
+    let (base, seen) = sign_server();
+    assert_eq!(code(&jura(&base, Some(KEY), &["sign", p(&file)])), 1);
+    assert_eq!(
+        code(&jura(
+            &base,
+            Some(KEY),
+            &[
+                "sign",
+                p(&file),
+                "--creator",
+                "A",
+                "--timestamp",
+                "--no-timestamp"
+            ]
+        )),
+        1
+    );
+    assert!(seen.lock().unwrap().is_empty());
 }
 
 // ── version and auth ────────────────────────────────────────────────────────

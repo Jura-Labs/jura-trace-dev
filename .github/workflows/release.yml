@@ -169,6 +169,7 @@ jobs:
           | **Windows** (64-bit) — *NSIS installer* | **[${exe_name}](${base}/${exe_name})** | Azure Trusted Signing |
           | **Linux** (x86\_64) — *AppImage* | **[${appimage_name}](${base}/${appimage_name})** | Self-signed (AGPL source build) |
           | **Linux** (x86\_64) — *DEB package* | **[${deb_name}](${base}/${deb_name})** | Self-signed (AGPL source build) — install with \`sudo apt install ./<file>\` |
+          | **Linux server** (x86\_64, no desktop) | **[JuraTrace-${ver}-Linux-x86_64-server.tar.gz](${base}/JuraTrace-${ver}-Linux-x86_64-server.tar.gz)** | Self-signed (AGPL source build) — \`jura-trace-api\` and \`jura\`; see README.txt inside |
 
           **Verify your download:** grab **[SHA256SUMS.txt](${base}/SHA256SUMS.txt)** and run \`shasum -a 256 -c SHA256SUMS.txt\` (macOS / Linux) or \`certutil -hashfile <filename> SHA256\` (Windows).
 
@@ -1384,6 +1385,100 @@ jobs:
       #   the release-body download links resolve.
       #
       # gh release upload --clobber is idempotent — safe on re-runs.
+      # ── Linux: the server tarball (v1.2.0 stage 6) ───────────────────────
+      # jura-trace-api, jura, the --onefile sidecar and the models, for a
+      # Linux server with no desktop. The two Rust binaries need only glibc:
+      # checked in the rc.13 .deb on 4 October 2026 (DT_NEEDED is libgcc_s,
+      # libm, libc and the loader; the app itself also needs GTK and WebKit),
+      # and asserted here on every build. Layout: jura-sidecar beside
+      # jura-trace-api, models/ beside the sidecar, which is what
+      # resolve_sidecar_binary and models_dir_for look for.
+      - name: Package the Linux server tarball (Linux)
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        id: server_tarball
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ github.event.inputs.tag || github.ref_name }}"
+          name="JuraTrace-${tag#v}-Linux-x86_64-server"
+          rel="src-tauri/target/${{ matrix.target }}/release"
+          stage="$RUNNER_TEMP/$name"
+          rm -rf "$stage" && mkdir -p "$stage/models"
+          cp "$rel/jura-trace-api" "$rel/jura" "$stage/"
+          cp "src-tauri/binaries/${{ matrix.sidecar_name }}" "$stage/jura-sidecar"
+          cp src-tauri/models/* "$stage/models/"
+          cp LICENSE NOTICE THIRD-PARTY-LICENSES.txt packaging/linux-server/README.txt "$stage/"
+          strip "$stage/jura-trace-api" "$stage/jura"
+          chmod 755 "$stage/jura-trace-api" "$stage/jura" "$stage/jura-sidecar"
+          for f in jura-trace-api jura jura-sidecar; do
+            [ -x "$stage/$f" ] || { echo "::error::$f missing from the server tarball"; exit 1; }
+          done
+          n=$(ls "$stage/models" | wc -l)
+          [ "$n" -ge 2 ] || { echo "::error::only $n model files staged"; exit 1; }
+          for b in jura-trace-api jura; do
+            needed=$(readelf -d "$stage/$b" | awk '/NEEDED/ {print $NF}' | tr -d '[]' | tr '\n' ' ')
+            echo "$b needs: $needed"
+            if echo "$needed" | grep -qiE 'gtk|gdk|webkit|soup|javascriptcore|cairo'; then
+              echo "::error::$b links desktop libraries ($needed); the server tarball would not run on a server"
+              exit 1
+            fi
+          done
+          tar -C "$RUNNER_TEMP" -czf "$RUNNER_TEMP/$name.tar.gz" "$name"
+          du -sh "$stage" "$RUNNER_TEMP/$name.tar.gz"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+      # The tarball on a machine that has never seen Jura Trace: a plain
+      # ubuntu:22.04 container with no GTK, WebKit or Python. An ephemeral
+      # server, the shipped jura, a deep verification of a JPEG, and the A3
+      # check that the sidecar really ran. Upload waits on this.
+      - name: Test the server tarball in a clean container (Linux)
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        shell: bash
+        env:
+          NAME: ${{ steps.server_tarball.outputs.name }}
+        run: |
+          set -uo pipefail
+          out="$RUNNER_TEMP/server-test"
+          rm -rf "$out" && mkdir -p "$out"
+          docker run --rm \
+            -v "$RUNNER_TEMP:/pkg:ro" \
+            -v "$PWD/docs/c2pa-conformance/test-vectors:/fx:ro" \
+            -v "$out:/out" \
+            -e NAME="$NAME" \
+            ubuntu:22.04 bash -c '
+              set -u
+              mkdir -p /srv && tar -xzf "/pkg/$NAME.tar.gz" -C /srv && cd "/srv/$NAME"
+              ./jura --version > /out/jura-version.txt
+              ./jura-trace-api --ephemeral --port 8300 > /out/server.out 2> /out/server.err &
+              srv=$!
+              for i in $(seq 1 100); do grep -q "ephemeral key" /out/server.out && break; sleep 0.2; done
+              key=$(sed -n "s/^jura-trace-api: ephemeral key //p" /out/server.out)
+              JURA_NO_KEYRING=1 JURA_API_KEY="$key" ./jura verify /fx/unsigned.jpg \
+                --mode deep --wait-ready 300 --format json > /out/verify.json 2> /out/verify.err
+              echo $? > /out/rc
+              kill "$srv"; wait "$srv"
+              echo $? > /out/server-rc'
+          echo "── jura --version ──"; cat "$out/jura-version.txt" || true
+          echo "── server stderr (tail) ──"; tail -15 "$out/server.err" || true
+          echo "── jura stderr ──"; cat "$out/verify.err" || true
+          rc=$(cat "$out/rc" 2>/dev/null || echo missing)
+          [ "$rc" = 0 ] || { echo "::error::jura verify exited $rc inside the container"; exit 1; }
+          python3 scripts/assert_sidecar_ran.py "$out/verify.json" || {
+            echo "::error::the server in the tarball answered, but its sidecar did not analyse the file (A3)"; exit 1; }
+          echo "OK: the server tarball runs on a clean ubuntu:22.04 and analyses with its sidecar."
+
+      - name: Upload the Linux server tarball to jura-trace
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PAT }}
+          NAME: ${{ steps.server_tarball.outputs.name }}
+        run: |
+          set -euo pipefail
+          tag="${{ github.event.inputs.tag || github.ref_name }}"
+          gh release upload "$tag" "$RUNNER_TEMP/$NAME.tar.gz" --repo juralabs/jura-trace --clobber
+          echo "Uploaded $NAME.tar.gz"
+
       - name: Upload release artefacts to jura-trace (macOS and Linux)
         if: runner.os != 'Windows'
         shell: bash

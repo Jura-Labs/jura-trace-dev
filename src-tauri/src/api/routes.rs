@@ -453,6 +453,10 @@ pub async fn verify_url(
 /// - `file` — binary content of the media file
 /// - `creator_name` — creator / rights holder name
 /// - `license` (optional) — SPDX licence identifier
+/// - `timestamp` (optional) — `yes` or `no`: whether the signature should
+///   carry a trusted timestamp, for a caller that cannot answer the question
+///   in the app (v1.2.0). It answers for this request only, and only when
+///   nobody has chosen; it never overrides a choice already made.
 ///
 /// Returns the signed file as an `application/octet-stream` binary response.
 #[utoipa::path(
@@ -466,11 +470,15 @@ pub async fn verify_url(
     request_body(
         content_type = "multipart/form-data",
         description = "Multipart form with 'file' (binary), 'creator_name' (string), \
-                       and optional 'license' (SPDX identifier string) fields"
+                       optional 'license' (SPDX identifier string) and optional 'timestamp' \
+                       ('yes' or 'no') fields"
     ),
     responses(
         (status = 200, description = "Signed file (application/octet-stream)"),
-        (status = 400, description = "Missing required fields"),
+        (status = 400, description = "MissingField, EmptyFile, or InvalidParameter (a 'timestamp' \
+            value other than yes or no, or one that contradicts the installation's setting)"),
+        (status = 409, description = "TimestampChoiceRequired: Standard network mode, nobody has \
+            chosen, and no 'timestamp' field was sent"),
         (status = 401, description = "Unauthorized"),
         (status = 422, description = "Signing failed — unsupported format or certificate error"),
         (status = 429, description = "Rate limit exceeded"),
@@ -488,6 +496,7 @@ pub async fn protect_sign(
     let mut sniffed_ext: Option<&'static str> = None;
     let mut creator_name = String::new();
     let mut license: Option<String> = None;
+    let mut timestamp: Option<bool> = None;
     let mut original_filename: Option<String> = None;
 
     while let Some(mut field) = multipart
@@ -553,6 +562,21 @@ pub async fn protect_sign(
                     .map_err(|e| ApiError::bad_request(format!("Failed to read license: {e}")))?;
                 license = Some(text);
             }
+            "timestamp" => {
+                let text = field
+                    .text()
+                    .await
+                    .map_err(|e| ApiError::bad_request(format!("Failed to read timestamp: {e}")))?;
+                timestamp = Some(match text.trim() {
+                    "yes" => true,
+                    "no" => false,
+                    other => {
+                        return Err(ApiError::invalid_parameter(format!(
+                            "'timestamp' must be yes or no, not '{other}'"
+                        )))
+                    }
+                });
+            }
             _ => {}
         }
     }
@@ -599,16 +623,36 @@ pub async fn protect_sign(
         // BL-CLAIM-004 option 3. The API cannot ask a person, so in Standard
         // mode with no remembered answer it refuses rather than decide
         // either way; the answer is given once in the app.
-        let tsa_url = match crate::network_mode::signing_timestamp(&data_dir) {
-            crate::network_mode::SigningTimestamp::Use => Some(crate::c2pa::TSA_URL),
-            crate::network_mode::SigningTimestamp::Skip => None,
-            crate::network_mode::SigningTimestamp::Ask => {
+        // A `timestamp` field answers the Standard-mode question for this
+        // request when nobody has, so a caller with no window (jura sign) can
+        // sign at all. It is not remembered, and it cannot override a choice
+        // already made: a disagreement is an error, not a silent winner.
+        use crate::network_mode::SigningTimestamp as Ts;
+        let decided = crate::network_mode::signing_timestamp(&data_dir);
+        let tsa_url = match (decided, timestamp) {
+            (Ts::Ask, Some(true)) | (Ts::Use, None | Some(true)) => Some(crate::c2pa::TSA_URL),
+            (Ts::Ask, Some(false)) | (Ts::Skip, None | Some(false)) => None,
+            (Ts::Use, Some(false)) | (Ts::Skip, Some(true)) => {
+                let setting = if decided == Ts::Use {
+                    "with"
+                } else {
+                    "without"
+                };
+                return Err(ApiError::invalid_parameter(format!(
+                    "This installation signs {setting} a trusted timestamp (Enhanced network \
+                     mode, or the answer remembered in Standard mode), and the request asked \
+                     for the opposite. Change it in the app's Settings, Network Access, or \
+                     drop the 'timestamp' field."
+                )));
+            }
+            (Ts::Ask, None) => {
                 return Err(ApiError::new(
                     StatusCode::CONFLICT,
                     "TimestampChoiceRequired",
                     "Standard network mode is on and no one has chosen whether signatures \
-                     should carry a trusted timestamp. Sign once in the Jura Trace app, or set \
-                     it in Settings, Network Access, then retry."
+                     should carry a trusted timestamp. Send timestamp=yes or timestamp=no \
+                     (jura sign --timestamp or --no-timestamp), sign once in the Jura Trace \
+                     app, or set it in Settings, Network Access."
                         .to_string(),
                 ));
             }

@@ -71,6 +71,32 @@ pub fn pretty(raw: &str) -> String {
     out
 }
 
+/// The same document on one line: whitespace outside strings removed,
+/// nothing reordered. For NDJSON, where a line break ends a record.
+pub fn compact(raw: &str) -> String {
+    let mut out = String::with_capacity(raw.len());
+    let mut in_string = false;
+    let mut escaped = false;
+    for c in raw.chars() {
+        if in_string {
+            out.push(c);
+            if escaped {
+                escaped = false;
+            } else if c == '\\' {
+                escaped = true;
+            } else if c == '"' {
+                in_string = false;
+            }
+        } else if c == '"' {
+            in_string = true;
+            out.push(c);
+        } else if !c.is_whitespace() {
+            out.push(c);
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -89,6 +115,13 @@ mod tests {
         assert_eq!(a, b);
         // And the keys in the order the server sent them.
         assert!(out.find("\"z\"").unwrap() < out.find("\"a\"").unwrap());
+    }
+
+    #[test]
+    fn compact_is_one_line_and_inverts_pretty() {
+        let raw = r#"{"z":1,"a":{"m":[1,2,{}],"b":[]},"s":"a, b: {c} [d] \" \\ with  two spaces","n":null}"#;
+        assert_eq!(compact(&pretty(raw)), raw);
+        assert!(!compact(&pretty(raw)).contains('\n'));
     }
 
     #[test]

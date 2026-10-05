@@ -32,6 +32,10 @@ USAGE:
 OPTIONS:
     --port <N>              port on 127.0.0.1 [default: 8300]
     --db <PATH>             database file [default: the desktop app's database]
+    --ephemeral             a throwaway session: a new database and data folder in
+                            the temporary directory, deleted when the server stops
+                            cleanly, a key for the session printed once, and
+                            Standard network mode. Not with --db
     --no-sidecar            run without the analysis sidecar; results are degraded
     --sidecar-binary <PATH> the sidecar executable [default: JURA_SIDECAR_BINARY,
                             then beside this executable]
@@ -58,6 +62,7 @@ struct ServeArgs {
     sidecar_binary: Option<PathBuf>,
     models_dir: Option<PathBuf>,
     wait_ready: Option<u64>,
+    ephemeral: bool,
 }
 
 #[derive(Debug, PartialEq)]
@@ -139,6 +144,7 @@ fn parse(argv: &[String]) -> Result<Cmd, String> {
             }
             "--db" => s.db = Some(PathBuf::from(value(&mut it, a)?)),
             "--no-sidecar" => s.no_sidecar = true,
+            "--ephemeral" => s.ephemeral = true,
             "--sidecar-binary" => s.sidecar_binary = Some(PathBuf::from(value(&mut it, a)?)),
             "--models-dir" => s.models_dir = Some(PathBuf::from(value(&mut it, a)?)),
             "--wait-ready" => s.wait_ready = Some(300),
@@ -154,6 +160,9 @@ fn parse(argv: &[String]) -> Result<Cmd, String> {
             "-h" | "--help" => return Ok(Cmd::Help),
             other => return Err(format!("unknown option: {other}")),
         }
+    }
+    if s.ephemeral && s.db.is_some() {
+        return Err("--ephemeral makes its own database; it cannot be combined with --db".into());
     }
     if s.no_sidecar && (s.wait_ready.is_some() || s.sidecar_binary.is_some()) {
         return Err("--no-sidecar cannot be combined with --wait-ready or --sidecar-binary".into());
@@ -234,26 +243,39 @@ fn open_db(explicit: Option<PathBuf>) -> Result<(db::Database, PathBuf, Option<P
     Ok((database, path, data_dir))
 }
 
-fn keys_add(name: &str, rate_limit: i64, db: Option<PathBuf>) -> i32 {
-    let (database, path, _) = match open_db(db) {
-        Ok(v) => v,
-        Err(code) => return code,
-    };
-    // Same shape as POST /api/v1/auth/keys: 256 bits, SHA-256 at rest, shown
-    // once with the jt_ prefix.
+/// Store a new key and return it with its id. Same shape as
+/// POST /api/v1/auth/keys: 256 bits, SHA-256 at rest, shown once with the
+/// jt_ prefix.
+fn mint_key(
+    database: &db::Database,
+    name: &str,
+    rate_limit: i64,
+) -> Result<(String, String), String> {
     let raw = format!(
         "{}{}",
         uuid::Uuid::new_v4().simple(),
         uuid::Uuid::new_v4().simple()
     );
     let key_id = uuid::Uuid::new_v4().to_string();
-    if let Err(e) =
-        database.create_api_key(&key_id, name, &crate::api::auth::hash_key(&raw), rate_limit)
-    {
-        eprintln!("jura-trace-api: could not store the key: {e}");
-        return EXIT_START;
-    }
-    println!("jt_{raw}");
+    database
+        .create_api_key(&key_id, name, &crate::api::auth::hash_key(&raw), rate_limit)
+        .map_err(|e| format!("could not store the key: {e}"))?;
+    Ok((format!("jt_{raw}"), key_id))
+}
+
+fn keys_add(name: &str, rate_limit: i64, db: Option<PathBuf>) -> i32 {
+    let (database, path, _) = match open_db(db) {
+        Ok(v) => v,
+        Err(code) => return code,
+    };
+    let (key, key_id) = match mint_key(&database, name, rate_limit) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("jura-trace-api: {e}");
+            return EXIT_START;
+        }
+    };
+    println!("{key}");
     eprintln!(
         "Created key \"{name}\" ({key_id}) in {}. It is shown once; store it now.",
         path.display()
@@ -333,10 +355,60 @@ fn serve(args: ServeArgs) -> i32 {
         .map(|a| a.to_string())
         .unwrap_or_else(|_| addr.to_string());
 
-    let (database, db_path, data_dir) = match open_db(args.db.clone()) {
+    // --ephemeral: everything this session writes goes in a temporary
+    // folder that is removed when the server stops cleanly (the end of this
+    // function). The database is new, so it has no key: one is minted and
+    // printed below. The folder has no network_mode.json, which would mean
+    // Enhanced mode; Standard is written instead, so the session makes no
+    // network request it was not asked for (a signature's timestamp then has
+    // to be asked for with timestamp=yes).
+    let ephemeral = if args.ephemeral {
+        match tempfile::Builder::new()
+            .prefix("jura-trace-ephemeral-")
+            .tempdir()
+        {
+            Ok(d) => Some(d),
+            Err(e) => {
+                eprintln!("jura-trace-api: cannot create a temporary folder: {e}");
+                return EXIT_START;
+            }
+        }
+    } else {
+        None
+    };
+    let db_arg = match &ephemeral {
+        Some(d) => {
+            if let Err(e) =
+                std::fs::write(d.path().join("network_mode.json"), r#"{"mode":"standard"}"#)
+            {
+                eprintln!(
+                    "jura-trace-api: cannot write to {}: {e}",
+                    d.path().display()
+                );
+                return EXIT_START;
+            }
+            Some(d.path().join("jura_trace.db"))
+        }
+        None => args.db.clone(),
+    };
+    let (database, db_path, data_dir) = match open_db(db_arg) {
         Ok(v) => v,
         Err(code) => return code,
     };
+    if let Some(d) = &ephemeral {
+        match mint_key(&database, "ephemeral", 600) {
+            Ok((key, _)) => println!("jura-trace-api: ephemeral key {key}"),
+            Err(e) => {
+                eprintln!("jura-trace-api: {e}");
+                return EXIT_START;
+            }
+        }
+        eprintln!(
+            "jura-trace-api: ephemeral session in {}. It is deleted when the server stops \
+             with Ctrl+C or SIGTERM; a killed process leaves it behind.",
+            d.path().display()
+        );
+    }
 
     let config = data_dir
         .as_deref()
@@ -503,6 +575,19 @@ fn serve(args: ServeArgs) -> i32 {
         #[cfg(windows)]
         if !desktop_api_answers() {
             sidecar_supervisor::kill_orphan_sidecars();
+        }
+    }
+    // The runtime holds the last references to the database; drop it first
+    // so the file is closed (Windows will not delete an open file).
+    drop(runtime);
+    if let Some(d) = ephemeral {
+        let path = d.path().to_path_buf();
+        match d.close() {
+            Ok(()) => log::info!("Ephemeral session removed: {}", path.display()),
+            Err(e) => eprintln!(
+                "jura-trace-api: could not remove the ephemeral session at {}: {e}",
+                path.display()
+            ),
         }
     }
     code
