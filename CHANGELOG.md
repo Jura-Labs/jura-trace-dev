@@ -34,6 +34,12 @@ Installers:
   installers were signed and the sidecar was signed, but `jura-trace.exe`
   inside them was not, which Smart App Control can block.
 - `gen-detectors`, a build tool, is no longer installed.
+- Smaller downloads on every platform: the CLIP text encoder (243 MiB) is
+  no longer shipped. It only ever encoded five fixed prompts, whose
+  embeddings now ship precomputed (10 KB). This change leaves verdicts and
+  scores unchanged: the embeddings are checked bit for bit at build time on
+  each platform, and a 217-image golden set gives identical results with
+  and without the encoder.
 - macOS: the analysis engine is built from the same pinned dependency list
   as Windows and Linux, not from the build machine's Python. The macOS app
   loses about 258 MiB of libraries nothing used (pyarrow, chromadb,

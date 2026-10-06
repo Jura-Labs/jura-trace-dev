@@ -20,6 +20,15 @@ see docs/calibration/univfd-v9-onnx-validation.md).
 If ``onnxruntime`` is not installed or the ONNX model files are absent
 under JURA_MODELS_DIR, the service gracefully degrades and returns a
 response with ``model_available=False``.
+
+**BL-SIZE-001 (v1.2.0): the text encoder is not shipped.** It only ever
+encoded the five fixed `_TEXT_PROMPTS`, a (5, 512) float32 array. That array
+is computed at build time by `scripts/clip_text_embeddings.py` and shipped as
+`clip-vit-b32-text-prompts.npy`, with a JSON record of the prompts and the
+encoder it came from. The installers lose 242 MB; the zero-shot readout is
+unchanged. The file is refused, never used quietly, if its prompts differ
+from `_TEXT_PROMPTS`; with no usable file the text encoder is still used if
+present (development, and the build's own equality check).
 """
 
 import gc
@@ -193,9 +202,74 @@ def _models_dir() -> str:
     )
 
 
+# The precomputed prompt embeddings (BL-SIZE-001).
+PRECOMPUTED_EMBEDDINGS = "clip-vit-b32-text-prompts.npy"
+PRECOMPUTED_RECORD = "clip-vit-b32-text-prompts.json"
+
+
+def load_precomputed_prompt_embeddings(models_dir: str) -> Optional[np.ndarray]:
+    """The build-time prompt embeddings, or None if absent or unusable.
+
+    Usable means: the record lists exactly `_TEXT_PROMPTS`, in order, and the
+    array is float32 of shape (len(_TEXT_PROMPTS), 512). Anything else is
+    logged as an error and ignored, so a prompt edit without a regenerated
+    file cannot score against stale vectors.
+    """
+    npy = os.path.join(models_dir, PRECOMPUTED_EMBEDDINGS)
+    rec_path = os.path.join(models_dir, PRECOMPUTED_RECORD)
+    if not os.path.exists(npy):
+        return None
+    try:
+        import json  # noqa: PLC0415
+
+        with open(rec_path, encoding="utf-8") as fh:
+            record = json.load(fh)
+        if record.get("prompts") != _TEXT_PROMPTS:
+            logger.error(
+                "%s was generated for different prompts than this build's "
+                "_TEXT_PROMPTS; ignoring it. Regenerate with "
+                "scripts/clip_text_embeddings.py generate.",
+                npy,
+            )
+            return None
+        arr = np.load(npy, allow_pickle=False)
+        if arr.dtype != np.float32 or arr.shape != (len(_TEXT_PROMPTS), 512):
+            logger.error(
+                "%s has dtype %s and shape %s, expected float32 (%d, 512); ignoring it.",
+                npy,
+                arr.dtype,
+                arr.shape,
+                len(_TEXT_PROMPTS),
+            )
+            return None
+        return arr
+    except Exception:
+        logger.exception("Could not read %s; ignoring it", npy)
+        return None
+
+
+def encode_prompts_with(text_session) -> np.ndarray:
+    """Encode `_TEXT_PROMPTS` with a text-encoder session: l2-normalised
+    (5, 512) float32. The one implementation, used at runtime when no
+    precomputed file is usable, and by scripts/clip_text_embeddings.py to
+    generate and check that file."""
+    from app.services.clip_tokenizer import tokenize  # noqa: PLC0415
+
+    text_input_name = text_session.get_inputs()[0].name
+    embeddings = []
+    for prompt in _TEXT_PROMPTS:
+        tokens = tokenize([prompt])  # int32 (1, 77)
+        out = text_session.run(None, {text_input_name: tokens})[0]
+        emb = out[0]
+        norm = float(np.linalg.norm(emb)) + 1e-12
+        embeddings.append((emb / norm).astype(np.float32))
+    return np.stack(embeddings)
+
+
 def _ensure_model() -> bool:
-    """Lazy-load the CLIP ONNX sessions. Returns True if both are ready."""
-    global _vision_session, _text_session, _model_load_attempted
+    """Lazy-load CLIP. Ready when the vision encoder is loaded and the prompt
+    embeddings are available, from the precomputed file or the text encoder."""
+    global _vision_session, _text_session, _text_prompt_cache, _model_load_attempted
 
     if _vision_session is not None:
         return True
@@ -218,13 +292,17 @@ def _ensure_model() -> bool:
     models_dir = _models_dir()
     vision_path = os.path.join(models_dir, "clip-vit-b32-vision.onnx")
     text_path = os.path.join(models_dir, "clip-vit-b32-text.onnx")
+    precomputed = load_precomputed_prompt_embeddings(models_dir)
 
-    if not os.path.exists(vision_path) or not os.path.exists(text_path):
+    if not os.path.exists(vision_path) or (
+        precomputed is None and not os.path.exists(text_path)
+    ):
         logger.warning(
-            "CLIP ONNX model files not found in %s. Expected "
-            "clip-vit-b32-vision.onnx + clip-vit-b32-text.onnx (+ .data files). "
-            "Run scripts/export_clip_onnx.py to generate them.",
+            "CLIP model files not found in %s. Expected clip-vit-b32-vision.onnx "
+            "(+ .data) and either %s (+ %s) or clip-vit-b32-text.onnx (+ .data).",
             models_dir,
+            PRECOMPUTED_EMBEDDINGS,
+            PRECOMPUTED_RECORD,
         )
         return False
 
@@ -233,10 +311,17 @@ def _ensure_model() -> bool:
         _vision_session = ort.InferenceSession(
             vision_path, providers=["CPUExecutionProvider"]
         )
-        logger.info("Loading CLIP ONNX text encoder from %s ...", text_path)
-        _text_session = ort.InferenceSession(
-            text_path, providers=["CPUExecutionProvider"]
-        )
+        if precomputed is not None:
+            _text_prompt_cache = precomputed
+            logger.info(
+                "CLIP prompt embeddings loaded from %s; text encoder not needed.",
+                PRECOMPUTED_EMBEDDINGS,
+            )
+        else:
+            logger.info("Loading CLIP ONNX text encoder from %s ...", text_path)
+            _text_session = ort.InferenceSession(
+                text_path, providers=["CPUExecutionProvider"]
+            )
         logger.info("CLIP ONNX sessions loaded successfully.")
         return True
     except Exception:
@@ -332,17 +417,7 @@ def _encode_text_prompts() -> np.ndarray:
     if _text_prompt_cache is not None:
         return _text_prompt_cache
 
-    from app.services.clip_tokenizer import tokenize  # noqa: PLC0415
-
-    text_input_name = _text_session.get_inputs()[0].name
-    embeddings = []
-    for prompt in _TEXT_PROMPTS:
-        tokens = tokenize([prompt])  # int32 (1, 77)
-        out = _text_session.run(None, {text_input_name: tokens})[0]
-        emb = out[0]
-        norm = float(np.linalg.norm(emb)) + 1e-12
-        embeddings.append((emb / norm).astype(np.float32))
-    _text_prompt_cache = np.stack(embeddings)  # (5, 512)
+    _text_prompt_cache = encode_prompts_with(_text_session)  # (5, 512)
     logger.info("CLIP text prompt embeddings cached (%d prompts)", len(_TEXT_PROMPTS))
     return _text_prompt_cache
 
@@ -415,8 +490,8 @@ def _unavailable_response() -> ClipDetectionResponse:
         model_available=False,
         summary=(
             "CLIP model not available — onnxruntime missing or "
-            "clip-vit-b32-vision.onnx / clip-vit-b32-text.onnx absent from "
-            "models/ directory."
+            "clip-vit-b32-vision.onnx, or the CLIP prompt embeddings, absent from "
+            "the models directory."
         ),
         verdict_thresholds=_verdict_thresholds(),
     )

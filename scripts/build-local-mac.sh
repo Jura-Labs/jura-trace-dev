@@ -336,6 +336,21 @@ log "Copying model files into src-tauri/models/"
 mkdir -p src-tauri/models
 cp models/deepfake_classifier.joblib src-tauri/models/ 2>/dev/null || warn "deepfake_classifier.joblib not found in models/ — verify external USB mount."
 cp models/univfd_probe.joblib src-tauri/models/ 2>/dev/null || warn "univfd_probe.joblib not found in models/ — verify external USB mount."
+
+# CLIP (B4, BL-SIZE-001): the vision encoder and the precomputed prompt
+# embeddings ship; the text encoder (243 MiB) does not. First prove, with
+# the onnxruntime the sidecar was just frozen from, that encoding the
+# prompts gives exactly the committed array, as release.yml does.
+for f in clip-vit-b32-vision.onnx clip-vit-b32-vision.onnx.data clip-vit-b32-text.onnx clip-vit-b32-text.onnx.data; do
+  [[ -f "models/$f" ]] || die "models/$f missing. Fetch the four CLIP files from the model-assets-clip-v1 release (scripts/onnx-model-sha256.manifest)."
+done
+(cd models && shasum -a 256 -c <(grep -E 'clip-vit-b32-(vision|text)\.onnx' ../scripts/onnx-model-sha256.manifest | sed 's#models/##')) >/dev/null \
+  || die "CLIP ONNX files in models/ do not match scripts/onnx-model-sha256.manifest."
+"$SIDECAR_PY" scripts/clip_text_embeddings.py check --models-dir models --embeddings-dir models \
+  || die "The committed CLIP prompt embeddings do not match this build's onnxruntime. Do not ship the text encoder instead; find out why."
+cp models/clip-vit-b32-vision.onnx models/clip-vit-b32-vision.onnx.data src-tauri/models/
+cp models/clip-vit-b32-text-prompts.npy models/clip-vit-b32-text-prompts.json src-tauri/models/
+rm -f src-tauri/models/clip-vit-b32-text.onnx src-tauri/models/clip-vit-b32-text.onnx.data
 ok "Model files: $(ls src-tauri/models/ | tr '\n' ' ')"
 
 # ── Pre-bundle assertion: no stray model files may ship ───────────────

@@ -731,8 +731,23 @@ jobs:
       #       models/clip-vit-b32-vision.onnx.data
       #   Run from the repo root with RELEASE_PAT (repo scope on jura-trace) in env:
       #     GITHUB_TOKEN=$RELEASE_PAT gh release create ...
-      - name: Download CLIP ONNX models (Windows + Linux)
-        if: matrix.target != 'aarch64-apple-darwin'
+      # v1.2.0: all three platforms, and the text encoder no longer ships.
+      #
+      # macOS was excluded on the assumption that macOS releases are built
+      # locally, where the models sit in src-tauri/models. Since CI took over
+      # macOS signing (21 September 2026) a CI macOS build had NO CLIP
+      # models: the CLIP detector would have shipped unavailable, through one
+      # warning line (found 5 October 2026 reading this step for B4).
+      #
+      # BL-SIZE-001 (B4): the text encoder (243 MiB) only computes the five
+      # prompt embeddings, which ship precomputed as
+      # models/clip-vit-b32-text-prompts.npy. It is still downloaded, so the
+      # step can prove, with this job's onnxruntime (the environment the
+      # sidecar is frozen from), that encoding the prompts now gives exactly
+      # the committed array. Then only the vision encoder and the array are
+      # staged. A difference fails the build: the numbers must not move, and
+      # shipping the encoder for one platform is a decision, not a fallback.
+      - name: Download CLIP ONNX models
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_PAT }}
@@ -773,14 +788,24 @@ jobs:
           echo "Verifying SHA-256 hashes against scripts/onnx-model-sha256.manifest ..."
           # Strip comments from the manifest before piping to sha256sum -c.
           grep -v '^\s*#' scripts/onnx-model-sha256.manifest | grep -v '^\s*$' > /tmp/onnx-hashes.txt
-          (cd onnx-verify && sha256sum -c /tmp/onnx-hashes.txt)
+          if command -v sha256sum >/dev/null; then
+            (cd onnx-verify && sha256sum -c /tmp/onnx-hashes.txt)
+          else
+            (cd onnx-verify && shasum -a 256 -c /tmp/onnx-hashes.txt)
+          fi
           echo "SHA-256 verification PASSED."
 
-          # Place verified models into src-tauri/models/ alongside the joblibs.
-          cp onnx-verify/models/clip-vit-b32-text.onnx      src-tauri/models/
-          cp onnx-verify/models/clip-vit-b32-text.onnx.data src-tauri/models/
+          # B4: the committed prompt embeddings equal a live encoding, bit for
+          # bit, under this job's onnxruntime.
+          python scripts/clip_text_embeddings.py check --models-dir onnx-verify/models --embeddings-dir models
+
+          # Stage the vision encoder and the prompt embeddings; never the text
+          # encoder.
           cp onnx-verify/models/clip-vit-b32-vision.onnx      src-tauri/models/
           cp onnx-verify/models/clip-vit-b32-vision.onnx.data src-tauri/models/
+          cp models/clip-vit-b32-text-prompts.npy  src-tauri/models/
+          cp models/clip-vit-b32-text-prompts.json src-tauri/models/
+          rm -f src-tauri/models/clip-vit-b32-text.onnx src-tauri/models/clip-vit-b32-text.onnx.data
 
           echo "src-tauri/models/ contents after ONNX copy:"
           ls -lh src-tauri/models/
@@ -1463,7 +1488,7 @@ jobs:
           echo "── jura stderr ──"; cat "$out/verify.err" || true
           rc=$(cat "$out/rc" 2>/dev/null || echo missing)
           [ "$rc" = 0 ] || { echo "::error::jura verify exited $rc inside the container"; exit 1; }
-          python3 scripts/assert_sidecar_ran.py "$out/verify.json" || {
+          python3 scripts/assert_sidecar_ran.py --require-clip "$out/verify.json" || {
             echo "::error::the server in the tarball answered, but its sidecar did not analyse the file (A3)"; exit 1; }
           echo "OK: the server tarball runs on a clean ubuntu:22.04 and analyses with its sidecar."
 
