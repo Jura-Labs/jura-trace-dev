@@ -57,6 +57,22 @@ SIDECAR_DIST="$SIDECAR_DIST_ROOT/jura-sidecar"
 SIDECAR_WORK="$CARGO_TARGET_BASE/sidecar-build"
 SIDECAR_STAGING_REAL="$CARGO_TARGET_BASE/sidecar-bundle"
 SIDECAR_STAGING="src-tauri/sidecar-bundle"
+# A2 (v1.2.0): the sidecar is frozen from this venv, built from
+# sidecar/requirements-ci.txt (the manifest CI freezes Windows and Linux
+# from), never from whatever python3 is first on PATH. Until v1.1.0 the
+# macOS bundle was a function of this machine's miniconda: it shipped
+# onnxruntime 1.23.2 where the manifest pins 1.24.4, and 258 MiB of
+# pyarrow/chromadb that no manifest names.
+SIDECAR_VENV="$CARGO_TARGET_BASE/sidecar-venv"
+SIDECAR_PYTHON_VERSION="3.12"   # release.yml's setup-python
+# uv's package cache and PyInstaller's binary cache default to the home
+# directory (~/.cache/uv, ~/Library/Application Support/pyinstaller), about
+# 0.8 GB between them for this venv. They go under the Cargo target base for
+# the reason the sidecar output does: the first A2 build (5 October 2026)
+# died in PyInstaller with "No space left on device" on the internal disk.
+# Same volume as the venv, so uv can still hard-link from its cache.
+export UV_CACHE_DIR="${UV_CACHE_DIR:-$CARGO_TARGET_BASE/uv-cache}"
+export PYINSTALLER_CONFIG_DIR="${PYINSTALLER_CONFIG_DIR:-$CARGO_TARGET_BASE/pyinstaller-cache}"
 SIGNING_IDENTITY="Developer ID Application: Jura Labs CIC (Y82C4P9L7F)"
 TEAM_ID="Y82C4P9L7F"
 
@@ -73,8 +89,20 @@ log "Pre-flight checks"
 [[ "$(uname -m)" == "arm64" ]] || die "This script is Apple Silicon (arm64) only."
 
 command -v cargo >/dev/null || die "cargo not found. Install Rust via https://rustup.rs"
+# Build with the toolchain Cargo.toml names (release.yml pins the same one),
+# not rustup's default: with a 1.88 default the build ran for fifteen
+# minutes and then stopped at "rustc 1.88.0 is not supported" (5 October
+# 2026). RUSTUP_TOOLCHAIN in the environment still wins.
+if [[ -z "${RUSTUP_TOOLCHAIN:-}" ]]; then
+  RUSTUP_TOOLCHAIN="$(sed -n 's/^rust-version = "\(.*\)"/\1/p' src-tauri/Cargo.toml)"
+  [[ -n "$RUSTUP_TOOLCHAIN" ]] || die "No rust-version in src-tauri/Cargo.toml."
+  export RUSTUP_TOOLCHAIN
+fi
+cargo --version >/dev/null 2>&1 || die "Rust toolchain $RUSTUP_TOOLCHAIN is not installed (rustup toolchain install $RUSTUP_TOOLCHAIN)."
+ok "Rust toolchain: $(cargo --version)"
 command -v npm >/dev/null   || die "npm not found. Install Node.js 20+."
 command -v python3 >/dev/null || die "python3 not found."
+command -v uv >/dev/null || die "uv not found (brew install uv). The sidecar is frozen from a venv built from sidecar/requirements-ci.txt."
 command -v codesign >/dev/null || die "codesign not found (Xcode Command Line Tools)."
 
 if ! security find-identity -v -p codesigning | grep -q "${TEAM_ID}"; then
@@ -186,8 +214,17 @@ log "Building SvelteKit frontend"
 ok "Frontend built to ui/build/"
 
 # ── Sidecar build (PyInstaller --onedir) ──────────────────────────────
+log "Building the sidecar venv from sidecar/requirements-ci.txt"
+# Rebuilt every time: cheap with uv's cache, and an old venv could hold
+# packages the manifest has since dropped.
+rm -rf "$SIDECAR_VENV"
+uv venv --quiet --python "$SIDECAR_PYTHON_VERSION" "$SIDECAR_VENV"
+VIRTUAL_ENV="$SIDECAR_VENV" uv pip install --quiet -r sidecar/requirements-ci.txt "pyinstaller>=6,<7"
+SIDECAR_PY="$SIDECAR_VENV/bin/python"
+ok "Sidecar venv: Python $("$SIDECAR_PY" -c 'import sys;print(sys.version.split()[0])'), onnxruntime $("$SIDECAR_PY" -c 'import onnxruntime;print(onnxruntime.__version__)')"
+
 log "Building Python sidecar (PyInstaller --onedir, may take 5-10 min)"
-(cd sidecar && JURA_SIDECAR_ONEDIR=1 python3 -m PyInstaller jura-sidecar.spec --noconfirm \
+(cd sidecar && JURA_SIDECAR_ONEDIR=1 "$SIDECAR_PY" -m PyInstaller jura-sidecar.spec --noconfirm \
    --distpath "$SIDECAR_DIST_ROOT" --workpath "$SIDECAR_WORK")
 [[ -x "$SIDECAR_DIST/jura-sidecar" ]] || die "Sidecar bootloader missing after PyInstaller."
 [[ -d "$SIDECAR_DIST/_internal" ]] || die "Sidecar _internal/ missing after PyInstaller."

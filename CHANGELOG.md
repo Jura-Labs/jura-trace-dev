@@ -34,6 +34,14 @@ Installers:
   installers were signed and the sidecar was signed, but `jura-trace.exe`
   inside them was not, which Smart App Control can block.
 - `gen-detectors`, a build tool, is no longer installed.
+- macOS: the analysis engine is built from the same pinned dependency list
+  as Windows and Linux, not from the build machine's Python. The macOS app
+  loses about 258 MiB of libraries nothing used (pyarrow, chromadb,
+  sentence-transformers), and its onnxruntime moves from 1.23.2 to the
+  pinned 1.24.4. On macOS only, the AI-detection score can differ slightly
+  from v1.1.0 as a result: on the 217-image golden set it moved on 68
+  images (median 0.003, largest 0.056) and one verdict changed, from
+  Uncertain to Low Trust.
 
 Local REST API (`docs/API_WRAPPER.md`):
 
