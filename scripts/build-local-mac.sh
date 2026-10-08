@@ -57,6 +57,22 @@ SIDECAR_DIST="$SIDECAR_DIST_ROOT/jura-sidecar"
 SIDECAR_WORK="$CARGO_TARGET_BASE/sidecar-build"
 SIDECAR_STAGING_REAL="$CARGO_TARGET_BASE/sidecar-bundle"
 SIDECAR_STAGING="src-tauri/sidecar-bundle"
+# A2 (v1.2.0): the sidecar is frozen from this venv, built from
+# sidecar/requirements-ci.txt (the manifest CI freezes Windows and Linux
+# from), never from whatever python3 is first on PATH. Until v1.1.0 the
+# macOS bundle was a function of this machine's miniconda: it shipped
+# onnxruntime 1.23.2 where the manifest pins 1.24.4, and 258 MiB of
+# pyarrow/chromadb that no manifest names.
+SIDECAR_VENV="$CARGO_TARGET_BASE/sidecar-venv"
+SIDECAR_PYTHON_VERSION="3.12"   # release.yml's setup-python
+# uv's package cache and PyInstaller's binary cache default to the home
+# directory (~/.cache/uv, ~/Library/Application Support/pyinstaller), about
+# 0.8 GB between them for this venv. They go under the Cargo target base for
+# the reason the sidecar output does: the first A2 build (5 October 2026)
+# died in PyInstaller with "No space left on device" on the internal disk.
+# Same volume as the venv, so uv can still hard-link from its cache.
+export UV_CACHE_DIR="${UV_CACHE_DIR:-$CARGO_TARGET_BASE/uv-cache}"
+export PYINSTALLER_CONFIG_DIR="${PYINSTALLER_CONFIG_DIR:-$CARGO_TARGET_BASE/pyinstaller-cache}"
 SIGNING_IDENTITY="Developer ID Application: Jura Labs CIC (Y82C4P9L7F)"
 TEAM_ID="Y82C4P9L7F"
 
@@ -73,8 +89,20 @@ log "Pre-flight checks"
 [[ "$(uname -m)" == "arm64" ]] || die "This script is Apple Silicon (arm64) only."
 
 command -v cargo >/dev/null || die "cargo not found. Install Rust via https://rustup.rs"
+# Build with the toolchain Cargo.toml names (release.yml pins the same one),
+# not rustup's default: with a 1.88 default the build ran for fifteen
+# minutes and then stopped at "rustc 1.88.0 is not supported" (5 October
+# 2026). RUSTUP_TOOLCHAIN in the environment still wins.
+if [[ -z "${RUSTUP_TOOLCHAIN:-}" ]]; then
+  RUSTUP_TOOLCHAIN="$(sed -n 's/^rust-version = "\(.*\)"/\1/p' src-tauri/Cargo.toml)"
+  [[ -n "$RUSTUP_TOOLCHAIN" ]] || die "No rust-version in src-tauri/Cargo.toml."
+  export RUSTUP_TOOLCHAIN
+fi
+cargo --version >/dev/null 2>&1 || die "Rust toolchain $RUSTUP_TOOLCHAIN is not installed (rustup toolchain install $RUSTUP_TOOLCHAIN)."
+ok "Rust toolchain: $(cargo --version)"
 command -v npm >/dev/null   || die "npm not found. Install Node.js 20+."
 command -v python3 >/dev/null || die "python3 not found."
+command -v uv >/dev/null || die "uv not found (brew install uv). The sidecar is frozen from a venv built from sidecar/requirements-ci.txt."
 command -v codesign >/dev/null || die "codesign not found (Xcode Command Line Tools)."
 
 if ! security find-identity -v -p codesigning | grep -q "${TEAM_ID}"; then
@@ -186,8 +214,17 @@ log "Building SvelteKit frontend"
 ok "Frontend built to ui/build/"
 
 # ── Sidecar build (PyInstaller --onedir) ──────────────────────────────
+log "Building the sidecar venv from sidecar/requirements-ci.txt"
+# Rebuilt every time: cheap with uv's cache, and an old venv could hold
+# packages the manifest has since dropped.
+rm -rf "$SIDECAR_VENV"
+uv venv --quiet --python "$SIDECAR_PYTHON_VERSION" "$SIDECAR_VENV"
+VIRTUAL_ENV="$SIDECAR_VENV" uv pip install --quiet -r sidecar/requirements-ci.txt "pyinstaller>=6,<7"
+SIDECAR_PY="$SIDECAR_VENV/bin/python"
+ok "Sidecar venv: Python $("$SIDECAR_PY" -c 'import sys;print(sys.version.split()[0])'), onnxruntime $("$SIDECAR_PY" -c 'import onnxruntime;print(onnxruntime.__version__)')"
+
 log "Building Python sidecar (PyInstaller --onedir, may take 5-10 min)"
-(cd sidecar && JURA_SIDECAR_ONEDIR=1 python3 -m PyInstaller jura-sidecar.spec --noconfirm \
+(cd sidecar && JURA_SIDECAR_ONEDIR=1 "$SIDECAR_PY" -m PyInstaller jura-sidecar.spec --noconfirm \
    --distpath "$SIDECAR_DIST_ROOT" --workpath "$SIDECAR_WORK")
 [[ -x "$SIDECAR_DIST/jura-sidecar" ]] || die "Sidecar bootloader missing after PyInstaller."
 [[ -d "$SIDECAR_DIST/_internal" ]] || die "Sidecar _internal/ missing after PyInstaller."
@@ -299,6 +336,21 @@ log "Copying model files into src-tauri/models/"
 mkdir -p src-tauri/models
 cp models/deepfake_classifier.joblib src-tauri/models/ 2>/dev/null || warn "deepfake_classifier.joblib not found in models/ — verify external USB mount."
 cp models/univfd_probe.joblib src-tauri/models/ 2>/dev/null || warn "univfd_probe.joblib not found in models/ — verify external USB mount."
+
+# CLIP (B4, BL-SIZE-001): the vision encoder and the precomputed prompt
+# embeddings ship; the text encoder (243 MiB) does not. First prove, with
+# the onnxruntime the sidecar was just frozen from, that encoding the
+# prompts gives exactly the committed array, as release.yml does.
+for f in clip-vit-b32-vision.onnx clip-vit-b32-vision.onnx.data clip-vit-b32-text.onnx clip-vit-b32-text.onnx.data; do
+  [[ -f "models/$f" ]] || die "models/$f missing. Fetch the four CLIP files from the model-assets-clip-v1 release (scripts/onnx-model-sha256.manifest)."
+done
+(cd models && shasum -a 256 -c <(grep -E 'clip-vit-b32-(vision|text)\.onnx' ../scripts/onnx-model-sha256.manifest | sed 's#models/##')) >/dev/null \
+  || die "CLIP ONNX files in models/ do not match scripts/onnx-model-sha256.manifest."
+"$SIDECAR_PY" scripts/clip_text_embeddings.py check --models-dir models --embeddings-dir models \
+  || die "The committed CLIP prompt embeddings do not match this build's onnxruntime. Do not ship the text encoder instead; find out why."
+cp models/clip-vit-b32-vision.onnx models/clip-vit-b32-vision.onnx.data src-tauri/models/
+cp models/clip-vit-b32-text-prompts.npy models/clip-vit-b32-text-prompts.json src-tauri/models/
+rm -f src-tauri/models/clip-vit-b32-text.onnx src-tauri/models/clip-vit-b32-text.onnx.data
 ok "Model files: $(ls src-tauri/models/ | tr '\n' ' ')"
 
 # ── Pre-bundle assertion: no stray model files may ship ───────────────

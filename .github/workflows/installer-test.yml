@@ -290,7 +290,7 @@ jobs:
             echo "::error::jura verify exited $rc through the installed app (2 unreachable, 3 key refused, 7 the engine never became ready)."
             exit 1
           fi
-          python3 scripts/assert_sidecar_ran.py artefacts/verify-unsigned.json || {
+          python3 scripts/assert_sidecar_ran.py --require-clip artefacts/verify-unsigned.json || {
             echo "::error::The installed app answered, but its sidecar did not analyse the file (A3)."; exit 1; }
           engine=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["data"]["provenance"]["engineVersion"])' artefacts/verify-unsigned.json)
           echo "engine version: $engine (tag ${VERSION%%-*})"
@@ -654,7 +654,7 @@ jobs:
           $rc = $LASTEXITCODE
           Get-Content artefacts\verify-unsigned.err
           if ($rc -ne 0) { throw "jura verify exited $rc through the installed app (2 unreachable, 3 key refused, 7 the engine never became ready)." }
-          python scripts/assert_sidecar_ran.py artefacts\verify-unsigned.json
+          python scripts/assert_sidecar_ran.py --require-clip artefacts\verify-unsigned.json
           if ($LASTEXITCODE -ne 0) { throw "The installed app answered, but its sidecar did not analyse the file (A3)." }
           $engine = (Get-Content artefacts\verify-unsigned.json -Raw | ConvertFrom-Json).data.provenance.engineVersion
           $core = $env:VERSION.Split("-")[0]

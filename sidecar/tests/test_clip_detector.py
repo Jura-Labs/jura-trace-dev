@@ -411,3 +411,144 @@ class TestClipModelEviction:
         assert response.status_code == 200
         data = response.json()
         assert data["loaded"] is False
+
+
+# ── BL-SIZE-001: precomputed prompt embeddings ────────────────────────
+
+
+class TestPrecomputedPromptEmbeddings:
+    """The text encoder is not shipped; the five prompt embeddings are."""
+
+    @staticmethod
+    def _write(directory, prompts=None, arr=None):
+        import json
+        import os
+
+        import app.services.clip_detector as mod
+
+        prompts = list(mod._TEXT_PROMPTS) if prompts is None else prompts
+        arr = (
+            np.random.default_rng(0)
+            .standard_normal((len(mod._TEXT_PROMPTS), 512))
+            .astype(np.float32)
+            if arr is None
+            else arr
+        )
+        np.save(
+            os.path.join(directory, mod.PRECOMPUTED_EMBEDDINGS), arr, allow_pickle=False
+        )
+        with open(os.path.join(directory, mod.PRECOMPUTED_RECORD), "w") as f:
+            json.dump({"prompts": prompts}, f)
+        return arr
+
+    def test_a_valid_file_is_loaded(self, tmp_path):
+        import app.services.clip_detector as mod
+
+        arr = self._write(tmp_path)
+        got = mod.load_precomputed_prompt_embeddings(str(tmp_path))
+        assert got is not None and np.array_equal(got, arr)
+
+    def test_absent_is_none(self, tmp_path):
+        import app.services.clip_detector as mod
+
+        assert mod.load_precomputed_prompt_embeddings(str(tmp_path)) is None
+
+    def test_different_prompts_are_refused(self, tmp_path):
+        """A prompt edit without regenerating must not score against stale vectors."""
+        import app.services.clip_detector as mod
+
+        changed = list(mod._TEXT_PROMPTS)
+        changed[0] = "a photo"
+        self._write(tmp_path, prompts=changed)
+        assert mod.load_precomputed_prompt_embeddings(str(tmp_path)) is None
+
+    def test_wrong_shape_or_dtype_is_refused(self, tmp_path):
+        import app.services.clip_detector as mod
+
+        self._write(tmp_path, arr=np.zeros((4, 512), dtype=np.float32))
+        assert mod.load_precomputed_prompt_embeddings(str(tmp_path)) is None
+        self._write(tmp_path, arr=np.zeros((5, 512), dtype=np.float64))
+        assert mod.load_precomputed_prompt_embeddings(str(tmp_path)) is None
+
+    def test_missing_record_is_refused(self, tmp_path):
+        import os
+
+        import app.services.clip_detector as mod
+
+        self._write(tmp_path)
+        os.remove(tmp_path / mod.PRECOMPUTED_RECORD)
+        assert mod.load_precomputed_prompt_embeddings(str(tmp_path)) is None
+
+    def test_the_committed_file_matches_these_prompts(self):
+        """models/clip-vit-b32-text-prompts.* must be regenerated whenever
+        _TEXT_PROMPTS changes (scripts/clip_text_embeddings.py generate)."""
+        import os
+
+        import app.services.clip_detector as mod
+
+        models = os.path.join(os.path.dirname(__file__), "..", "..", "models")
+        assert (
+            mod.load_precomputed_prompt_embeddings(os.path.normpath(models)) is not None
+        )
+
+    def _load_with(self, tmp_path, monkeypatch, with_text_encoder):
+        """Run _ensure_model against tmp_path with onnxruntime stubbed, and
+        return which sessions it opened."""
+        import onnxruntime
+
+        import app.services.clip_detector as mod
+
+        opened = []
+
+        class FakeSession:
+            def __init__(self, path, providers=None):
+                opened.append(os.path.basename(path))
+
+        import os
+
+        (tmp_path / "clip-vit-b32-vision.onnx").write_bytes(b"x")
+        if with_text_encoder:
+            (tmp_path / "clip-vit-b32-text.onnx").write_bytes(b"x")
+        monkeypatch.setenv("JURA_MODELS_DIR", str(tmp_path))
+        monkeypatch.setattr(onnxruntime, "InferenceSession", FakeSession)
+        for name, value in (
+            ("_vision_session", None),
+            ("_text_session", None),
+            ("_text_prompt_cache", None),
+            ("_model_load_attempted", False),
+        ):
+            monkeypatch.setattr(mod, name, value)
+        return mod._ensure_model(), opened
+
+    def test_with_the_file_the_text_encoder_is_not_needed(self, tmp_path, monkeypatch):
+        import app.services.clip_detector as mod
+
+        arr = self._write(tmp_path)
+        ready, opened = self._load_with(tmp_path, monkeypatch, with_text_encoder=False)
+        assert ready is True
+        assert opened == ["clip-vit-b32-vision.onnx"]
+        assert mod._text_session is None
+        assert np.array_equal(mod._encode_text_prompts(), arr)
+
+    def test_the_file_wins_over_an_encoder_that_is_also_present(
+        self, tmp_path, monkeypatch
+    ):
+        self._write(tmp_path)
+        ready, opened = self._load_with(tmp_path, monkeypatch, with_text_encoder=True)
+        assert ready is True
+        assert opened == ["clip-vit-b32-vision.onnx"]
+
+    def test_an_unusable_file_falls_back_to_the_encoder(self, tmp_path, monkeypatch):
+        import app.services.clip_detector as mod
+
+        changed = list(mod._TEXT_PROMPTS)
+        changed[-1] = "edited"
+        self._write(tmp_path, prompts=changed)
+        ready, opened = self._load_with(tmp_path, monkeypatch, with_text_encoder=True)
+        assert ready is True
+        assert opened == ["clip-vit-b32-vision.onnx", "clip-vit-b32-text.onnx"]
+
+    def test_neither_file_nor_encoder_is_unavailable(self, tmp_path, monkeypatch):
+        ready, opened = self._load_with(tmp_path, monkeypatch, with_text_encoder=False)
+        assert ready is False
+        assert opened == []
