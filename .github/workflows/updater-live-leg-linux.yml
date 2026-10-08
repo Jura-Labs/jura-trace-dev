@@ -1,0 +1,252 @@
+name: Updater live leg (Linux)
+
+# The release gate's single non-negotiable, for Linux. v1.2.0 plan item A11.
+# A publicly downloaded AppImage of the previous release asks the REAL update
+# service for a manifest, is told to install what it is offered, and is then
+# launched again to say what version it is. Nothing here is staged: no hosts
+# entry, no throwaway certificate authority, no local listener.
+#
+# ── Why a separate file from the Windows leg ───────────────────────────────
+#
+# `updater-live-leg.yml` is PowerShell speaking the Chrome DevTools Protocol
+# to WebView2, and it took five runs to get right. Linux shares none of that:
+# the web view is WebKitGTK, which has no DevTools port, and the installer is
+# a single file the app overwrites in place. The two legs share an intent and
+# no code, so they are two files, and a dispatch of one does not download the
+# other platform's installer. That last part matters: every run of the
+# Windows leg adds one to an installer's public download count (plan, risk 9).
+#
+# ── Why ubuntu-22.04 and not OrbStack ──────────────────────────────────────
+#
+# The plan left open whether an AppImage could update itself inside an
+# OrbStack machine on the build Mac. It was not tried to a conclusion: the
+# Mac is arm64, the AppImage is x86_64, and on 8 October `orb list` timed out
+# waiting for the VM. A hosted x86_64 runner needs neither emulation nor that
+# machine to be awake. 22.04 specifically because release.yml builds the
+# AppImage on ubuntu-22.04, so the WebKitWebDriver apt installs here is the
+# same WebKitGTK series as the libraries bundled in the file under test.
+#
+# ── How the app is driven ──────────────────────────────────────────────────
+#
+# WebKitWebDriver launches the AppImage and speaks WebDriver to it. The web
+# view allows that when TAURI_WEBVIEW_AUTOMATION=true is in the environment,
+# which tauri-runtime-wry reads in a release build, so the binary is the one
+# users have and is not modified. All of it is in
+# scripts/ci/updater_live_leg_linux.py, which is a file rather than an inline
+# step so that it can be read, linted and run by hand on any x86_64 Linux
+# desktop:
+#
+#     dbus-run-session -- xvfb-run -a python3 scripts/ci/updater_live_leg_linux.py \
+#         --appimage ~/Applications/JuraTrace.AppImage --previous-tag v1.1.0 --expected 1.2.0
+#
+# ── What a green run proves ────────────────────────────────────────────────
+#
+# PROVES: the shipped AppImage resolves the real hostname, trusts the real
+# certificate chain, fetches the manifest the worker serves, accepts the
+# published version as newer, downloads the AppImage the manifest names,
+# verifies its signature against the key compiled into the previous release,
+# and replaces its own file. The evidence is the version a FRESH launch of
+# that file reports, and its SHA-256 matching the published asset's line in
+# the release's SHA256SUMS.txt.
+#
+# REPORTS BUT DOES NOT ASSERT: whether the app restarted itself afterwards.
+# v1.1.0 to v1.2.0 is the first Linux update that can exist, so there is no
+# earlier behaviour to hold it to. The step summary says which happened.
+#
+# DOES NOT PROVE: anything about the .deb. A .deb install does not update
+# through this path at all. tauri-plugin-updater 2.10.0 picks its installer
+# from the bundle type, looks for `linux-x86_64-deb` and then `linux-x86_64`
+# in the manifest, and rejects anything that is not a .deb. The manifest
+# carries one Linux entry and it is the AppImage.
+#
+# ── Rehearsal ──────────────────────────────────────────────────────────────
+#
+# Until v1.2.0 is published the live service has nothing newer than v1.1.0
+# to offer a Linux client, so the install half cannot run. `rehearsal: true`
+# runs everything else: download, launch, drive to Settings, press, read the
+# answer. It expects "Jura Trace is up to date", an unchanged version and an
+# unchanged file. A pull request that touches this workflow or its script
+# runs the rehearsal against the latest published release, so a change to
+# the leg is exercised before release day rather than on it. That is one
+# download of the AppImage per such pull request, and the paths filter keeps
+# it to those.
+
+on:
+  workflow_dispatch:
+    inputs:
+      previous_tag:
+        description: "Tag whose AppImage is treated as the PREVIOUS version. v1.1.0 is the first release that has one."
+        required: false
+        default: "v1.1.0"
+        type: string
+      expected_version:
+        description: "Version the app must be on afterwards. In a rehearsal, the version it is already on."
+        required: false
+        default: "1.2.0"
+        type: string
+      rehearsal:
+        description: "Expect NO update: the app must say it is up to date and change nothing."
+        required: false
+        default: false
+        type: boolean
+  pull_request:
+    paths:
+      - ".github/workflows/updater-live-leg-linux.yml"
+      - "scripts/ci/updater_live_leg_linux.py"
+
+concurrency:
+  group: updater-live-leg-linux-${{ github.event.inputs.previous_tag || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    name: Linux, live${{ (github.event_name == 'pull_request' || github.event.inputs.rehearsal == 'true') && ', rehearsal' || '' }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    env:
+      # RELEASE_PAT where it exists, because the installers live on
+      # Jura-Labs/jura-trace. That repository is public, so github.token can
+      # read a published release too, and a pull request from a fork gets no
+      # secrets at all.
+      GH_TOKEN: ${{ secrets.RELEASE_PAT || github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Settle what this run is
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          IN_PREV: ${{ github.event.inputs.previous_tag }}
+          IN_EXPECTED: ${{ github.event.inputs.expected_version }}
+          IN_REHEARSAL: ${{ github.event.inputs.rehearsal }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "pull_request" ]; then
+            # A pull request is always a rehearsal against whatever is
+            # published now, read at run time so this does not go stale the
+            # day v1.2.0 ships.
+            PREV=$(gh release view --repo Jura-Labs/jura-trace --json tagName --jq .tagName)
+            EXPECTED="${PREV#v}"
+            REHEARSAL=true
+          else
+            PREV="${IN_PREV:-v1.1.0}"
+            EXPECTED="${IN_EXPECTED:-1.2.0}"
+            REHEARSAL="${IN_REHEARSAL:-false}"
+          fi
+          echo "previous tag     : $PREV"
+          echo "expected version : $EXPECTED"
+          echo "rehearsal        : $REHEARSAL"
+          {
+            echo "prev=$PREV"
+            echo "expected=$EXPECTED"
+            echo "rehearsal=$REHEARSAL"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Install the driver, a display and FUSE
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          # webkit2gtk-driver is WebKitWebDriver. libfuse2 is what a type 2
+          # AppImage needs to mount itself, and a desktop has it. The app is
+          # run the way a user runs it, not with --appimage-extract-and-run,
+          # because the updater replaces the file named by $APPIMAGE.
+          sudo apt-get install -y --no-install-recommends \
+            webkit2gtk-driver xvfb libfuse2 dbus-x11
+          WebKitWebDriver --version || true
+          dpkg -s webkit2gtk-driver | grep '^Version' | sed 's/^/webkit2gtk-driver /'
+
+      - name: Download the previous version's AppImage
+        env:
+          PREV: ${{ steps.plan.outputs.prev }}
+          EXPECTED: ${{ steps.plan.outputs.expected }}
+        run: |
+          set -euo pipefail
+          # Under the home directory, where a user keeps an AppImage, and
+          # outside the checkout so nothing here depends on the workspace.
+          mkdir -p "$HOME/Applications" out
+          gh release download "$PREV" --repo Jura-Labs/jura-trace \
+            --pattern "*Linux-x86_64.AppImage" --dir "$HOME/Applications"
+          COUNT=$(find "$HOME/Applications" -name '*.AppImage' | wc -l)
+          if [ "$COUNT" -ne 1 ]; then
+            echo "::error::Expected exactly one AppImage on $PREV and found $COUNT."
+            exit 1
+          fi
+          APPIMAGE=$(find "$HOME/Applications" -name '*.AppImage')
+          chmod +x "$APPIMAGE"
+          ls -lh "$APPIMAGE" | sed 's/^/  /'
+          echo "APPIMAGE=$APPIMAGE" >> "$GITHUB_ENV"
+
+          # The published checksum for the version this run expects to end
+          # up on. Absent is said out loud and is not a failure here: the
+          # script warns that the installed file was not compared.
+          PUBLISHED=""
+          if gh release download "v$EXPECTED" --repo Jura-Labs/jura-trace \
+               --pattern "SHA256SUMS.txt" --dir out/sums 2>/dev/null; then
+            PUBLISHED=$(awk '/Linux-x86_64\.AppImage$/ {print $1}' out/sums/SHA256SUMS.txt | head -n 1)
+          fi
+          if [ -n "$PUBLISHED" ]; then
+            echo "published sha256 of the v$EXPECTED AppImage: $PUBLISHED"
+          else
+            echo "::warning::No SHA256SUMS.txt line for an AppImage on v$EXPECTED."
+          fi
+          echo "PUBLISHED_SHA256=$PUBLISHED" >> "$GITHUB_ENV"
+
+      - name: Launch it, press Check for Updates, and read its verdict
+        env:
+          PREV: ${{ steps.plan.outputs.prev }}
+          EXPECTED: ${{ steps.plan.outputs.expected }}
+          REHEARSAL: ${{ steps.plan.outputs.rehearsal }}
+        run: |
+          set -euo pipefail
+          ARGS=(--appimage "$APPIMAGE" --previous-tag "$PREV" --expected "$EXPECTED" --out out)
+          if [ "$REHEARSAL" = "true" ]; then ARGS+=(--rehearsal); fi
+          if [ -n "$PUBLISHED_SHA256" ]; then ARGS+=(--published-sha256 "$PUBLISHED_SHA256"); fi
+          # A session bus and a display, which is what a desktop login gives
+          # the app and a runner does not.
+          dbus-run-session -- xvfb-run --auto-servernum --server-args="-screen 0 1280x900x24" \
+            python3 scripts/ci/updater_live_leg_linux.py "${ARGS[@]}"
+
+      - name: Summary
+        if: always()
+        env:
+          PREV: ${{ steps.plan.outputs.prev }}
+          EXPECTED: ${{ steps.plan.outputs.expected }}
+          REHEARSAL: ${{ steps.plan.outputs.rehearsal }}
+        run: |
+          {
+            echo "## Updater live leg, Linux"
+            echo ""
+            echo "Launched the published \`$PREV\` AppImage and pointed it at the real update service."
+            echo "No hosts entry, no throwaway certificate, no local listener."
+            if [ "$REHEARSAL" = "true" ]; then
+              echo ""
+              echo "**This was a rehearsal.** It expects no update and proves the driving and"
+              echo "the check, not an install."
+            fi
+            echo ""
+            if [ -f out/observed-verdict.txt ]; then
+              echo "**Verdict read from the running app:** \`$(cat out/observed-verdict.txt)\`"
+            else
+              echo "**No verdict was read.** The step log says which branch fired, and"
+              echo "whether it is a failure of the test or the client's own answer."
+            fi
+            if [ -f out/verdict.log ]; then
+              echo ""
+              echo "Restarted itself after installing: \`$(python3 -c "import json; print(json.load(open('out/verdict.log')).get('relaunched_by_itself'))")\`"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload artefacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: updater-live-leg-linux
+          path: |
+            out/verdict.log
+            out/observed-verdict.txt
+            out/driver.log
+          if-no-files-found: ignore
+          retention-days: 14

@@ -76,12 +76,12 @@ jobs:
             libjavascriptcoregtk-4.1-dev \
             libsoup-3.0-dev
 
-      # Pin to the exact minimum Rust version declared in Cargo.toml (rust-version = "1.88").
+      # Pin to the exact minimum Rust version declared in Cargo.toml (rust-version = "1.90").
       # Using dtolnay/rust-toolchain rather than actions-rs because it is actively maintained.
-      - name: Install Rust 1.88
+      - name: Install Rust 1.90
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable @ 2026-09
         with:
-          toolchain: "1.88"
+          toolchain: "1.90"
           components: clippy, rustfmt
 
       # Cache Cargo registry and build artefacts keyed on Cargo.lock.
@@ -147,11 +147,29 @@ jobs:
       - name: cargo clippy
         run: cd src-tauri && cargo clippy -- -D warnings
 
+      # The feature set release.yml builds with (--features api,cli), which
+      # adds the jura-trace-api and jura binaries. Without this the shipped
+      # jura target, built from cli/src with this crate's dependency
+      # versions, would first compile in a release run.
+      - name: cargo clippy (release feature set)
+        run: cd src-tauri && cargo clippy --features api,cli --bins -- -D warnings
+
       - name: cargo fmt
         run: cd src-tauri && cargo fmt --check
 
       - name: cargo test
         run: cd src-tauri && cargo test
+
+      # Design section 11, assertions A4 and A5 against a real server: the
+      # built `jura` against jura-trace-api with no sidecar (exit codes from
+      # real responses), then against a sidecar that answers its health
+      # checks and analyses nothing, where scripts/assert_sidecar_ran.py
+      # must fail. The script fails unless every one of its cases ran.
+      - name: jura against a real jura-trace-api, and the A4 guard self-test
+        run: |
+          (cd src-tauri && cargo build --bin jura-trace-api)
+          (cd cli && cargo build --locked)
+          scripts/ci/cli-against-server.sh src-tauri/target/debug/jura-trace-api cli/target/debug/jura
 
       # Audit Rust dependencies against the RustSec advisory database.
       # Companion to pip-audit in the python job and the cross-ecosystem
@@ -193,6 +211,116 @@ jobs:
           cd src-tauri && cargo audit
 
   # ── Frontend: svelte-check + vitest ─────────────────────────────────────────
+  # ── jura-trace-api on Windows ──────────────────────────────────────────────
+  # The headless binary (v1.2.0 B2a) has Windows-only code: the orphan sweep
+  # after shutdown, because ending the launcher does not end the onedir
+  # bootloader. The Rust job above runs on Linux, and the release build does
+  # not compile this binary at all (see the [[bin]] comment in Cargo.toml),
+  # so without this job that code would first compile on a user's machine.
+  headless-windows:
+    name: Windows headless check
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install Rust 1.90
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable @ 2026-09
+        with:
+          toolchain: "1.90"
+          components: clippy
+
+      - name: Cache Cargo
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            src-tauri/target/
+          key: cargo-headless-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: cargo-headless-${{ runner.os }}-
+
+      - name: Setup Node 20
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Build frontend (required by tauri::generate_context!)
+        shell: bash
+        run: cd ui && npm ci && npm run build
+
+      - name: Placeholder for the sidecar bundle resource glob
+        shell: bash
+        run: |
+          mkdir -p src-tauri/sidecar-bundle
+          echo "CI placeholder; see the Rust job in ci.yml." > src-tauri/sidecar-bundle/.ci-placeholder
+
+      # PowerShell, not bash, for the cargo steps: a dependency builds vendored
+      # OpenSSL, whose Configure needs a full Perl. Under bash, Git's minimal
+      # /usr/bin/perl comes first on PATH and fails (Locale::Maketext::Simple
+      # missing); under PowerShell it is the runner's Strawberry Perl, which
+      # is what release.yml's Windows build uses.
+      - name: cargo clippy (jura-trace-api)
+        shell: pwsh
+        run: |
+          cd src-tauri
+          cargo clippy --bin jura-trace-api --tests -- -D warnings
+
+      - name: cargo test (headless binary, as a subprocess)
+        shell: pwsh
+        run: |
+          cd src-tauri
+          cargo test --test headless_api
+
+  # ── The `jura` CLI (cli/) ──────────────────────────────────────────────────
+  # A crate of its own, with its own Cargo.lock (see cli/Cargo.toml for why it
+  # is not in a workspace with src-tauri). Its tests run the built binary
+  # against a stub API and assert every exit code, so the contract in
+  # docs/API_WRAPPER.md is checked on each platform it will ship for. No Tauri
+  # dependencies, so neither the frontend build nor the sidecar placeholder.
+  cli:
+    name: CLI (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install Rust 1.90
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable @ 2026-09
+        with:
+          toolchain: "1.90"
+          components: clippy, rustfmt
+
+      - name: Cache Cargo
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            cli/target/
+          key: cargo-cli-${{ runner.os }}-${{ hashFiles('cli/Cargo.lock') }}
+          restore-keys: cargo-cli-${{ runner.os }}-
+
+      - name: cargo fmt
+        if: runner.os == 'Linux'
+        run: cd cli && cargo fmt --check
+
+      - name: cargo clippy
+        run: cd cli && cargo clippy --all-targets --locked -- -D warnings
+
+      # JURA_NO_KEYRING keeps the tests off any OS keyring on the runner; the
+      # tests set it themselves too, this is belt and braces.
+      - name: cargo test
+        env:
+          JURA_NO_KEYRING: "1"
+        run: cd cli && cargo test --locked
+
   frontend:
     name: Frontend
     runs-on: ubuntu-latest
@@ -253,7 +381,7 @@ jobs:
 
       - name: Upload Playwright report on failure
         if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: playwright-report
           path: ui/playwright-report/
@@ -399,6 +527,13 @@ jobs:
       # `actions/upload-artifact@v4` in osv-scanner.yml. One drift in a single
       # pull request is enough to show the discipline needs a check rather
       # than an intention.
+      # The release attaches model-card metadata built by this script (A4,
+      # BL-CLAIM-002). It fails on a generator key with no public label or on
+      # metadata that describes a model other than the shipped one. Running it
+      # here finds that on the pull request that caused it, not on release day.
+      - name: Model-card metadata builds
+        run: python3 scripts/build_model_card_assets.py "$RUNNER_TEMP/model-cards"
+
       - name: Every GitHub Action is pinned to a commit SHA
         run: |
           set -euo pipefail

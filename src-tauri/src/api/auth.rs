@@ -6,7 +6,8 @@
 //! raw key, and validates it against the `api_keys` table. Returns 401 when the
 //! key is missing, malformed, or revoked.
 //!
-//! Routes that bypass auth: `GET /api/v1/health` and `GET /openapi.json`.
+//! Routes that bypass auth: `GET /api/v1/health`, `GET /api/v1/ready` and
+//! `GET /openapi.json`.
 
 use axum::{
     extract::{Request, State},
@@ -43,6 +44,8 @@ pub async fn require_api_key(
     // of the `/api` prefix by axum — use `/v1/health` not `/api/v1/health`.
     if path == "/v1/health"
         || path == "/api/v1/health"
+        || path == "/v1/ready"
+        || path == "/api/v1/ready"
         || path == "/openapi.json"
         || path.starts_with("/swagger-ui")
     {
@@ -100,6 +103,25 @@ fn extract_bearer_key(headers: &axum::http::HeaderMap) -> Option<String> {
     Some(key.to_string())
 }
 
+/// A new API key: the key as a caller sends it (`jt_` and 64 hex
+/// characters, 256 bits), and the hash to store for it. The one place keys
+/// are made, for the REST route, `jura-trace-api keys add` and the app's
+/// Settings panel.
+///
+/// The hash is of the part after `jt_`, because that is what
+/// [`require_api_key`] hashes from a request. Until v1.2.0 the Settings
+/// panel hashed the whole key, prefix included, so a key made there could
+/// never authenticate; the panel was hidden, so nobody met it.
+pub fn new_key() -> (String, String) {
+    let raw = format!(
+        "{}{}",
+        uuid::Uuid::new_v4().simple(),
+        uuid::Uuid::new_v4().simple()
+    );
+    let hash = hash_key(&raw);
+    (format!("jt_{raw}"), hash)
+}
+
 /// SHA-256 hash a raw key string, returning a lowercase hex string.
 pub fn hash_key(raw_key: &str) -> String {
     let mut hasher = Sha256::new();
@@ -110,6 +132,21 @@ pub fn hash_key(raw_key: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A key made by `new_key` is accepted by the check a request goes
+    /// through: the hash stored is the hash of what the header yields.
+    #[test]
+    fn a_new_key_matches_what_a_request_is_checked_against() {
+        use axum::http::HeaderMap;
+        let (key, stored) = new_key();
+        assert!(key.starts_with("jt_") && key.len() == 67, "{key}");
+        let mut headers = HeaderMap::new();
+        headers.insert(AUTHORIZATION, format!("Bearer {key}").parse().unwrap());
+        let sent = extract_bearer_key(&headers).unwrap();
+        assert_eq!(hash_key(&sent), stored);
+        // And two keys differ.
+        assert_ne!(new_key().0, key);
+    }
 
     #[test]
     fn hash_key_is_deterministic() {

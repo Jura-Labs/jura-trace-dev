@@ -148,6 +148,29 @@ async function injectAndOpenProvenanceCard(
 }
 
 // ──────────────────────────────────────────────────────────────────
+// Reliance note (JTV-208). Lives in the verdict card, not the
+// provenance card, but reuses this file's result fixture.
+// ──────────────────────────────────────────────────────────────────
+
+test.describe('Verdict card — reliance note', () => {
+  test.use({ viewport: { width: 1280, height: 900 } });
+
+  test('shows with every result, even after the old first-run card was dismissed', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('jura-onboarded', 'true');
+      localStorage.setItem('jura-setup-complete', 'true');
+      localStorage.setItem('jura-verify-intro-dismissed', 'true');
+    });
+    await injectAndOpenProvenanceCard(page, baseResult());
+
+    const note = page.getByRole('note').filter({ hasText: 'a second opinion, not a verdict' });
+    await expect(note).toHaveCount(1);
+    await expect(note).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Dismiss this note' })).toHaveCount(0);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────
 // Card header
 // ──────────────────────────────────────────────────────────────────
 

@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-  import { getVersion, checkSidecarHealth, getSidecarStartupStatus, onSidecarStatusChanged, getDbPath, setDbPath, getLicenceTier, setLicenceTier, getAiDescriptionEnabled, setAiDescriptionEnabled, getPowerSaverMode, setPowerSaverMode, createApiKey, listApiKeys, revokeApiKey, getSigningMode, setSigningMode, getConformantCertInfo, importConformantCertificate, clearConformantCert, getNetworkMode, setNetworkMode, clearAssetLibrary } from '$lib/api';
+  import { getVersion, checkSidecarHealth, getSidecarStartupStatus, onSidecarStatusChanged, getDbPath, setDbPath, getLicenceTier, setLicenceTier, getAiDescriptionEnabled, setAiDescriptionEnabled, getPowerSaverMode, setPowerSaverMode, createApiKey, listApiKeys, revokeApiKey, getSigningMode, setSigningMode, getConformantCertInfo, importConformantCertificate, clearConformantCert, getNetworkMode, setNetworkMode, getSigningTimestampChoice, setSigningTimestampChoice, clearAssetLibrary } from '$lib/api';
   import type { ApiKeyInfo, CreateKeyResult } from '$lib/api';
   import type { ConformantCertificateInfo, LicenceTier, NetworkMode, SidecarHealth, SidecarStartupSnapshot, SidecarStartupStatus, SigningMode, TierInfo } from '$lib/types';
   import { V1_SHOW_CONFORMANT_SIGNING, V1_SHOW_API_KEYS, V1_SHOW_AI_DESCRIPTION, V1_SHOW_READ_TEXT } from '$lib/featureFlags';
@@ -413,6 +413,11 @@
     }
     // Load network access mode
     networkMode = await getNetworkMode();
+    try {
+      signingTimestampAnswer = (await getSigningTimestampChoice()).standardModeAnswer;
+    } catch {
+      // Leave as "ask": the Protect page asks before signing either way.
+    }
   });
 
   onDestroy(() => {
@@ -484,7 +489,7 @@
       tier: 'professional',
       name: 'Professional',
       codename: 'Stratum',
-      description: 'Individual commercial licence. Adds report customisation (your name, organisation, case reference), full methodology versioning, comparative analysis, MONITOR Layer 2 (reverse image search), REST API access (port 8300), extended audit log retention (24 months), and best-effort email support. Conformant C2PA signing is planned for v1.1.',
+      description: 'Individual commercial licence. Adds report customisation (your name, organisation, case reference), full methodology versioning, comparative analysis, MONITOR Layer 2 (reverse image search), extended audit log retention (24 months), and best-effort email support. Conformant C2PA signing is planned, with no release date yet.',
       badgeClass: 'bg-lapis/15 border border-lapis/30',
       badgeTextClass: 'text-lapis dark:text-lapis-light',
     },
@@ -797,8 +802,8 @@
   }
 
   // ── API Key Management ──────────────────────────────────────────────────
-  // Available on Professional and Enterprise tiers (Team retired 2026-05-04).
-  // Keys authenticate against the local REST API on port 8300.
+  // Every tier from v1.2.0. Keys authenticate against the local REST API on
+  // port 8300.
 
   let apiKeys = $state<ApiKeyInfo[]>([]);
   let apiKeysLoading = $state(false);
@@ -810,7 +815,6 @@
   let apiKeyFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
   let pendingRevokeId = $state<string | null>(null);
 
-  const apiKeysAvailable = $derived(currentTier === 'professional' || currentTier === 'enterprise');
   const activeKeyCount = $derived(apiKeys.filter(k => !k.revoked).length);
 
   async function loadApiKeys() {
@@ -1073,13 +1077,32 @@
 
   // ── Network Access Mode ──────────────────────────────────────────────────
   // Controls whether Jura Trace makes outbound network connections during
-  // verification. Standard = fully local (default). Enhanced = optional online features
-  // and remote Content Credentials retrieval during verification.
+  // verification. Enhanced (default) = automatic update check and weather lookup allowed.
+  // Standard = those off; signing timestamps follow the remembered answer (BL-CLAIM-004).
 
   let networkMode = $state<NetworkMode>('standard');
   let networkModeChanging = $state(false);
   let networkModeFeedback = $state<{ ok: boolean; message: string } | null>(null);
   let networkModeFeedbackTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // BL-CLAIM-004 option 3: the remembered answer to "timestamp signatures in
+  // Standard mode?". null = ask at the next signing in Standard mode.
+  let signingTimestampAnswer = $state<boolean | null>(null);
+  let signingTimestampSaving = $state(false);
+  let signingTimestampFeedback = $state<{ ok: boolean; message: string } | null>(null);
+
+  async function handleSigningTimestampChange(answer: boolean | null) {
+    signingTimestampSaving = true;
+    signingTimestampFeedback = null;
+    try {
+      signingTimestampAnswer = (await setSigningTimestampChoice(answer)).standardModeAnswer;
+      signingTimestampFeedback = { ok: true, message: 'Saved.' };
+    } catch (err: unknown) {
+      signingTimestampFeedback = { ok: false, message: err instanceof Error ? err.message : String(err) };
+    } finally {
+      signingTimestampSaving = false;
+    }
+  }
 
   // ── Danger Zone — Clear Asset Library (JTV-204) ──────────────────
   // Destructive wipe of assets, fingerprints, verifications, annotations.
@@ -1139,7 +1162,7 @@
       networkModeFeedback = {
         ok: true,
         message: mode === 'standard'
-          ? 'Network mode set to Standard. No outbound connections will be made.'
+          ? 'Network mode set to Standard. Automatic update checks and weather lookups are off. Signing asks once whether to add a trusted timestamp.'
           : 'Network mode set to Enhanced. Optional online features are now available. Content Credential verification is unchanged.',
       };
     } catch (err: unknown) {
@@ -1607,8 +1630,8 @@
         </div>
 
         <p class="text-xs muted-help leading-relaxed mb-3">
-          Reserved for v1.0.1 AI enrichment (a single multimodal+text model for image
-          descriptions and claim verification). Not used by v1.0 features. Core verification,
+          Reserved for future AI enrichment (a single multimodal+text model for image
+          descriptions and claim verification). Not used by any current feature. Core verification,
           forensic analysis, and AI deepfake detection all work without Ollama.
           {#if ollamaUrl !== DEFAULT_OLLAMA_URL}
             <span class="block mt-1">URL: <code class="font-mono text-[11px]">{ollamaUrl}</code></span>
@@ -2428,8 +2451,8 @@
           Third-party tools will confirm this file's integrity. Your identity as signer will show
           as <code class="font-mono text-[10px]">signingCredential.untrusted</code> in external
           validators, expected in Local Signing mode (the manifest is valid; trust scope is local
-          to this install). Conformant Signing (verifiable against the C2PA trust list) ships
-          in v1.1.
+          to this install). Conformant Signing (verifiable against the C2PA trust list) is
+          planned, with no release date yet.
         </p>
 
         <!-- Certificate Details expandable -->
@@ -2910,12 +2933,10 @@
   </section>
   {/if}
 
-  <!-- API Key Management — hidden in v1.0 Community-only launch.
-       V1_SHOW_API_KEYS=false hides the entire section. Backend (`api_keys`
-       table, listApiKeys / createApiKey / revokeApiKey IPC, Axum auth
-       middleware on port 8300) stays in tree; flipping the flag in
-       $lib/featureFlags.ts re-enables this surface alongside the v1.1
-       Pro-tier UI unhide (JTV-170-176). -->
+  <!-- API Key Management. Shown to every tier from v1.2.0: the REST API and
+       the jura CLI are free in Community (decided 23 September 2026). Hidden
+       until then, which also hid that keys made here never authenticated
+       (they were hashed with their jt_ prefix; fixed in api::auth::new_key). -->
   {#if V1_SHOW_API_KEYS}
   <section
     class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-6"
@@ -2926,20 +2947,16 @@
       <ContextualHelpLink href="/help/settings#api-keys" label="Learn about API key management" />
     </div>
     <p class="text-xs muted-help mb-4">
-      Manage authentication keys for the local REST API on port 8300. Keys allow external tools (CI pipelines, n8n workflows, custom scripts) to call the Jura Trace verification engine programmatically.
+      Keys for the local REST API on 127.0.0.1:8300, which lets scripts and other tools (CI pipelines, n8n workflows, the <code>jura</code> command-line client) run the same analysis as this app, on this machine. A key is shown once, when you create it.
+    </p>
+    <p class="text-xs muted-help mb-4">
+      The <code>jura</code> and <code>jura-trace-api</code> programs are installed beside the app.
+      <a
+        href="/help/settings#api-keys"
+        class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
+      >Help</a> says where they are and how to run a first verification.
     </p>
 
-    {#if !apiKeysAvailable}
-      <div class="p-4 rounded-lg border border-lapis/20 bg-lapis/5">
-        <p class="text-sm text-flint-dark dark:text-flint-light">
-          REST API access and key management are planned for the Pro tier in the v1.1 release. v1.0 ships Community-only, so the verification engine is fully usable through the desktop app and the Tauri IPC surface, but there is no programmatic key-authenticated REST endpoint yet. For early API access enquiries, email
-          <a
-            href="mailto:consultancy@juralabs.org"
-            class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded"
-          >consultancy@juralabs.org</a>.
-        </p>
-      </div>
-    {:else}
       <!-- Newly created key banner (shown once, dismissed by user) -->
       {#if newlyCreatedKey}
         <div
@@ -3126,7 +3143,6 @@
           {activeKeyCount} active key{activeKeyCount === 1 ? '' : 's'} &middot; {apiKeys.length} total
         </p>
       {/if}
-    {/if}
   </section>
   {/if}
 
@@ -3138,7 +3154,7 @@
   >
     <h2 id="network-access-heading" class="text-lg font-heading text-text-light dark:text-quartz mb-1">Network Access</h2>
     <p class="text-xs muted-help mb-5">
-      Controls whether Jura Trace makes outbound network connections. Standard mode is fully local with no external calls. Enhanced mode enables online certificate verification and remote Content Credentials retrieval.
+      Controls the optional outbound connections Jura Trace makes on its own. Standard mode turns off the automatic update check and the weather lookup. Enhanced mode allows both. In either mode, checking for updates by hand and verifying a URL still connect out, and in Standard mode signing requests a trusted timestamp only if you choose it below; see Help, Compliance for the full list.
     </p>
 
     <!-- Mode cards -->
@@ -3163,7 +3179,7 @@
 
         <h3 class="text-sm font-semibold text-text-light dark:text-quartz mb-1 pr-14">Standard</h3>
         <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mb-4">
-          Fully local, with no outbound network connections. Recommended for air-gapped environments. Content Credentials are verified identically in both modes.
+          No automatic outbound connections. Signing asks once whether to request a trusted timestamp, and verifying a URL downloads it. Content Credentials are verified identically in both modes.
         </p>
 
         {#if networkMode !== 'standard'}
@@ -3261,6 +3277,42 @@
         {networkModeFeedback.message}
       </p>
     {/if}
+
+    <fieldset class="mt-6 pt-5 border-t border-border-light dark:border-border-dark">
+      <legend class="text-sm font-semibold text-text-light dark:text-quartz mb-1">Signing timestamps in Standard mode</legend>
+      <p class="text-xs muted-help mb-3">
+        A trusted timestamp records when a file was signed. In Enhanced mode signatures always get one.
+        In Standard mode Jura Trace asks the first time you sign and remembers your answer here.
+      </p>
+      <div class="space-y-2">
+        {#each [
+            { value: null, label: 'Ask the next time I sign' },
+            { value: true, label: 'Use a trusted timestamp (sends a hash of the signature to DigiCert)' },
+            { value: false, label: 'Sign without a timestamp (nothing leaves this device; the seal has no trusted time)' },
+          ] as opt (String(opt.value))}
+          <label class="flex items-start gap-2 text-sm text-text-light dark:text-quartz cursor-pointer">
+            <input
+              type="radio"
+              name="signing-timestamp"
+              class="mt-1"
+              checked={signingTimestampAnswer === opt.value}
+              disabled={signingTimestampSaving}
+              onchange={() => void handleSigningTimestampChange(opt.value)}
+            />
+            <span>{opt.label}</span>
+          </label>
+        {/each}
+      </div>
+      {#if signingTimestampFeedback !== null}
+        <p
+          class="mt-2 text-xs {signingTimestampFeedback.ok ? 'text-malachite-dark dark:text-malachite-light' : 'text-cinnabar-dark dark:text-cinnabar-light'}"
+          role="status"
+          aria-live="polite"
+        >
+          {signingTimestampFeedback.message}
+        </p>
+      {/if}
+    </fieldset>
   </section>
 
   <!-- Danger Zone — JTV-204.

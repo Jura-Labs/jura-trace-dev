@@ -169,8 +169,11 @@ jobs:
           | **Windows** (64-bit) — *NSIS installer* | **[${exe_name}](${base}/${exe_name})** | Azure Trusted Signing |
           | **Linux** (x86\_64) — *AppImage* | **[${appimage_name}](${base}/${appimage_name})** | Self-signed (AGPL source build) |
           | **Linux** (x86\_64) — *DEB package* | **[${deb_name}](${base}/${deb_name})** | Self-signed (AGPL source build) — install with \`sudo apt install ./<file>\` |
+          | **Linux server** (x86\_64, no desktop) | **[JuraTrace-${ver}-Linux-x86_64-server.tar.gz](${base}/JuraTrace-${ver}-Linux-x86_64-server.tar.gz)** | Self-signed (AGPL source build) — \`jura-trace-api\` and \`jura\`; see README.txt inside |
 
           **Verify your download:** grab **[SHA256SUMS.txt](${base}/SHA256SUMS.txt)** and run \`shasum -a 256 -c SHA256SUMS.txt\` (macOS / Linux) or \`certutil -hashfile <filename> SHA256\` (Windows).
+
+          **Model cards:** training and evaluation metadata for the two AI-detection models, including recall by generator family, is in **[model-card-univfd.json](${base}/model-card-univfd.json)** and **[model-card-gbm.json](${base}/model-card-gbm.json)**.
 
           Full install + first-test walkthrough: **[GETTING_STARTED.md](https://github.com/Jura-Labs/jura-trace/blob/main/GETTING_STARTED.md)**.
 
@@ -447,11 +450,11 @@ jobs:
             patchelf
 
       # ── Rust toolchain ───────────────────────────────────────────────────
-      # Pin to the same Rust version as rust-version in Cargo.toml (1.88).
-      - name: Install Rust 1.88
+      # Pin to the same Rust version as rust-version in Cargo.toml (1.90).
+      - name: Install Rust 1.90
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable @ 2026-09
         with:
-          toolchain: "1.88"
+          toolchain: "1.90"
           targets: ${{ matrix.target }}
 
       # Cache per target triple — macOS arm64 and x64 produce different artefacts.
@@ -559,11 +562,17 @@ jobs:
       #     Mach-O launcher built from src-tauri/sidecar-launcher/; it was a shell
       #     script until 9 September 2026, see that source for why) execs the bundled bootloader at runtime.
       #
-      #   Windows / Linux — onefile mode (unchanged):
-      #     spec defaults to EXE-only (no COLLECT) producing a single
-      #     self-contained executable. Migrate later if cold-start regressions
-      #     surface; for now the Tauri sidecar probe budget tolerates --onefile
-      #     on Windows + Linux.
+      #   Windows (x86_64-pc-windows-msvc) — v1.2.0 B1, the same onedir mode.
+      #     --onefile re-extracted the whole payload to %TEMP%\_MEIxxxxxx on
+      #     every launch: 39.0 s to sidecarAvailable on first launch and 28.4 s
+      #     on the second, measured on windows-latest against the shipped
+      #     v1.1.0 MSI (probe run 35699529154, 22 September 2026). A compiled
+      #     launcher built below from src-tauri/sidecar-launcher/ runs the
+      #     bundled bootloader in place, so nothing is extracted.
+      #
+      #   Linux — onefile mode, deliberately. The AppImage bundler already
+      #     makes three staging copies of the payload, and an uncompressed
+      #     tree makes that worse. Not part of B1.
       #
       # JURA_MODELS_DIR is NOT set here because the models/ directory is not
       # bundled inside the frozen binary — see docs/pyinstaller-spike-findings.md.
@@ -575,7 +584,7 @@ jobs:
       # steps above before cargo tauri bundle runs.
       - name: Build frozen sidecar
         env:
-          JURA_SIDECAR_ONEDIR: ${{ matrix.target == 'aarch64-apple-darwin' && '1' || '0' }}
+          JURA_SIDECAR_ONEDIR: ${{ (matrix.target == 'aarch64-apple-darwin' || matrix.target == 'x86_64-pc-windows-msvc') && '1' || '0' }}
         run: python -m PyInstaller jura-sidecar.spec --noconfirm
         working-directory: sidecar
 
@@ -605,7 +614,7 @@ jobs:
           du -sh src-tauri/sidecar-bundle/
           ls -la src-tauri/sidecar-bundle/ | head -10
 
-      # ── Windows / Linux onefile copy (unchanged from pre-Phase-5) ────────
+      # ── Linux onefile copy (Windows moved to onedir in B1, below) ────────
       # Tauri's externalBin strips the platform triple suffix at build time
       # and re-adds it for each target. The binaries/ directory is gitignored
       # for large native binaries — create if absent.
@@ -615,24 +624,60 @@ jobs:
           mkdir -p src-tauri/binaries
           cp sidecar/dist/jura-sidecar src-tauri/binaries/${{ matrix.sidecar_name }}
 
-      - name: Copy sidecar binary to Tauri binaries (Windows)
+      # ── Windows B1: stage the onedir tree and build the launcher ─────────
+      # PyInstaller's --onedir output is sidecar\dist\jura-sidecar\ holding
+      # jura-sidecar.exe (the bootloader) and _internal\. It goes into
+      # src-tauri\sidecar-bundle\, which the resources glob installs at
+      # <install root>\sidecar-bundle\. The launcher Tauri spawns sits at
+      # <install root>\jura-sidecar.exe and runs the bootloader from there.
+      #
+      # The launcher is compiled here rather than committed, because an MSVC
+      # PE cannot be proved byte-equal to its source the way
+      # scripts/macho-equal.py proves the macOS one. Two assertions stand in
+      # for that guarantee: the file at the externalBin path is not the
+      # 126-byte tracked placeholder, and it starts with the MZ magic. Each
+      # catches a build or copy that silently did not happen.
+      - name: Stage sidecar onedir tree and build the launcher (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path src-tauri\binaries | Out-Null
-          Copy-Item sidecar\dist\jura-sidecar.exe src-tauri\binaries\${{ matrix.sidecar_name }}
+          $ErrorActionPreference = "Stop"
+          $src = "sidecar\dist\jura-sidecar"
+          if (-not (Test-Path "$src\jura-sidecar.exe" -PathType Leaf)) { throw "bootloader missing from the onedir tree at $src\jura-sidecar.exe. Did PyInstaller run with JURA_SIDECAR_ONEDIR=1?" }
+          if (-not (Test-Path "$src\_internal" -PathType Container)) { throw "_internal\ missing from the onedir tree at $src" }
+          if (Test-Path src-tauri\sidecar-bundle) { Remove-Item src-tauri\sidecar-bundle -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path src-tauri\sidecar-bundle, src-tauri\binaries | Out-Null
+          Copy-Item "$src\*" src-tauri\sidecar-bundle -Recurse -Force
+          $staged = @(Get-ChildItem src-tauri\sidecar-bundle -Recurse -File)
+          $expected = @(Get-ChildItem $src -Recurse -File).Count
+          if ($staged.Count -ne $expected) { throw "staged $($staged.Count) files, PyInstaller produced $expected" }
+          $mib = [math]::Round((($staged | Measure-Object Length -Sum).Sum) / 1MB, 1)
+          Write-Host "staged sidecar-bundle: $($staged.Count) files, $mib MiB"
 
-      # ── Windows + Linux: placeholder for sidecar-bundle resources glob ─────
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
+                  -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vs) { throw "no Visual Studio with the x64 C toolchain on this runner" }
+          $out = "src-tauri\binaries\${{ matrix.sidecar_name }}"
+          cmd /c "call `"$vs\VC\Auxiliary\Build\vcvars64.bat`" >nul && cl /nologo /O2 /W4 /WX /MT /DNDEBUG src-tauri\sidecar-launcher\jura-sidecar-launcher-win.c /Fe:$out /Fo:$env:RUNNER_TEMP\ /link /SUBSYSTEM:CONSOLE"
+          if ($LASTEXITCODE -ne 0) { throw "launcher compile failed with $LASTEXITCODE" }
+
+          $item = Get-Item $out
+          $magic = [System.Text.Encoding]::ASCII.GetString([System.IO.File]::ReadAllBytes($item.FullName)[0..1])
+          if ($item.Length -eq 126) { throw "$out is still the 126-byte placeholder; the launcher was not built into place" }
+          if ($magic -ne "MZ") { throw "$out does not start with MZ; it is not a PE executable" }
+          Write-Host "launcher: $out, $($item.Length) bytes, PE"
+
+      # ── Linux: placeholder for sidecar-bundle resources glob ───────────────
       # tauri.conf.json declares `"resources": ["models/*", "sidecar-bundle/**/*"]`
-      # for the JTV-184 macOS onedir refactor. On Windows + Linux the sidecar is
-      # --onefile (no onedir tree), so the directory does not exist and Tauri's
+      # for the onedir builds (macOS since JTV-184, Windows since B1). On Linux
+      # the sidecar is --onefile (no onedir tree), so the directory does not exist and Tauri's
       # strict glob rejects an empty match with "glob pattern ... path not found".
       # Create an empty placeholder so the glob matches one zero-byte file;
-      # tauri ships this inside the MSI / AppImage as a harmless artefact.
+      # tauri ships this inside the AppImage / deb as a harmless artefact.
       # Long-term fix: platform-conditional resources in tauri.conf.json (not
       # yet supported by Tauri v2 schema as a per-bundle override).
-      - name: Create empty sidecar-bundle placeholder (Windows + Linux)
-        if: matrix.target != 'aarch64-apple-darwin'
+      - name: Create empty sidecar-bundle placeholder (Linux)
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
         shell: bash
         run: |
           mkdir -p src-tauri/sidecar-bundle
@@ -686,8 +731,23 @@ jobs:
       #       models/clip-vit-b32-vision.onnx.data
       #   Run from the repo root with RELEASE_PAT (repo scope on jura-trace) in env:
       #     GITHUB_TOKEN=$RELEASE_PAT gh release create ...
-      - name: Download CLIP ONNX models (Windows + Linux)
-        if: matrix.target != 'aarch64-apple-darwin'
+      # v1.2.0: all three platforms, and the text encoder no longer ships.
+      #
+      # macOS was excluded on the assumption that macOS releases are built
+      # locally, where the models sit in src-tauri/models. Since CI took over
+      # macOS signing (21 September 2026) a CI macOS build had NO CLIP
+      # models: the CLIP detector would have shipped unavailable, through one
+      # warning line (found 5 October 2026 reading this step for B4).
+      #
+      # BL-SIZE-001 (B4): the text encoder (243 MiB) only computes the five
+      # prompt embeddings, which ship precomputed as
+      # models/clip-vit-b32-text-prompts.npy. It is still downloaded, so the
+      # step can prove, with this job's onnxruntime (the environment the
+      # sidecar is frozen from), that encoding the prompts now gives exactly
+      # the committed array. Then only the vision encoder and the array are
+      # staged. A difference fails the build: the numbers must not move, and
+      # shipping the encoder for one platform is a decision, not a fallback.
+      - name: Download CLIP ONNX models
         shell: bash
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_PAT }}
@@ -728,14 +788,24 @@ jobs:
           echo "Verifying SHA-256 hashes against scripts/onnx-model-sha256.manifest ..."
           # Strip comments from the manifest before piping to sha256sum -c.
           grep -v '^\s*#' scripts/onnx-model-sha256.manifest | grep -v '^\s*$' > /tmp/onnx-hashes.txt
-          (cd onnx-verify && sha256sum -c /tmp/onnx-hashes.txt)
+          if command -v sha256sum >/dev/null; then
+            (cd onnx-verify && sha256sum -c /tmp/onnx-hashes.txt)
+          else
+            (cd onnx-verify && shasum -a 256 -c /tmp/onnx-hashes.txt)
+          fi
           echo "SHA-256 verification PASSED."
 
-          # Place verified models into src-tauri/models/ alongside the joblibs.
-          cp onnx-verify/models/clip-vit-b32-text.onnx      src-tauri/models/
-          cp onnx-verify/models/clip-vit-b32-text.onnx.data src-tauri/models/
+          # B4: the committed prompt embeddings equal a live encoding, bit for
+          # bit, under this job's onnxruntime.
+          python scripts/clip_text_embeddings.py check --models-dir onnx-verify/models --embeddings-dir models
+
+          # Stage the vision encoder and the prompt embeddings; never the text
+          # encoder.
           cp onnx-verify/models/clip-vit-b32-vision.onnx      src-tauri/models/
           cp onnx-verify/models/clip-vit-b32-vision.onnx.data src-tauri/models/
+          cp models/clip-vit-b32-text-prompts.npy  src-tauri/models/
+          cp models/clip-vit-b32-text-prompts.json src-tauri/models/
+          rm -f src-tauri/models/clip-vit-b32-text.onnx src-tauri/models/clip-vit-b32-text.onnx.data
 
           echo "src-tauri/models/ contents after ONNX copy:"
           ls -lh src-tauri/models/
@@ -743,26 +813,85 @@ jobs:
           # Clean up scratch directories.
           rm -rf onnx-download onnx-verify
 
-      # ── Windows: sign sidecar binary BEFORE Tauri bundles it ────────────
-      # Windows Defender frequently quarantines unsigned PyInstaller binaries.
-      # Signing the sidecar .exe before Tauri packages it into the installer
-      # means the binary inside the installed app is trusted by Defender.
-      - name: Sign sidecar binary with Azure Trusted Signing
+      # ── Windows: sign the launcher and the onedir tree BEFORE bundling ───
+      # Defender frequently quarantines unsigned PyInstaller binaries, and
+      # launching unsigned code costs a full content scan where signed code
+      # costs a signature check. Smart App Control, on clean Windows 11
+      # consumer installs, blocks unsigned code outright as it loads, which
+      # would leave the app half working. So every PE in the tree ships
+      # signed.
+      #
+      # ORDER IS THE FIX. This runs against src-tauri\ before cargo tauri
+      # bundle copies from it. Once the tree is inside an MSI or setup.exe a
+      # folder scan cannot reach it, and signing after bundling would ship
+      # unsigned files inside a signed installer, with no notariser to
+      # notice. That is the rc.29 shape (CHANGELOG), without Apple's safety
+      # net. The "Every PE in the shipped installers is signed" gate further
+      # down checks the bytes that ship.
+      #
+      # Only files that do not already carry a valid signature are signed.
+      # The Python runtime, the VC++ runtime and some wheels ship signed by
+      # their vendors, and re-signing them would replace a better signature
+      # with ours and cost a quota unit each. Azure Trusted Signing counts one
+      # signature per file (5,000 a month on Basic), and the tree has a few
+      # hundred native files (327 .exe/.dll/.pyd in the B1 probe).
+      - name: List unsigned sidecar files to sign (Windows)
         if: runner.os == 'Windows'
-        uses: azure/trusted-signing-action@07c81171dd46a04e1b9f382b6c693815828bbbf7 # v0.5.0
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          Set-Location src-tauri
+          $pe = @(Get-ChildItem sidecar-bundle -Recurse -File | Where-Object { $_.Extension -in ".exe", ".dll", ".pyd" })
+          if ($pe.Count -lt 200) { throw "only $($pe.Count) native files under sidecar-bundle; expected a few hundred. Wrong directory, or the tree was not staged." }
+          $root = (Get-Location).Path + "\"
+          $unsigned = @($pe | Where-Object { (Get-AuthenticodeSignature $_.FullName).Status -ne "Valid" } |
+                        ForEach-Object { $_.FullName.Substring($root.Length) })
+          $launcher = "binaries\${{ matrix.sidecar_name }}"
+          if (-not (Test-Path $launcher)) { throw "launcher missing at $launcher" }
+          @($launcher) + $unsigned | Set-Content -Encoding utf8 sidecar-sign-catalog.txt
+          Write-Host "native files in tree: $($pe.Count); already vendor-signed: $($pe.Count - $unsigned.Count); to sign: $($unsigned.Count) plus the launcher"
+
+      - name: Sign the launcher and sidecar tree with Azure Trusted Signing
+        if: runner.os == 'Windows'
+        uses: Azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
         with:
           azure-tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
           azure-client-id:       ${{ secrets.AZURE_CLIENT_ID }}
           azure-client-secret:   ${{ secrets.AZURE_CLIENT_SECRET }}
           endpoint:              ${{ secrets.AZURE_SIGNING_ENDPOINT }}
-          trusted-signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          signing-account-name:  ${{ secrets.AZURE_SIGNING_ACCOUNT }}
           certificate-profile-name:     ${{ secrets.AZURE_CERT_PROFILE }}
-          files-folder:          src-tauri/binaries
-          files-folder-filter:   exe
-          files-folder-depth:    1
+          files-catalog:         src-tauri/sidecar-sign-catalog.txt
           file-digest:           SHA256
           timestamp-rfc3161:     http://timestamp.acs.microsoft.com
           timestamp-digest:      SHA256
+          # The default is 300 s, set for signing one file. No throughput
+          # figure is published for a few hundred.
+          timeout:               1800
+
+      # Judged per file by Status, not by the signing step's exit code, and
+      # with a floor so an empty scan cannot pass (BL-SILENT-001, causes B
+      # and D). The launcher and the bootloader must carry our certificate
+      # specifically; the rest may carry a vendor's.
+      - name: Verify the launcher and sidecar tree are signed (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          Set-Location src-tauri
+          $ours = (Get-AuthenticodeSignature "binaries\${{ matrix.sidecar_name }}")
+          if ($ours.Status -ne "Valid") { throw "launcher signature is $($ours.Status): $($ours.StatusMessage)" }
+          $subject = $ours.SignerCertificate.Subject
+          $boot = Get-AuthenticodeSignature "sidecar-bundle\jura-sidecar.exe"
+          if ($boot.Status -ne "Valid" -or $boot.SignerCertificate.Subject -ne $subject) { throw "bootloader is $($boot.Status), signed by '$($boot.SignerCertificate.Subject)', expected '$subject'" }
+          $pe = @(Get-ChildItem sidecar-bundle -Recurse -File | Where-Object { $_.Extension -in ".exe", ".dll", ".pyd" })
+          if ($pe.Count -lt 200) { throw "only $($pe.Count) native files checked; an empty or wrong scan is not a pass" }
+          $bad = @($pe | ForEach-Object { $sig = Get-AuthenticodeSignature $_.FullName; if ($sig.Status -ne "Valid") { "$($sig.Status)  $($_.FullName)" } })
+          if ($bad.Count -gt 0) { $bad | Select-Object -First 30 | ForEach-Object { Write-Host "::error::$_" }; throw "$($bad.Count) of $($pe.Count) native files are not validly signed" }
+          $bySigner = $pe | ForEach-Object { (Get-AuthenticodeSignature $_.FullName).SignerCertificate.Subject } | Group-Object | Sort-Object Count -Descending
+          Write-Host "OK: launcher, bootloader and all $($pe.Count) native files signed. Ours: $subject"
+          $bySigner | ForEach-Object { Write-Host ("  {0,5}  {1}" -f $_.Count, $_.Name) }
+          Remove-Item sidecar-sign-catalog.txt
 
       # ── Node.js: build the SvelteKit frontend ───────────────────────────
       # tauri-action calls `npm install` in the project root by default, but
@@ -803,17 +932,29 @@ jobs:
       #      also work but would rebuild a tool that does not change, which
       #      is the cost the cache exists to avoid.
       - name: Install Tauri CLI
+        # bash, not the runner default. On Windows the default is pwsh, which
+        # cannot parse `if ...; then` and failed the Windows build at this step
+        # from 8b47a1fc (10 September) until the 21 September dry run found it.
+        shell: bash
         run: |
           if command -v cargo-binstall >/dev/null 2>&1; then
             echo "cargo-binstall restored from cache: $(cargo binstall -V)"
           else
-            cargo install cargo-binstall --locked --version "~1.10"
+            # 1.18.1, exact. ~1.10 stopped compiling on Rust 1.90 (#125): std
+            # gained File::try_lock, which shadows the fs-lock crate's method
+            # in cargo-binstall 1.10.23 (E0599/E0308). Found by the 1 October
+            # Windows smoke build. 1.18.1 builds locked on 1.90.
+            cargo install cargo-binstall --locked --version "1.18.1"
             echo "cargo-binstall built from source: $(cargo binstall -V)"
           fi
           if cargo tauri --version >/dev/null 2>&1; then
             echo "tauri-cli restored from cache: $(cargo tauri --version)"
           else
-            cargo binstall tauri-cli --version "2.11.4" --no-confirm
+            # --locked: with no prebuilt binary (macOS arm64 on 29 September),
+            # binstall falls back to a source build. Unlocked, that resolved
+            # tauri-utils 2.10.0, which needs rustc 1.90, and failed on our
+            # 1.88 pin of the time. The locked build uses tauri-cli's own lockfile.
+            cargo binstall tauri-cli --version "2.11.4" --no-confirm --locked
             echo "tauri-cli installed: $(cargo tauri --version)"
           fi
 
@@ -858,7 +999,7 @@ jobs:
       # notarisation step below.
       - name: Build release artefacts (macOS — sign .app only)
         if: matrix.target == 'aarch64-apple-darwin'
-        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           APPLE_CERTIFICATE:          ${{ secrets.APPLE_CERTIFICATE }}
@@ -870,12 +1011,15 @@ jobs:
           tauriScript: cargo tauri
           # --bundles app — produce only the .app at this stage. DMG +
           # updater payload are regenerated after per-file signing.
-          args: --target ${{ matrix.target }} --bundles app
+          # --features api,cli: tauri-cli bundles a [[bin]] only when its
+          # required features are passed, so this is what puts
+          # jura-trace-api and jura in Contents/MacOS (v1.2.0 stage 5).
+          args: --target ${{ matrix.target }} --bundles app --features api,cli
 
       # ── Linux: unchanged single-shot tauri-action build ──────────────────
       - name: Build release artefacts (Linux)
         if: matrix.target == 'x86_64-unknown-linux-gnu'
-        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY:          ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -911,7 +1055,9 @@ jobs:
           # and nothing else, which is exactly what the 7 September failure
           # produced. -v flips the logger to debug and streams linuxdeploy's
           # stderr into the CI log. BL-REL-005.
-          args: -v --target ${{ matrix.target }} --bundles deb,appimage
+          # --features api,cli puts jura-trace-api and jura in /usr/bin
+          # beside the app (v1.2.0 stage 5).
+          args: -v --target ${{ matrix.target }} --bundles deb,appimage --features api,cli
 
       # If the Linux bundle fails, capture the state that would explain it.
       #
@@ -949,12 +1095,65 @@ jobs:
           echo "── largest paths under target ──"
           du -sh src-tauri/target/*/release/bundle/* 2>/dev/null | sort -h | tail -10 || true
 
+      # ── macOS: a signing keychain that outlives tauri-action ─────────────
+      # Every Phase 5 step below signs with APPLE_SIGNING_IDENTITY, and until
+      # 21 September they assumed tauri-action had left it in a keychain. It
+      # had not. tauri-macos-sign imports APPLE_CERTIFICATE into a temporary
+      # keychain with a random name and runs `security delete-keychain` on it
+      # when its Keychain value drops (crates/tauri-macos-sign/src/keychain.rs,
+      # `impl Drop`). The 21 September dry run shows it: "2 identities
+      # imported" into 14icS0Y6Gvl2n9cV.keychain-db, the .app signed, and
+      # eleven seconds later Phase 5 found "0 valid identities". That is
+      # why macOS CI has failed at Phase 5 since Phase 5 was written, while
+      # local builds, which sign from the login keychain, pass.
+      #
+      # So the job imports the certificate itself, into a keychain it owns,
+      # and deletes it at the end of the job. GitHub-hosted runners only: the
+      # self-hosted Mac mini signs from its own keychain, and this should
+      # not rewrite its search list.
+      - name: Import signing certificate into a job keychain (macOS)
+        if: matrix.target == 'aarch64-apple-darwin' && runner.environment == 'github-hosted'
+        env:
+          APPLE_CERTIFICATE:          ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY:     ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          set -euo pipefail
+          keychain="$RUNNER_TEMP/jura-signing.keychain-db"
+          kc_pass=$(openssl rand -hex 24)
+          cert="$RUNNER_TEMP/jura-signing.p12"
+
+          security create-keychain -p "$kc_pass" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$kc_pass" "$keychain"
+
+          printf '%s' "$APPLE_CERTIFICATE" | base64 --decode > "$cert"
+          security import "$cert" -k "$keychain" -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -f pkcs12 -T /usr/bin/codesign -T /usr/bin/security
+          rm -f "$cert"
+          # Without this, codesign prompts for keychain access and a headless
+          # runner hangs until the job times out.
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$kc_pass" "$keychain" >/dev/null
+
+          # Prepend to the user search list, keeping what is already there.
+          existing=$(security list-keychains -d user | sed 's/^[[:space:]]*"//; s/"$//')
+          # shellcheck disable=SC2086
+          security list-keychains -d user -s "$keychain" $existing
+
+          if ! security find-identity -v -p codesigning "$keychain" | grep -qF "$APPLE_SIGNING_IDENTITY"; then
+            echo "::error::APPLE_CERTIFICATE imported, but it does not contain APPLE_SIGNING_IDENTITY."
+            security find-identity -v -p codesigning "$keychain" || true
+            exit 1
+          fi
+          echo "Signing identity available in $keychain for the rest of the job."
+
       # ── macOS: per-file sign the nested PyInstaller --onedir tree ────────
       # Tauri's --deep does not reach Resources/sidecar-bundle/_internal/ in
       # our local test. Sign every .dylib + .so deepest-first, then the
       # bootloader, then re-seal the .app top so the outer signature embeds
-      # the new nested hashes. The keychain is already configured by the
-      # previous tauri-action step (APPLE_CERTIFICATE was imported there).
+      # the new nested hashes. The identity comes from the job keychain made
+      # in the step above, not from tauri-action, which deletes its own.
       - name: Phase 5 — per-file sign nested sidecar-bundle code (macOS)
         if: matrix.target == 'aarch64-apple-darwin'
         env:
@@ -972,14 +1171,49 @@ jobs:
             echo "::error::sidecar-bundle not in .app — tauri.conf.json resources glob may be wrong"
             exit 1
           fi
+          # The identity must actually be in the keychain before we sign ~600
+          # files one at a time. If it is not, every codesign below fails for
+          # the same reason and the loop dies on the first one; saying so here
+          # is cheaper than reading it off a single failed file.
+          if ! security find-identity -v -p codesigning | grep -qF "$APPLE_SIGNING_IDENTITY"; then
+            echo "::error::Signing identity not present in the keychain: $APPLE_SIGNING_IDENTITY"
+            echo "Identities available to this runner:"
+            security find-identity -v -p codesigning || true
+            exit 1
+          fi
+
           count=0
           while IFS= read -r f; do
-            codesign --force --sign "$APPLE_SIGNING_IDENTITY" --options runtime --timestamp "$f" >/dev/null 2>&1
+            # stderr was previously sent to /dev/null, which under
+            # `set -euo pipefail` made this step fail with no message at all —
+            # the job named the tool that failed and nothing about why. That is
+            # the defect class this repository has spent a week removing, and it
+            # was sitting in the step that has blocked macOS CI since Phase 5
+            # was written. Keep the output.
+            if ! err=$(codesign --force --sign "$APPLE_SIGNING_IDENTITY" \
+                         --options runtime --timestamp "$f" 2>&1); then
+              echo "::error::codesign failed on $f after $count file(s)"
+              echo "$err"
+              exit 1
+            fi
             count=$((count + 1))
           done < <(find "$sidecar_root" -type f \( -name "*.so" -o -name "*.dylib" \) | sort -r)
           echo "Per-file signed $count nested .so/.dylib files."
           codesign --force --sign "$APPLE_SIGNING_IDENTITY" --options runtime --timestamp "$sidecar_root/jura-sidecar"
           echo "Signed bootloader."
+          # The two command-line binaries (v1.2.0 stage 5), signed explicitly
+          # rather than trusted to tauri's pass, and required to be present:
+          # a release built without --features api,cli would lack them.
+          for bin in jura-trace-api jura; do
+            f="$app_path/Contents/MacOS/$bin"
+            [ -x "$f" ] || { echo "::error::$bin is not in Contents/MacOS; was the app built with --features api,cli?"; exit 1; }
+            codesign --force --sign "$APPLE_SIGNING_IDENTITY" --options runtime --timestamp "$f"
+            team=$(codesign --display --verbose=2 "$f" 2>&1 | awk -F= '/^TeamIdentifier=/{print $2}')
+            flags=$(codesign --display --verbose=2 "$f" 2>&1 | grep -o 'flags=0x[0-9a-f]*([^)]*)' || true)
+            echo "Signed $bin: team $team, $flags"
+            [ "$team" = "Y82C4P9L7F" ] || { echo "::error::$bin is signed by '$team', not Y82C4P9L7F"; exit 1; }
+            case "$flags" in *runtime*) ;; *) echo "::error::$bin lacks the hardened runtime: $flags"; exit 1 ;; esac
+          done
           codesign --force --sign "$APPLE_SIGNING_IDENTITY" --options runtime --timestamp "$app_path"
           echo "Re-sealed .app top level."
           codesign --verify --deep --strict --verbose=2 "$app_path" 2>&1 | tail -3
@@ -1057,7 +1291,9 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          cargo tauri bundle --bundles dmg,updater --target aarch64-apple-darwin
+          # The same features as the build, so the bundler expects the same
+          # binaries in the .app.
+          cargo tauri bundle --bundles dmg,updater --target aarch64-apple-darwin --features api,cli
           echo "--- regenerated bundle contents ---"
           ls -la src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/ || true
           ls -la src-tauri/target/aarch64-apple-darwin/release/bundle/macos/ || true
@@ -1174,6 +1410,101 @@ jobs:
       #   the release-body download links resolve.
       #
       # gh release upload --clobber is idempotent — safe on re-runs.
+      # ── Linux: the server tarball (v1.2.0 stage 6) ───────────────────────
+      # jura-trace-api, jura, the --onefile sidecar and the models, for a
+      # Linux server with no desktop. The two Rust binaries need only glibc:
+      # checked in the rc.13 .deb on 4 October 2026 (DT_NEEDED is libgcc_s,
+      # libm, libc and the loader; the app itself also needs GTK and WebKit),
+      # and asserted here on every build. Layout: jura-sidecar beside
+      # jura-trace-api, models/ beside the sidecar, which is what
+      # resolve_sidecar_binary and models_dir_for look for.
+      - name: Package the Linux server tarball (Linux)
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        id: server_tarball
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ github.event.inputs.tag || github.ref_name }}"
+          name="JuraTrace-${tag#v}-Linux-x86_64-server"
+          rel="src-tauri/target/${{ matrix.target }}/release"
+          stage="$RUNNER_TEMP/$name"
+          rm -rf "$stage" && mkdir -p "$stage/models"
+          cp "$rel/jura-trace-api" "$rel/jura" "$stage/"
+          cp "src-tauri/binaries/${{ matrix.sidecar_name }}" "$stage/jura-sidecar"
+          cp src-tauri/models/* "$stage/models/"
+          cp LICENSE NOTICE THIRD-PARTY-LICENSES.txt packaging/linux-server/README.txt "$stage/"
+          cp docs/CLI_QUICKSTART.md "$stage/QUICKSTART.md"
+          strip "$stage/jura-trace-api" "$stage/jura"
+          chmod 755 "$stage/jura-trace-api" "$stage/jura" "$stage/jura-sidecar"
+          for f in jura-trace-api jura jura-sidecar; do
+            [ -x "$stage/$f" ] || { echo "::error::$f missing from the server tarball"; exit 1; }
+          done
+          n=$(ls "$stage/models" | wc -l)
+          [ "$n" -ge 2 ] || { echo "::error::only $n model files staged"; exit 1; }
+          for b in jura-trace-api jura; do
+            needed=$(readelf -d "$stage/$b" | awk '/NEEDED/ {print $NF}' | tr -d '[]' | tr '\n' ' ')
+            echo "$b needs: $needed"
+            if echo "$needed" | grep -qiE 'gtk|gdk|webkit|soup|javascriptcore|cairo'; then
+              echo "::error::$b links desktop libraries ($needed); the server tarball would not run on a server"
+              exit 1
+            fi
+          done
+          tar -C "$RUNNER_TEMP" -czf "$RUNNER_TEMP/$name.tar.gz" "$name"
+          du -sh "$stage" "$RUNNER_TEMP/$name.tar.gz"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+      # The tarball on a machine that has never seen Jura Trace: a plain
+      # ubuntu:22.04 container with no GTK, WebKit or Python. An ephemeral
+      # server, the shipped jura, a deep verification of a JPEG, and the A3
+      # check that the sidecar really ran. Upload waits on this.
+      - name: Test the server tarball in a clean container (Linux)
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        shell: bash
+        env:
+          NAME: ${{ steps.server_tarball.outputs.name }}
+        run: |
+          set -uo pipefail
+          out="$RUNNER_TEMP/server-test"
+          rm -rf "$out" && mkdir -p "$out"
+          docker run --rm \
+            -v "$RUNNER_TEMP:/pkg:ro" \
+            -v "$PWD/docs/c2pa-conformance/test-vectors:/fx:ro" \
+            -v "$out:/out" \
+            -e NAME="$NAME" \
+            ubuntu:22.04 bash -c '
+              set -u
+              mkdir -p /srv && tar -xzf "/pkg/$NAME.tar.gz" -C /srv && cd "/srv/$NAME"
+              ./jura --version > /out/jura-version.txt
+              ./jura-trace-api --ephemeral --port 8300 > /out/server.out 2> /out/server.err &
+              srv=$!
+              for i in $(seq 1 100); do grep -q "ephemeral key" /out/server.out && break; sleep 0.2; done
+              key=$(sed -n "s/^jura-trace-api: ephemeral key //p" /out/server.out)
+              JURA_NO_KEYRING=1 JURA_API_KEY="$key" ./jura verify /fx/unsigned.jpg \
+                --mode deep --wait-ready 300 --format json > /out/verify.json 2> /out/verify.err
+              echo $? > /out/rc
+              kill "$srv"; wait "$srv"
+              echo $? > /out/server-rc'
+          echo "── jura --version ──"; cat "$out/jura-version.txt" || true
+          echo "── server stderr (tail) ──"; tail -15 "$out/server.err" || true
+          echo "── jura stderr ──"; cat "$out/verify.err" || true
+          rc=$(cat "$out/rc" 2>/dev/null || echo missing)
+          [ "$rc" = 0 ] || { echo "::error::jura verify exited $rc inside the container"; exit 1; }
+          python3 scripts/assert_sidecar_ran.py --require-clip "$out/verify.json" || {
+            echo "::error::the server in the tarball answered, but its sidecar did not analyse the file (A3)"; exit 1; }
+          echo "OK: the server tarball runs on a clean ubuntu:22.04 and analyses with its sidecar."
+
+      - name: Upload the Linux server tarball to jura-trace
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PAT }}
+          NAME: ${{ steps.server_tarball.outputs.name }}
+        run: |
+          set -euo pipefail
+          tag="${{ github.event.inputs.tag || github.ref_name }}"
+          gh release upload "$tag" "$RUNNER_TEMP/$NAME.tar.gz" --repo juralabs/jura-trace --clobber
+          echo "Uploaded $NAME.tar.gz"
+
       - name: Upload release artefacts to jura-trace (macOS and Linux)
         if: runner.os != 'Windows'
         shell: bash
@@ -1270,30 +1601,98 @@ jobs:
           fi
           echo "Upload complete."
 
-      # Windows: build only — do not pass releaseId so tauri-action does not
-      # attempt to upload the unsigned artefacts to the GitHub Release.
-      # Signing and upload are handled by the two steps that follow.
-      - name: Build release artefacts (Windows, unsigned)
+      # ── Windows: build, sign the app's own executables, then bundle ─────
+      #
+      # Until v1.2.0 this was one tauri-action call that built and bundled
+      # in one go, and Azure Trusted Signing then signed only what was in
+      # bundle\ (the MSI and setup.exe). The executables INSIDE them were
+      # never signed: in the published v1.1.0 setup.exe, jura-trace.exe and
+      # gen-detectors.exe carry no signature (checked 4 October 2026 with
+      # osslsigncode). Neither gate below looked at them; both scanned the
+      # sidecar tree only. Smart App Control blocks unsigned code as it loads.
+      #
+      # So the build is split. Compile with --no-bundle; sign jura-trace-api
+      # and jura, which go into the installers unchanged; then
+      # `cargo tauri bundle`, which packs the binaries already on disk.
+      # jura-trace.exe cannot be signed beforehand: the bundler PATCHES the
+      # main executable (it writes the bundle type into it for the updater),
+      # which broke a signature made earlier (HashMismatch inside both
+      # installers, smoke run 37207009853). So the bundler signs it itself,
+      # after patching, through bundle.windows.signCommand, which runs
+      # scripts/ci/azure-sign.ps1 (Microsoft's signtool and Artifact Signing
+      # client, installed by the signing action steps). --features api,cli
+      # adds jura-trace-api and jura (v1.2.0 stage 5).
+      #
+      # TAURI_SIGNING_PRIVATE_KEY is the minisign key for the updater .sig,
+      # not Authenticode. The .sig made here is stale once Azure countersigns
+      # the installers, and is regenerated in "Re-sign the updater payloads".
+      - name: Build the Windows executables (not bundled yet)
         if: runner.os == 'Windows'
-        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          cargo tauri build --target ${{ matrix.target }} --features api,cli --no-bundle
+          if ($LASTEXITCODE -ne 0) { throw "cargo tauri build failed with $LASTEXITCODE" }
+          $rel = "src-tauri\target\${{ matrix.target }}\release"
+          foreach ($e in "jura-trace.exe", "jura-trace-api.exe", "jura.exe") { if (-not (Test-Path "$rel\$e")) { throw "$e was not built at $rel" } }
+          # jura-trace.exe is signed by the bundler after it patches it; see above.
+          $exes = "jura-trace-api.exe", "jura.exe"
+          # Paths relative to src-tauri\, where the catalog lives: the signing
+          # action resolves each line against the catalog's own folder, so an
+          # absolute path became "src-tauri\D:\..." and failed (smoke run
+          # 37203813879). The sidecar catalog above has the same shape.
+          $exes | ForEach-Object { "target\${{ matrix.target }}\release\$_" } | Set-Content -Encoding utf8 src-tauri\app-sign-catalog.txt
+          Write-Host "to sign: $($exes -join ', ')"
+
+      - name: Sign the app executables with Azure Trusted Signing
+        if: runner.os == 'Windows'
+        uses: Azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
+        with:
+          azure-tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id:       ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret:   ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint:              ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name:  ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name:     ${{ secrets.AZURE_CERT_PROFILE }}
+          files-catalog:         src-tauri/app-sign-catalog.txt
+          file-digest:           SHA256
+          timestamp-rfc3161:     http://timestamp.acs.microsoft.com
+          timestamp-digest:      SHA256
+
+      - name: Verify the app executables are signed, then bundle (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # ── Windows Authenticode signing ──────────────────────────────────
-          # Authenticode signing is performed by Azure Trusted Signing (step
-          # below). TAURI_SIGNING_PRIVATE_KEY is separate — it signs the
-          # Tauri updater payload (.msi.zip) with the minisign key whose
-          # public half lives in tauri.conf.json's plugins.updater.pubkey.
-          # Without these env vars, the updater .sig is empty and the Tauri
-          # updater silently refuses to apply any update — a critical
-          # security gap. The "Verify updater signatures" step below
-          # catches missing/empty signatures before upload.
           TAURI_SIGNING_PRIVATE_KEY:          ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        with:
-          # releaseId intentionally omitted — unsigned binaries must not be
-          # published to the GitHub Release; only the signed copies go up.
-          tauriScript: cargo tauri
-          args: --target ${{ matrix.target }}
+          # For scripts/ci/azure-sign.ps1, run by the bundler as signCommand.
+          AZURE_TENANT_ID:     ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID:     ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $files = @(Get-Content src-tauri\app-sign-catalog.txt | ForEach-Object { "src-tauri\$_" })
+          if ($files.Count -ne 2) { throw "expected 2 executables in the catalog, found $($files.Count)" }
+          foreach ($f in $files) {
+            $sig = Get-AuthenticodeSignature $f
+            if ($sig.Status -ne "Valid") { throw "$f is $($sig.Status) after signing: $($sig.StatusMessage)" }
+            Write-Host "signed: $f ($($sig.SignerCertificate.Subject))"
+          }
+          Remove-Item src-tauri\app-sign-catalog.txt
+          # A config overlay, so the signCommand applies to release builds
+          # only and not to every developer's `cargo tauri build`.
+          $script = (Resolve-Path scripts\ci\azure-sign.ps1).Path
+          @{ bundle = @{ windows = @{ signCommand = @{ cmd = "pwsh"; args = @("-NoProfile", "-File", $script, "%1") } } } } |
+            ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8 src-tauri\windows-signing.conf.json
+          Get-Content src-tauri\windows-signing.conf.json
+          # Absolute: tauri-cli may resolve a relative --config path from
+          # src-tauri\ rather than from here.
+          $overlay = (Resolve-Path src-tauri\windows-signing.conf.json).Path
+          cargo tauri bundle --target ${{ matrix.target }} --features api,cli --config $overlay
+          if ($LASTEXITCODE -ne 0) { throw "cargo tauri bundle failed with $LASTEXITCODE" }
+          Remove-Item src-tauri\windows-signing.conf.json
+          # Whether the bundler's signing reached the bytes that ship is
+          # checked by "Every PE in the shipped installers is signed" below.
 
       # ── Updater signatures: generated AFTER Azure signing ───────────────
       # The empty-signature gate used to live HERE, before Azure Trusted
@@ -1311,8 +1710,12 @@ jobs:
       # bundle output directory with the Azure Trusted Signing certificate:
       #   Account ID: a7e35def-628b-4980-8785-2e535f709418
       #
-      # azure/trusted-signing-action authenticates to Azure using the OIDC
-      # service principal credentials stored in GitHub Secrets. It calls the
+      # Azure/artifact-signing-action (formerly azure/trusted-signing-action,
+      # renamed at v1.0.0) authenticates as a service principal with the
+      # client secret stored in GitHub Secrets, through DefaultAzureCredential's
+      # environment credential. Since v1.2.0 that and the Azure CLI credential
+      # are the only types enabled by default, which is the one this uses. It
+      # calls the
       # Azure Trusted Signing REST API (endpoint: AZURE_SIGNING_ENDPOINT) and
       # countersigns each matched binary in place — the original files are
       # overwritten with their signed versions.
@@ -1335,13 +1738,13 @@ jobs:
       # Setting depth 4 provides a safe margin if sub-directories are added.
       - name: Sign Windows binaries with Azure Trusted Signing
         if: runner.os == 'Windows'
-        uses: azure/trusted-signing-action@07c81171dd46a04e1b9f382b6c693815828bbbf7 # v0.5.0
+        uses: Azure/artifact-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82 # v2.0.0
         with:
           azure-tenant-id:       ${{ secrets.AZURE_TENANT_ID }}
           azure-client-id:       ${{ secrets.AZURE_CLIENT_ID }}
           azure-client-secret:   ${{ secrets.AZURE_CLIENT_SECRET }}
           endpoint:              ${{ secrets.AZURE_SIGNING_ENDPOINT }}
-          trusted-signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          signing-account-name:  ${{ secrets.AZURE_SIGNING_ACCOUNT }}
           certificate-profile-name:     ${{ secrets.AZURE_CERT_PROFILE }}
           files-folder:          src-tauri/target/${{ matrix.target }}/release/bundle
           files-folder-filter:   exe,msi
@@ -1428,6 +1831,61 @@ jobs:
             exit 1
           }
 
+      # ── B1 gate: every PE inside the shipped installers is signed ────────
+      # The pre-bundle verify above proves the staging tree was signed. This
+      # proves the installers carry those signed bytes, by unpacking the
+      # final, Azure-signed MSI and setup.exe and scanning what is inside.
+      # It runs after the last mutation and before upload (BL-SILENT-001,
+      # cause C), so a later step that re-copies or regenerates the tree
+      # cannot ship unsigned files behind a signed installer.
+      #
+      # The MSI is unpacked with an administrative install (msiexec /a), which
+      # writes the file tree without installing anything. setup.exe is an
+      # NSIS archive, which 7-Zip on the runner can list and extract.
+      - name: Every PE in the shipped installers is signed (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $bundle = "src-tauri\target\${{ matrix.target }}\release\bundle"
+          $msi   = @(Get-ChildItem "$bundle\msi\*.msi")
+          $setup = @(Get-ChildItem "$bundle\nsis\*-setup.exe")
+          if ($msi.Count -ne 1 -or $setup.Count -ne 1) { throw "expected one MSI and one setup.exe, found $($msi.Count) and $($setup.Count)" }
+
+          $work = Join-Path $env:RUNNER_TEMP "b1-gate"
+          if (Test-Path $work) { Remove-Item $work -Recurse -Force }
+          $p = Start-Process msiexec.exe -ArgumentList "/a", "`"$($msi[0].FullName)`"", "/qn", "TARGETDIR=`"$work\msi`"" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "administrative unpack of the MSI failed with $($p.ExitCode)" }
+          & 7z x "-o$work\nsis" -y $setup[0].FullName | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "7-Zip could not unpack $($setup[0].Name) (exit $LASTEXITCODE)" }
+
+          $failed = 0
+          foreach ($kind in "msi", "nsis") {
+            $sb = @(Get-ChildItem "$work\$kind" -Recurse -Directory -Filter sidecar-bundle)
+            if ($sb.Count -ne 1) { throw "${kind}: expected one sidecar-bundle directory inside the installer, found $($sb.Count)" }
+            $root = $sb[0].Parent.FullName
+            foreach ($f in "jura-sidecar.exe", "sidecar-bundle\jura-sidecar.exe", "sidecar-bundle\_internal") {
+              if (-not (Test-Path "$root\$f")) { throw "${kind}: $f is missing from the installer payload" }
+            }
+            # The app's own executables too. Until v1.2.0 this scanned the
+            # sidecar only, and jura-trace.exe shipped unsigned unnoticed.
+            $app = @("jura-trace.exe", "jura-trace-api.exe", "jura.exe")
+            foreach ($f in $app) { if (-not (Test-Path "$root\$f")) { throw "${kind}: $f is missing from the installer payload" } }
+            if (Test-Path "$root\gen-detectors.exe") { throw "${kind}: gen-detectors.exe is in the installer; it is a build tool and must not ship" }
+            $pe = @(Get-ChildItem $sb[0].FullName -Recurse -File | Where-Object { $_.Extension -in ".exe", ".dll", ".pyd" }) +
+                  @(Get-Item "$root\jura-sidecar.exe") + @($app | ForEach-Object { Get-Item "$root\$_" })
+            if ($pe.Count -lt 200) { throw "${kind}: only $($pe.Count) native files found; an empty or wrong scan is not a pass" }
+            $bad = @($pe | ForEach-Object { $sig = Get-AuthenticodeSignature $_.FullName; if ($sig.Status -ne "Valid") { "$($sig.Status)  $($_.FullName.Substring($root.Length))" } })
+            if ($bad.Count -gt 0) {
+              $bad | Select-Object -First 30 | ForEach-Object { Write-Host "::error::${kind}: $_" }
+              Write-Host "::error::${kind}: $($bad.Count) of $($pe.Count) native files inside the installer are not validly signed"
+              $failed++
+            } else {
+              Write-Host "OK ${kind}: all $($pe.Count) native files inside the installer are signed"
+            }
+          }
+          if ($failed -gt 0) { throw "unsigned code inside $failed installer(s). Do not upload." }
+
       # Upload the signed Windows artefacts to the draft release on
       # juralabs/jura-trace (the PUBLIC releases repo) via RELEASE_PAT.
       #
@@ -1506,6 +1964,13 @@ jobs:
 
           Remove-Item -Recurse -Force $tmpDir
 
+      # Delete the job keychain even when an earlier step failed. A hosted
+      # runner is discarded anyway; this keeps the certificate's lifetime to
+      # the steps that need it.
+      - name: Delete the job keychain (macOS)
+        if: always() && matrix.target == 'aarch64-apple-darwin' && runner.environment == 'github-hosted'
+        run: security delete-keychain "$RUNNER_TEMP/jura-signing.keychain-db" 2>/dev/null || true
+
   # ── Phase 3: Publish the draft release once all platform builds succeed ──
   publish-release:
     name: Publish Release
@@ -1523,6 +1988,36 @@ jobs:
     #   Settings > Environments > production > Required reviewers
     environment: production
     steps:
+      # ── A4. Attach the model-card metadata ────────────────────────────────
+      # The help page's model cards tell readers that per-generator recall "is
+      # reported in the model-card metadata JSON shipped alongside each
+      # release". No release before v1.2.0 carried one (BL-CLAIM-002). This
+      # job had no checkout, so it fetches only what the builder reads.
+      #
+      # The builder replaces generator names with public family labels and
+      # drops local paths, and fails rather than publish a name it has no
+      # label for or describe a model the installer does not ship.
+      # No `ref`: the build jobs check out the triggering commit and so does
+      # this. The release tag exists on Jura-Labs/jura-trace, not on this
+      # repository, so asking for it here failed the 21 September dry run.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          sparse-checkout: |
+            models
+            scripts/build_model_card_assets.py
+            src-tauri/models/deepfake_classifier.joblib
+            src-tauri/models/univfd_probe.joblib
+          sparse-checkout-cone-mode: false
+
+      - name: Build and attach model-card metadata
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
+          RELEASE_TAG: ${{ needs.create-release.outputs.tag }}
+        run: |
+          python3 scripts/build_model_card_assets.py /tmp/model-cards
+          gh release upload "$RELEASE_TAG" /tmp/model-cards/*.json \
+            --repo juralabs/jura-trace --clobber
+
       # tauri-action uploads installer artefacts directly to the draft GitHub
       # Release (not as workflow artefacts). We therefore download them here
       # via the GitHub Releases API, hash each one with sha256sum, assemble
@@ -1624,6 +2119,75 @@ jobs:
               { stdio: 'inherit' }
             );
             console.log('Uploaded SHA256SUMS.txt');
+
+      # ── A1b. Assert the published checksum file covers every installer ──
+      # The step above hashes whatever installer artefacts are attached when it
+      # runs, and its `installerExts` already includes `.tar.gz`. Yet the
+      # SHA256SUMS.txt published for v1.1.0 is 510 bytes, lists five artefacts,
+      # and omits `Jura.Trace.app.tar.gz` — the one file the updater downloads
+      # on the user's behalf.
+      #
+      # The filter was never the problem. The archive was attached at 18:28:56
+      # and the checksum file at 18:34:41, four minutes later, and no Actions
+      # run exists after 17:59:33Z. The file was written by hand.
+      #
+      # So this re-reads what is actually on the release rather than trusting
+      # what the step above just wrote, which is the only version of this check
+      # that catches a hand-made file. It is the mirror of the manifest
+      # completeness assertion further down: assert what you require.
+      - name: Assert SHA256SUMS covers every installer artefact
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        env:
+          RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
+        with:
+          github-token: ${{ secrets.RELEASE_PAT }}
+          script: |
+            const releaseId = parseInt(process.env.RELEASE_ID, 10);
+            const { data: assets } = await github.rest.repos.listReleaseAssets({
+              owner: 'juralabs', repo: 'jura-trace',
+              release_id: releaseId, per_page: 100,
+            });
+
+            const installerExts = ['.dmg', '.msi', '.exe', '.AppImage', '.deb', '.tar.gz'];
+            const installers = assets
+              .filter(a => installerExts.some(ext => a.name.endsWith(ext)))
+              .map(a => a.name);
+
+            const sums = assets.find(a => a.name === 'SHA256SUMS.txt');
+            if (!sums) {
+              core.setFailed('No SHA256SUMS.txt on the release. The step above should have uploaded one.');
+              return;
+            }
+
+            const res = await github.rest.repos.getReleaseAsset({
+              owner: 'juralabs', repo: 'jura-trace',
+              asset_id: sums.id,
+              headers: { Accept: 'application/octet-stream' },
+            });
+            const text = Buffer.from(res.data).toString('utf8');
+
+            // Standard sha256sum format is "<hash>  <name>". Take the name.
+            const listed = new Set(
+              text.split('\n')
+                  .map(l => l.trim())
+                  .filter(Boolean)
+                  .map(l => l.replace(/^[0-9a-fA-F]{64}\s+\*?/, ''))
+            );
+
+            const missing = installers.filter(n => !listed.has(n));
+            console.log(`Installer artefacts on the release: ${installers.length}`);
+            console.log(`Names listed in SHA256SUMS.txt:     ${listed.size}`);
+
+            if (missing.length) {
+              core.setFailed(
+                'SHA256SUMS.txt does not cover every installer artefact attached to this release.\n' +
+                'Missing: ' + missing.join(', ') + '\n' +
+                'A user who checks the file they downloaded against this will find no line for it. ' +
+                'Re-run this job after all artefacts are attached; it is idempotent.'
+              );
+              return;
+            }
+            console.log('OK: every installer artefact attached to the release is listed.');
 
       # Generate the Tauri auto-updater manifest and upload it to the release.
       #
@@ -2181,27 +2745,72 @@ jobs:
           fi
           echo "OK: all $(printf '%s\n' "$linked" | wc -l | tr -d ' ') linked file(s) are uploaded assets."
 
+      # ── A1a. Decide whether to publish by looking at the release ──
+      # This used to be `needs.build.result == 'success'`, and the comment it
+      # replaces said the quiet part out loud: the only thing stopping a tag
+      # push from publishing a macOS-less release was that the macOS CI job
+      # fails. The guard was made of a failure. Repair that job — which is
+      # exactly what PR #2 sets out to do — and the guard opens.
+      #
+      # That matters more than it sounds, because publishing IS go-live: the
+      # Cloudflare worker builds the live manifest from `releases/latest`
+      # (`index.ts:370-376`). A published release with no `darwin-aarch64`
+      # block tells every macOS install it is up to date, indefinitely, with
+      # no error anywhere.
+      #
+      # So ask the release what it has. A complete set publishes; anything
+      # less stays a draft and says which platform is missing. This does not
+      # fail the job: a partial release is a legitimate intermediate state
+      # here, because macOS is built locally and attached afterwards. It is
+      # simply not a publishable one.
+      #
+      # The old `platforms` clause is gone because it is now implied. A
+      # `linux-only` dispatch cannot satisfy a check that asks for all three.
+      - name: Decide whether every platform is attached
+        id: publishable
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        env:
+          RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
+        with:
+          github-token: ${{ secrets.RELEASE_PAT }}
+          script: |
+            const releaseId = parseInt(process.env.RELEASE_ID, 10);
+            const { data: assets } = await github.rest.repos.listReleaseAssets({
+              owner: 'juralabs', repo: 'jura-trace',
+              release_id: releaseId, per_page: 100,
+            });
+            const names = assets.map(a => a.name);
+            const has = re => names.some(n => re.test(n));
+
+            // One installer is enough to call a platform present. The updater
+            // archive is checked separately by the manifest completeness gate.
+            const present = {
+              'darwin-aarch64': has(/\.dmg$/),
+              'windows-x86_64': has(/\.msi$/) || has(/\.exe$/),
+              'linux-x86_64':   has(/\.AppImage$/) || has(/\.deb$/),
+            };
+
+            const missing = Object.entries(present)
+              .filter(([, ok]) => !ok)
+              .map(([k]) => k);
+
+            console.log('Assets on the release:');
+            for (const n of names.sort()) console.log(`  ${n}`);
+
+            if (missing.length) {
+              core.notice(
+                'Leaving this release as a DRAFT. No installer attached for: ' +
+                missing.join(', ') + '. ' +
+                'Attach the missing artefacts and re-run this job, which is idempotent.'
+              );
+              core.setOutput('ready', 'false');
+              return;
+            }
+            core.setOutput('ready', 'true');
+            console.log('Every platform has an installer. Ready to publish.');
+
       - name: Publish release
-        # Only auto-publish when EVERY platform built in CI. macOS is built
-        # locally and uploaded after this run (its CI job fails at the known
-        # Phase 5 codesign step), so in normal operation this step is skipped
-        # and the release stays a DRAFT for manual publish once the macOS
-        # artefacts are attached. SHA256SUMS and manifest generation above
-        # still run regardless, so the draft is fully populated for Win/Linux.
-        # Without this guard the SHA256SUMS gating (needs.build can be failure)
-        # would publish a macOS-less release the moment CI finishes.
-        #
-        # The `platforms` clause is the second half, and it is not redundant.
-        # `needs.build.result == 'success'` means "every job that RAN
-        # succeeded" — not "every platform was built". Under a `linux-only`
-        # or `windows-only` dispatch the matrix has one entry, so a green
-        # single-platform build satisfies it and this step would publish a
-        # release missing two platforms. The completeness gate above does
-        # currently catch that case, and it fired on 7 September. But a
-        # publish should be blocked by saying what it requires, not by
-        # depending on a different assertion happening to fail first.
-        # Partial dispatches are for diagnostics; they leave a draft.
-        if: needs.build.result == 'success' && (github.event_name != 'workflow_dispatch' || inputs.platforms == 'all')
+        if: steps.publishable.outputs.ready == 'true'
         # Uses RELEASE_PAT to flip the draft release to published on
         # juralabs/jura-trace (the public releases repo).
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9

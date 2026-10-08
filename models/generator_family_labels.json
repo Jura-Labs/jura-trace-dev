@@ -1,0 +1,21 @@
+{
+  "_comment": "Public labels for the per-generator keys in the model metadata. Lives in models/, which the public snapshot excludes, because the keys are the generator names withheld from public documentation (June 2026 copyright sweep). scripts/build_model_card_assets.py refuses to run if a key has no label here. Labels match docs/calibration/univfd-v10onnx-divergence-fix.md.",
+  "labels": {
+    "grok_aurora": "Closed-source commercial generator A",
+    "midjourney_v6": "Closed-source commercial generator B",
+    "dalle3": "Closed-source commercial generator C",
+    "gemini": "Closed-source commercial generator D",
+    "diffusiondb": "Diffusion-image research dataset",
+    "civitai_sfw": "Community-curated diffusion SFW subset",
+    "synthetic_faces": "Synthetic face generator",
+    "sdxl_turbo": "Open-weights diffusion model (turbo variant)",
+    "flux_dev": "Open-weights diffusion model (dev variant)",
+    "sd15": "Open-weights diffusion model (earlier generation)",
+    "elsa": "Latent-space artistic benchmark",
+    "artbench": "Art-style benchmark dataset",
+    "user_ai": "User-contributed AI imagery",
+    "wikimedia_ai": "Openly licensed AI imagery from a public media archive",
+    "__root__": "Unlabelled / generic AI imagery",
+    "__unknown__": "AI imagery with no generator attribution"
+  }
+}

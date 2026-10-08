@@ -50,6 +50,30 @@ export function c2paActionLabel(action: string | undefined | null): string {
   return C2PA_ACTION_LABELS[action] ?? C2PA_UNKNOWN_ACTION_LABEL;
 }
 
+/**
+ * Render an action's `softwareAgent` for display, or null when there is
+ * nothing a person could read.
+ *
+ * C2PA 1.x wrote a bare string ("Adobe Lightroom 7.0"). C2PA 2.x writes a
+ * ClaimGeneratorInfoMap object with `name` and optional `version`, and Jura
+ * Trace's own signer emits that form (src-tauri/src/c2pa.rs). Interpolating
+ * the object printed "Tool: [object Object]" (BL-UX-001). Never fall back to
+ * JSON: showing the raw object is the same failure with more characters.
+ */
+export function formatSoftwareAgent(agent: unknown): string | null {
+  if (typeof agent === 'string') {
+    const trimmed = agent.trim();
+    return trimmed === '' ? null : trimmed;
+  }
+  if (!agent || typeof agent !== 'object' || Array.isArray(agent)) return null;
+  const { name, version } = agent as Record<string, unknown>;
+  if (typeof name !== 'string' || name.trim() === '') return null;
+  if (typeof version === 'string' && version.trim() !== '') {
+    return `${name.trim()} ${version.trim()}`;
+  }
+  return name.trim();
+}
+
 // ── Status strings (C2PA UX Rec v1.4 Table 4) ─────────────────────────────
 //
 // Table 4 "Warnings and errors" prescribes the exact user-facing message for

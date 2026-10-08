@@ -559,7 +559,8 @@
   </h2>
 
   <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
-    Watched Locations is hidden in v1.0. It will return in v1.1 as two distinct features.
+    Watched Locations is hidden in the current release. It is planned to return as two
+    distinct features, with no release date yet.
   </p>
 
   <h3 class="text-base font-heading font-semibold text-text-light dark:text-text-dark tracking-heading mb-3">

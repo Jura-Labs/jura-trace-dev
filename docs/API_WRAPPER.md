@@ -1,1046 +1,899 @@
 ---
-title: "Jura Trace API Wrapper — Architecture and Specification"
-description: "Design, endpoint reference, authentication, and integration guide for the Jura Trace local HTTP API, enabling external applications to access the VERIFY and PROTECT pipelines programmatically."
-last-updated: 21 March 2026
-status: planned — Phase 2 / 3 feature, not yet implemented
-phase: 3
+title: "Jura Trace local REST API"
+description: "What the local REST API on 127.0.0.1:8300 does today, checked against the source: how it starts, authentication, endpoints, request and response shapes, errors, limits, and the planned CLI exit-code contract."
+last-updated: 2 October 2026
+status: implemented in the desktop application (v1.0 onwards). Headless binary and CLI planned for v1.2.0.
 ---
 
-# Jura Trace API Wrapper
+# Jura Trace local REST API
 
-> **Note**: The API wrapper is a planned feature. It is not available in the current release (0.2.0-dev). Implementation is estimated at 2–3 weeks of development effort. This document records the intended architecture for planning and commercial roadmap purposes.
+The desktop application runs a REST API on `http://127.0.0.1:8300`. It calls
+the same verification pipeline as the app's own Verify page, so a result from
+the API is the result the app would show for the same file and mode.
 
-The Jura Trace API wrapper is a local HTTP server that runs alongside the desktop application and exposes the VERIFY and PROTECT pipelines via REST endpoints. It enables external applications — learning management systems, eCommerce platforms, practice management software, and corporate workflow tools — to submit content for verification and receive structured results, without sending any data to a cloud service.
-
-All processing remains on the user's device. The API wrapper is local-only: it binds to `127.0.0.1` and is never accessible from the network.
-
----
-
-## Table of Contents
-
-1. [Design Principles](#design-principles)
-2. [Architecture](#architecture)
-3. [Running the API Wrapper](#running-the-api-wrapper)
-4. [Authentication](#authentication)
-5. [Endpoints — Verification](#endpoints--verification)
-6. [Endpoints — Protection](#endpoints--protection)
-7. [Endpoints — Claim Checking](#endpoints--claim-checking)
-8. [Endpoints — Management](#endpoints--management)
-9. [Response Schemas](#response-schemas)
-10. [Error Handling](#error-handling)
-11. [Rate Limiting](#rate-limiting)
-12. [Integration Examples](#integration-examples)
-13. [Licence Tier Capabilities](#licence-tier-capabilities)
-14. [Implementation Notes](#implementation-notes)
-15. [Related Documents](#related-documents)
+This document describes the server as it is in the code today. Every
+statement was checked against `src-tauri/src/api/` and the pipeline it calls
+on 1 October 2026. Where the server behaves in a way that is surprising or
+known to be wrong, this document says so rather than describing what it ought
+to do. The changes planned for v1.2.0 are in
+[`docs/design/v1.2.0-headless-api-and-cli.md`](design/v1.2.0-headless-api-and-cli.md)
+and are marked **(v1.2.0)** where they matter to a caller.
 
 ---
 
-## Design Principles
+## Contents
 
-1. **Local-only**: Binds to `127.0.0.1:8300` exclusively. The OS will not route this address to any network interface. There is no configuration option to expose it externally.
-2. **No cloud dependency**: The wrapper calls the same Rust core engine and Python ML sidecar (port 8200) as the desktop UI. No data leaves the device.
-3. **Same pipeline**: The wrapper does not implement its own verification logic. It is a thin HTTP layer over existing Tauri commands. Results are identical to those produced by the desktop interface.
-4. **API key authentication**: Bearer token authentication using locally generated keys stored in the application's SQLite database. No OAuth, no external identity provider.
-5. **OpenAPI 3.1**: The full specification is auto-generated and available at `/openapi.json`. Clients can generate typed SDKs from it.
-6. **Graceful degradation**: If the Python ML sidecar (port 8200) is offline, the wrapper returns partial results from the Rust engine (C2PA verification, EXIF anomaly detection, perceptual hash lookup) and flags the omission clearly in the response.
-
----
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────┐
-│  External Application (LMS, CMS, Pipeline)  │
-│  e.g. Moodle, Canvas, practice management   │
-└──────────────────┬──────────────────────────┘
-                   │ HTTP (127.0.0.1:8300)
-                   │ Bearer token auth
-┌──────────────────▼──────────────────────────┐
-│      Jura Trace API Wrapper (Rust/Axum)     │
-│                                             │
-│  REST endpoints + OpenAPI 3.1 spec          │
-│  Auth: API key (SQLite-backed)              │
-│  Rate limiting: configurable per key        │
-│  Multipart parsing: file uploads            │
-│  Response: JSON (application/json)          │
-└──────────────────┬──────────────────────────┘
-                   │ Direct function calls
-                   │ (shared library, not IPC)
-┌──────────────────▼──────────────────────────┐
-│         Jura Trace Core Engine (Rust)        │
-│                                             │
-│  C2PA signing and verification (c2pa-rs)    │
-│  Perceptual hashing (aHash, dHash, pHash)   │
-│  EXIF anomaly detection                     │
-│  Format router (MIME detection)             │
-│  SQLite database (rusqlite)                 │
-└──────────────────┬──────────────────────────┘
-                   │ HTTP (127.0.0.1, port from `[sidecar].url` below)
-┌──────────────────▼──────────────────────────┐
-│      Python ML Sidecar (existing)           │
-│      Note: when the wrapper is co-deployed   │
-│      with Jura Trace Desktop, the desktop's  │
-│      sidecar uses an ephemeral port (Option C, │
-│      May 2026) — point the wrapper at a       │
-│      separately-managed sidecar instead.      │
-│                                             │
-│  21-signal deepfake ensemble                │
-│  ELA, noise analysis, copy-move detection   │
-│  GBM classifier (AUC-ROC 0.945)            │
-│  RAG claim checker (Phase 2 Wk 19-20)      │
-└─────────────────────────────────────────────┘
-```
-
-The wrapper is implemented as either:
-
-- **Separate binary**: `jura-trace-api` compiled from the same workspace, started independently of the desktop application.
-- **Feature flag in the main binary**: `jura-trace --api --port 8300` starts the desktop application and the API server together.
-
-The separate binary approach is preferred for enterprise deployments where the API must run in a headless server context (CI/CD pipelines, background services) without launching a desktop window.
+- [Status at a glance](#status-at-a-glance)
+- [How the server runs](#how-the-server-runs)
+- [Authentication](#authentication)
+- [Investigation modes](#investigation-modes)
+- [Response envelope](#response-envelope)
+- [Endpoints](#endpoints)
+- [The verification result](#the-verification-result)
+- [Errors](#errors)
+- [Limits](#limits)
+- [Schema as a public API contract](#schema-as-a-public-api-contract)
+- [The `jura` CLI](#the-jura-cli)
+- [Examples](#examples)
+- [Related documents](#related-documents)
 
 ---
 
-## Running the API Wrapper
+## Status at a glance
 
-### Starting the server
+| | Today (v1.1.0) | v1.2.0 plan |
+|---|---|---|
+| Where it runs | Inside the desktop app, only while the app is open | Also as a separate `jura-trace-api` binary with no window |
+| Address | `127.0.0.1:8300`, fixed | Same by default; `--port`, and an explicit opt-in to listen beyond loopback |
+| Getting an API key | **No supported way.** See [Authentication](#authentication) | `jura-trace-api keys add --name <label>` |
+| Configuration file | None. Nothing reads one | None planned |
+| Readiness endpoint | None; use `GET /api/v1/health` | [`GET /api/v1/ready`](#checking-it-is-up) |
+| Trust band in the response | None; computed only on screen | [`verdict`](#verdict) on every verification result |
+| CLI | None | [`jura`](#the-jura-cli): `verify`, `version`, `auth`, with the exit codes below |
+| Licence tier gate | None. Every installation runs the API | No change planned |
+
+There is no `jura-trace-api` binary, no `jura-trace --api` flag and no TOML
+configuration in any released version. Earlier versions of this document
+described all three; they were never built.
+
+---
+
+## How the server runs
+
+The API starts inside the desktop application's start-up, in `run()` in
+`src-tauri/src/lib.rs`, when the application is built with the `api` Cargo
+feature, which is on by default. It is not started any other way.
+
+- **Address.** It binds to `127.0.0.1:8300`. The address is fixed in code
+  (`src-tauri/src/api/mod.rs`, `start_server`), so it is not reachable from
+  other machines and there is no setting that changes this.
+- **Lifetime.** It stops when the application quits.
+- **Port already in use.** If `8300` is taken, for example by a second copy
+  of the app, the server logs a warning and does not start. The app carries
+  on without it and nothing tells the user. A caller sees a refused
+  connection. **(v1.2.0)** The headless binary makes a failed bind a fatal
+  error.
+- **The analysis sidecar.** Most detectors run in a Python sidecar that the
+  app starts on a loopback port of its own (a random one in release builds). The API reaches it through the app;
+  callers never talk to it directly. Until it has started, results come back
+  [degraded](#response-envelope).
+- **Swagger UI** is served at `http://127.0.0.1:8300/swagger-ui/` and the
+  OpenAPI document at `http://127.0.0.1:8300/openapi.json`. The Swagger assets
+  are compiled into the application, so the page makes no requests off the
+  machine. Neither needs a key.
+
+### Checking it is up
 
 ```bash
-# Separate binary (preferred for headless/server use)
-jura-trace-api --port 8300 --config /etc/jura-trace/api.toml
-
-# Feature flag on main binary
-jura-trace --api --port 8300
-
-# Development (from workspace root)
-cargo run --bin jura-trace-api -- --port 8300
+curl -s http://127.0.0.1:8300/api/v1/health
 ```
-
-### Configuration file (TOML)
-
-```toml
-# /etc/jura-trace/api.toml (or ~/.config/jura-trace/api.toml)
-
-[server]
-host = "127.0.0.1"   # Must not be changed to 0.0.0.0
-port = 8300
-workers = 4
-
-[auth]
-require_key = true   # Set to false only for development
-
-[rate_limit]
-default_requests_per_hour = 100   # Professional tier default
-burst = 10                        # Requests allowed in rapid succession
-
-[sidecar]
-url = "http://127.0.0.1:8200"
-timeout_seconds = 30
-
-[logging]
-level = "info"   # trace | debug | info | warn | error
-file = "/var/log/jura-trace-api.log"
-```
-
-### Verifying the server is running
-
-```bash
-curl http://127.0.0.1:8300/api/v1/health
-```
-
-Expected response (sidecar available):
 
 ```json
 {
   "status": "ok",
-  "version": "0.2.0-dev",
-  "sidecar": {
-    "available": true,
-    "url": "http://127.0.0.1:8200",
-    "capabilities": {
-      "ela": true,
-      "noise": true,
-      "copy_move": true,
-      "deepfake": true,
-      "jpeg_ghost": true,
-      "npr": true,
-      "chromatic_aberration": true,
-      "segmented_ela": true,
-      "shadow_consistency": true,
-      "colour_temperature": true,
-      "splice_boundary": true,
-      "watermark": true,
-      "clip_detect": false,
-      "rag": false,
-      "video_metadata": false,
-      "audio_metadata": false,
-      "video_frames": false
-    }
-  },
-  "capabilities": {
-    "c2pa": true,
-    "fingerprint": true,
-    "exif_anomaly": true,
-    "forensics": true,
-    "deepfake": true,
-    "rag": false
-  }
+  "version": "1.1.0",
+  "sidecarAvailable": true,
+  "uptimeSeconds": 412
 }
 ```
 
-> **Note**: JSON field names in the API wrapper follow snake_case convention throughout (matching REST and Python sidecar conventions). The desktop application receives the same data serialised to camelCase via Tauri's `serde(rename_all = "camelCase")` — but clients calling the API wrapper directly should expect snake_case field names in all responses.
+`status` is always `"ok"` when the server answers. `sidecarAvailable` is
+`false` while the sidecar is still starting and whenever it is unreachable;
+results produced while it is `false` are degraded. This response is **not**
+wrapped in the [envelope](#response-envelope).
 
----
-
-## Authentication
-
-### Generating an API key
-
-API keys are generated through the management endpoint or through the Jura Trace desktop interface (Settings → API Keys).
-
-```
-POST /api/v1/auth/keys
-Content-Type: application/json
-
-{
-  "name": "moodle-integration",
-  "rate_limit": 100
-}
-```
-
-**Response:**
-
-```json
-{
-  "key": "jt_a1b2c3d4e5f6...",
-  "key_id": "key_7f8g9h",
-  "name": "moodle-integration",
-  "rate_limit": 100,
-  "created_at": "2026-03-21T09:00:00Z",
-  "expires_at": null
-}
-```
-
-The `key` value is returned once and not stored in plaintext. Record it immediately. If lost, generate a new key and revoke the old one.
-
-### Using API keys
-
-Include the key as a Bearer token in the `Authorization` header on all subsequent requests:
-
-```
-Authorization: Bearer jt_a1b2c3d4e5f6...
-```
-
-### Key management
-
-```
-GET    /api/v1/auth/keys             List all keys (name, key_id, created_at, last_used_at)
-DELETE /api/v1/auth/keys/{key_id}    Revoke a key immediately
-PATCH  /api/v1/auth/keys/{key_id}    Update rate limit or name
-```
-
-Keys are stored in the application's SQLite database (`~/.local/share/jura-trace/jura_trace.db` on Linux, `~/Library/Application Support/jura-trace/jura_trace.db` on macOS). They are scoped to localhost — they cannot be used from another machine.
-
----
-
-## Endpoints — Verification
-
-### POST /api/v1/verify
-
-Submit a single file for verification. Returns the full `VerificationResult` matching the schema produced by the desktop VERIFY pipeline.
-
-**Request:**
-
-```
-POST /api/v1/verify?mode=standard
-Content-Type: multipart/form-data
-Authorization: Bearer jt_...
-
-file: (binary, required)
-```
-
-**Query parameters:**
-
-| Parameter  | Type   | Default    | Description |
-|------------|--------|------------|-------------|
-| `mode`     | string | `standard` | Investigation depth: `standard`, `deep`, or `archival` |
-| `mime_type`| string | auto       | Override MIME detection. If omitted, detected from file magic bytes. |
-
-**Response:** `200 OK`, `application/json`
-
-Returns a `VerificationResult` object. See [Response Schemas](#response-schemas).
-
-**Example:**
+`health` asks the sidecar over HTTP on every call and can take seconds, so it
+is the wrong thing to poll. **(v1.2.0)** `GET /api/v1/ready` answers from
+state the server already holds, needs no key, and is safe to poll:
 
 ```bash
-curl -X POST "http://127.0.0.1:8300/api/v1/verify?mode=deep" \
-  -H "Authorization: Bearer jt_abc123..." \
-  -F "file=@/path/to/evidence.jpg"
+curl -s http://127.0.0.1:8300/api/v1/ready
 ```
-
----
-
-### POST /api/v1/verify/url
-
-Submit a URL for verification. The file is fetched locally (the request originates from the user's machine, not a cloud intermediary).
-
-**Request:**
-
-```
-POST /api/v1/verify/url?mode=standard
-Content-Type: application/json
-Authorization: Bearer jt_...
-
-{
-  "url": "https://example.com/image.jpg"
-}
-```
-
-**Query parameters:** Same as `/api/v1/verify`.
-
-**Response:** `200 OK`, `application/json` — `VerificationResult` object.
-
-**Notes:**
-
-- The URL is fetched using the local network connection. If the URL requires authentication or is behind a VPN, ensure the network context is configured before making this call.
-- URLs are logged in the application audit trail with timestamp and requesting API key name.
-
----
-
-### POST /api/v1/verify/batch
-
-Submit multiple files for verification in a single request.
-
-**Request:**
-
-```
-POST /api/v1/verify/batch?mode=standard&concurrency=3
-Content-Type: multipart/form-data
-Authorization: Bearer jt_...
-
-files[]: (binary, required, multiple)
-```
-
-**Query parameters:**
-
-| Parameter     | Type    | Default    | Description |
-|---------------|---------|------------|-------------|
-| `mode`        | string  | `standard` | Investigation depth: `standard`, `deep`, or `archival` |
-| `concurrency` | integer | `3`        | Parallel processing limit. Range: 1–5. Higher values increase CPU load. |
-
-**Response:** `200 OK`, `application/json`
-
-```json
-{
-  "results": [
-    {
-      "filename": "photo1.jpg",
-      "result": { /* VerificationResult */ }
-    },
-    {
-      "filename": "photo2.png",
-      "error": "Unsupported file format: image/bmp",
-      "result": null
-    }
-  ],
-  "total": 2,
-  "succeeded": 1,
-  "failed": 1,
-  "processing_time_ms": 4521
-}
-```
-
-Partial failures do not abort the batch. Each file result includes either a `result` or an `error` field.
-
----
-
-## Endpoints — Protection
-
-### POST /api/v1/protect/sign
-
-Sign a file with a C2PA Content Credential, embedding provenance metadata (creator, licence, timestamp) into the file.
-
-**Request:**
-
-```
-POST /api/v1/protect/sign
-Content-Type: multipart/form-data
-Authorization: Bearer jt_...
-
-file: (binary, required)
-creator_name: "Jura Labs CIC"                    (string, required)
-license: "CC BY 4.0"                            (string, required)
-rights_statement: "All rights reserved"         (string, optional)
-contact_url: "https://juralabs.org"             (string, optional)
-```
-
-**Response:** `200 OK`
-
-Returns the signed file as a binary download (`Content-Disposition: attachment`), alongside a JSON header block:
-
-```
-X-Jura-Manifest: {"manifest_label":"...","signing_time":"...","creator":"...","hash_alg":"sha256"}
-```
-
-The signed file is a valid JPEG/PNG/PDF with the C2PA manifest embedded in the standard location. It can be opened by any C2PA-compatible viewer, including Adobe's Content Credentials viewer and the Jura Trace VERIFY pipeline.
-
----
-
-### POST /api/v1/protect/fingerprint
-
-Compute perceptual hashes for a file without signing or modifying it. Useful for registering an asset in the fingerprint database before publication.
-
-**Request:**
-
-```
-POST /api/v1/protect/fingerprint
-Content-Type: multipart/form-data
-Authorization: Bearer jt_...
-
-file: (binary, required)
-```
-
-**Response:** `200 OK`, `application/json`
-
-```json
-{
-  "filename": "painting_scan.tiff",
-  "mime_type": "image/tiff",
-  "hashes": [
-    { "algorithm": "phash", "hash_hex": "a3f2..." },
-    { "algorithm": "ahash", "hash_hex": "b7c1..." },
-    { "algorithm": "dhash", "hash_hex": "f4d9..." }
-  ],
-  "asset_id": "ast_9k2m...",
-  "registered_at": "2026-03-21T09:15:00Z"
-}
-```
-
-The fingerprint is stored in the local SQLite database and is immediately available for lookup via the VERIFY pipeline.
-
----
-
-## Endpoints — Claim Checking
-
-### POST /api/v1/claims/check
-
-Submit a text claim for verification against the local RAG knowledge base.
-
-> **Note**: This endpoint requires the Python ML sidecar (port 8200) to be running with the RAG pipeline enabled (Phase 2, Weeks 19–20). If the sidecar is unavailable, the endpoint returns `503 Service Unavailable`.
-
-**Request:**
-
-```
-POST /api/v1/claims/check
-Content-Type: application/json
-Authorization: Bearer jt_...
-
-{
-  "claim": "This photograph shows flooding in Valencia on 29 October 2024.",
-  "context": "Shared on social media with caption claiming it shows the DANA floods."
-}
-```
-
-**Response:** `200 OK`, `application/json`
-
-The response schema mirrors `ClaimCheckResponse` from the Python ML sidecar (`sidecar/app/models/schemas.py`). Claim checking uses local TF-IDF retrieval against text files in `sidecar/knowledge_base/` — there is no web retrieval and no external URLs in the response.
-
-```json
-{
-  "overall_verdict": "disputed",
-  "claims": [
-    {
-      "claim": "This photograph shows flooding in Valencia on 29 October 2024.",
-      "verdict": "disputed",
-      "explanation": "The DANA floods in Valencia did occur on this date. However, cross-referencing against the local knowledge base finds no corroborating material specifically placing this image at that location and time.",
-      "confidence": 0.68
-    }
-  ],
-  "model_used": "qwen2.5:7b",
-  "methodology": "TF-IDF retrieval from local knowledge base, followed by LLM-assisted reasoning. No web retrieval is performed — results reflect only locally indexed material.",
-  "summary": "One claim assessed. The event is documented in the knowledge base but the specific image origin could not be verified from available local sources."
-}
-```
-
-**Possible `verdict` values for individual claims**: `supported`, `disputed`, `unverified`, `unavailable`
-
-**Possible `overall_verdict` values**: `supported`, `disputed`, `unverified`, `mixed`, `unavailable`
-
----
-
-## Endpoints — Management
-
-### GET /api/v1/health
-
-Returns service status and capability availability.
-
-**Response:** `200 OK`, `application/json` — see [Running the API Wrapper](#running-the-api-wrapper) for example response.
-
----
-
-### GET /api/v1/stats
-
-Returns aggregate statistics for the local installation.
-
-**Response:** `200 OK`, `application/json`
-
-```json
-{
-  "assets_registered": 4201,
-  "verifications_total": 1847,
-  "verifications_today": 23,
-  "deepfake_verdicts": {
-    "authentic": 1609,
-    "inconclusive": 183,
-    "synthetic": 55
-  },
-  "false_positive_rate": 0.006,
-  "calibration_corpus_size": 627,
-  "database_size_mb": 142
-}
-```
-
----
-
-### GET /openapi.json
-
-Returns the auto-generated OpenAPI 3.1 specification for all available endpoints.
-
-**Response:** `200 OK`, `application/json`
-
-Use this endpoint to generate typed client SDKs in any language using tools such as `openapi-generator` or `fern`.
-
----
-
-## Response Schemas
-
-### VerificationResult
-
-The primary verification response schema. Mirrors the `VerificationResult` struct in `src-tauri/src/lib.rs` and the TypeScript interface in `ui/src/lib/types.ts`.
-
-All field names are snake_case in API wrapper responses. The schema mirrors the `VerificationResult` struct in `src-tauri/src/lib.rs` (annotated `serde(rename_all = "camelCase")` for the desktop app, but serialised to snake_case for the REST API).
-
-Optional fields are omitted when not applicable (for example, `ela_result` is `null` if the sidecar was offline or the file is not an image). All responses include a top-level `api_version` field for client compatibility checks.
-
-```json
-{
-  "api_version": "0.2.0-dev",
-  "source_type": "file",
-  "content_type": "image",
-  "mode": "standard",
-  "overall_trust": 0.91,
-  "c2pa_valid": true,
-  "ela_score": 0.14,
-  "noise_score": 0.09,
-  "copy_move_score": 0.03,
-  "deepfake_score": 0.08,
-  "metadata_flags": [],
-  "ai_generator": null,
-  "claim_verdict": null,
-  "exif_analysis": {
-    "findings": [],
-    "trust_score": 0.95,
-    "fields_populated": 24,
-    "fields_total": 30,
-    "has_exif": true
-  },
-  "c2pa_manifest": {
-    "title": "evidence_photo.jpg",
-    "format": "image/jpeg",
-    "claim_generator": "Jura Archive/0.2.0",
-    "assertions": [
-      { "label": "c2pa.actions", "value": "c2pa.created" }
-    ],
-    "is_valid": true,
-    "signed_at": "2026-03-15T10:00:00Z"
-  },
-  "ela_result": {
-    "ela_image_base64": "<base64>",
-    "max_difference": 18.4,
-    "mean_difference": 3.1,
-    "score": 0.14,
-    "suspicious": false
-  },
-  "noise_result": {
-    "heatmap_base64": "<base64>",
-    "block_variances": [2.1, 1.8, 2.4],
-    "global_variance": 2.1,
-    "anomalous_blocks": 0,
-    "total_blocks": 64,
-    "score": 0.09,
-    "suspicious": false
-  },
-  "copy_move_result": {
-    "visualisation_base64": "<base64>",
-    "clone_regions": [],
-    "matched_pairs": 0,
-    "score": 0.03,
-    "suspicious": false
-  },
-  "deepfake_result": {
-    "score": 0.08,
-    "suspicious": false,
-    "confidence": "high",
-    "verdict_level": "authentic",
-    "signals": [
-      {
-        "name": "noise_residual",
-        "description": "Natural sensor noise level detected",
-        "weight": 3.0,
-        "triggered": false
-      }
-    ],
-    "heatmap_base64": "<base64>",
-    "summary": "Image appears authentic (1 of 21 signals triggered)",
-    "watermarks": [],
-    "classifier_score": 0.11,
-    "classifier_available": true
-  },
-  "npr_result": {
-    "score": 0.07,
-    "suspicious": false,
-    "hv_correlation": 0.82,
-    "diff_variance_ratio": 1.1,
-    "hf_energy_ratio": 0.042,
-    "heatmap_base64": "<base64>",
-    "summary": "Neighbouring pixel relationships consistent with camera capture"
-  },
-  "jpeg_ghost_result": {
-    "score": 0.04,
-    "suspicious": false,
-    "ghost_quality": 75,
-    "quality_variance": 0.02,
-    "deviating_blocks": 1,
-    "total_blocks": 256,
-    "heatmap_base64": "<base64>",
-    "summary": "No JPEG ghost artefacts detected"
-  },
-  "ca_result": {
-    "r_squared": 0.97,
-    "is_consistent": true,
-    "score": 0.05,
-    "suspicious": false,
-    "sample_count": 120,
-    "summary": "Chromatic aberration pattern consistent across the frame"
-  },
-  "segmented_ela_result": null,
-  "shadow_consistency_result": null,
-  "colour_temperature_result": null,
-  "splice_boundary_result": null,
-  "watermark_extract_result": {
-    "extracted_payload": "JL-2026-evidence_photo",
-    "extracted_hex": "4a4c2d323032362d...",
-    "has_watermark": true,
-    "confidence": 0.94,
-    "success": true,
-    "message": "Watermark extracted successfully"
-  },
-  "video_metadata": null,
-  "audio_metadata": null
-}
-```
-
-**Verdict levels** (`verdict_level` field on `deepfake_result`):
-
-| Value           | Display label       | Score range   |
-|-----------------|---------------------|---------------|
-| `authentic`     | Likely authentic    | 0.00–0.29     |
-| `inconclusive`  | Cannot determine    | 0.30–0.64     |
-| `synthetic`     | Likely AI-generated | 0.65–1.00     |
-
-Score thresholds are calibrated in `sidecar/app/services/deepfake.py`. The `synthetic` verdict is also triggered when one or more invisible AI watermarks are detected (Stable Diffusion, SDXL, or Flux watermark patterns), regardless of the numeric score.
-
-### `methodology` — reproducibility provenance block
-
-Every `VerificationResult` carries a `methodology` block that pins the exact engine, sidecar, and model artefacts used to produce the result. Downstream tooling — including the v1.0.1 `jura` CLI, audit-report generators, and external reproducibility harnesses — should cite these values verbatim when archiving evidence.
-
-```json
-{
-  "methodology": {
-    "pipeline_version": "1.0.0",
-    "sidecar_version": "0.9.0",
-    "classifier_model_hash": "2931f197cba6f376e85b1cbcfd584e6802f36e4fbf68ff00c83d61d4d655db18",
-    "univfd_probe_model_hash": "ed691b45cbe2903a7e0530fd0ec78ab91eef9f15133af4c1a5c8cf172086dacd",
-    "analysis_mode": "standard",
-    "analysed_at": "2026-06-22T10:00:00Z"
-  }
-}
-```
-
-| Field | Type | Meaning |
-|------|------|---------|
-| `pipeline_version` | string | Jura Trace application version (`CARGO_PKG_VERSION` at build time) |
-| `sidecar_version` | string \| null | Python ML sidecar version, `null` if the sidecar was offline |
-| `classifier_model_hash` | string \| null | SHA-256 of `models/deepfake_classifier.joblib`, `null` if not installed |
-| `univfd_probe_model_hash` | string \| null | SHA-256 of `models/univfd_probe.joblib`, `null` if the optional CLIP probe is not installed (added in JTV-181, v1.0) |
-| `analysis_mode` | string | `quick`, `standard`, or `deep` |
-| `analysed_at` | string | ISO 8601 timestamp (UTC, RFC 3339) |
-
-When the same input is verified twice with matching `methodology`, the result MUST be bit-identical except for `analysed_at`. Any deviation indicates a non-determinism bug — report via the issue tracker.
-
----
-
-## CLI Exit-Code Contract
-
-The forthcoming `jura` CLI (v1.0.1, JTV-182) is a thin Rust client over this REST API. Its exit-code contract is pre-locked in v1.0 so newsroom and forensic-audit automation written against the v1.0.1 release can be authored against this REST API today.
-
-| Exit code | Name | Meaning |
-|-----------|------|---------|
-| `0` | success | Operation completed; result emitted to stdout |
-| `1` | usage | Invalid command-line arguments (missing required flag, unknown subcommand) |
-| `2` | unreachable | Cannot reach the local API at `http://127.0.0.1:8300` (server not running) |
-| `3` | auth | Authentication failure — missing or rejected API key |
-| `4` | file | Local file error — input file not found, unreadable, or empty |
-| `5` | format | Server rejected the input as an unsupported format (HTTP 422) |
-| `6` | server | Server-side error (HTTP 5xx) or partial-availability degraded response |
-
-The numeric codes are stable across all v1.x releases. Wrapper scripts and CI pipelines may rely on them indefinitely. New conditions get new codes; existing codes are never re-purposed.
-
-Server-side handlers that want to influence the CLI exit code should map to the corresponding HTTP status code listed below — the CLI's translation table follows the HTTP status, not the response body.
-
----
-
-## Schema as Public API Contract
-
-Starting with v1.0 (22 June 2026), the JSON shape of every response in this document is a **public API contract**.
-
-**What this means in practice:**
-
-- New fields MAY be added at any time. Clients MUST ignore unknown fields and not error on them.
-- Existing field names MUST NOT be renamed within a v1.x major version. A rename is a v2.0 break.
-- Existing field types MUST NOT change. Widening a `string` to `string | null` is a break and requires a v2.0.
-- Field-removal requires a deprecation cycle of at least one minor release (`v1.x` → `v1.x+1`) during which the field is still emitted (possibly `null`), accompanied by a `CHANGELOG.md` note. Hard removal lands no earlier than v2.0.
-- `methodology.pipeline_version` is the authoritative engine-version string. The legacy top-level `api_version` field is retained for back-compat and reflects the *envelope* version, not the engine.
-
-**Why this matters:**
-
-Pilot newsroom partners are already integrating against this API. The C2PA Validator Conformant award (recordId `019d8d83-…`, spec 2.2, awarded 2026-05-06) makes the verification result an evidence-bearing record. Schema drift breaks both groups silently.
-
-**Versioning model:**
-
-- `v1.x.y` — non-breaking additions and bug fixes. Schema stays compatible.
-- `v2.0` — breaking changes. Will be cut only when the cost of carrying compatibility shims exceeds the value. Old endpoints under `/api/v1/` will be retained for one full release cycle.
-
-All schema changes MUST be entered in `CHANGELOG.md` under the relevant release heading with the prefix `[schema]`.
-
----
-
-## Error Handling
-
-All errors return a JSON body with a consistent structure:
-
-```json
-{
-  "error": "unsupported_format",
-  "message": "The submitted file type (image/bmp) is not supported by the verification pipeline.",
-  "status": 422,
-  "request_id": "req_x7k2m9"
-}
-```
-
-### Status codes
-
-| Code | Meaning |
-|------|---------|
-| `200` | Success |
-| `400` | Bad request — malformed request body or missing required field |
-| `401` | Unauthorised — missing or invalid API key |
-| `413` | Payload too large — file exceeds 100MB limit |
-| `422` | Unprocessable — valid request but unsupported file format or content |
-| `429` | Rate limit exceeded — see `Retry-After` header |
-| `500` | Internal server error — pipeline failure |
-| `503` | Service unavailable — sidecar offline (partial results may follow with `503` on forensics/deepfake fields) |
-
-### Partial availability
-
-When the Python ML sidecar (port 8200) is offline, the API wrapper returns `200 OK` with partial results rather than a top-level error. The `forensicsResult` and `deepfakeResult` fields will have `"available": false`, and a `"degraded"` flag appears at the top level:
-
-```json
-{
-  "degraded": true,
-  "degraded_reason": "Python ML sidecar unavailable at http://127.0.0.1:8200",
-  "overall_trust": null,
-  ...
-}
-```
-
-This matches the graceful degradation behaviour of the desktop application.
-
----
-
-## Rate Limiting
-
-Rate limits are enforced per API key, not per IP address.
-
-| Tier         | Default limit       | Burst |
-|--------------|---------------------|-------|
-| Professional | 100 requests/hour   | 10    |
-| Enterprise   | Unlimited (default) | N/A   |
-
-When a rate limit is exceeded, the response is `429 Too Many Requests` with a `Retry-After` header indicating when the limit resets:
-
-```
-HTTP/1.1 429 Too Many Requests
-Retry-After: 1800
-X-RateLimit-Limit: 100
-X-RateLimit-Remaining: 0
-X-RateLimit-Reset: 1742810400
-```
-
-Enterprise licences can configure per-key rate limits to prevent any single integration from consuming all available processing capacity:
-
-```bash
-PATCH /api/v1/auth/keys/key_7f8g9h
-Content-Type: application/json
-
-{
-  "rate_limit": 500
-}
-```
-
----
-
-## Integration Examples
-
-### Python (requests)
-
-```python
-import requests
-
-# Submit a file for verification
-with open("evidence_photo.jpg", "rb") as f:
-    response = requests.post(
-        "http://127.0.0.1:8300/api/v1/verify",
-        files={"file": f},
-        params={"mode": "deep"},
-        headers={"Authorization": "Bearer jt_abc123..."},
-    )
-
-result = response.json()
-
-# Extract key verdicts — API wrapper uses snake_case field names
-verdict = result["deepfake_result"]["verdict_level"]  # authentic | inconclusive | synthetic
-trust = result["overall_trust"]
-findings = result["exif_analysis"]["findings"] if result.get("exif_analysis") else []
-
-print(f"Deepfake verdict: {verdict}")
-print(f"Overall trust score: {trust:.2f}")
-print(f"EXIF anomaly findings: {len(findings)}")
-
-# Flag for human review if inconclusive or synthetic
-if verdict in ("inconclusive", "synthetic"):
-    print("Flagged for human review.")
-```
-
-### cURL
-
-```bash
-# Single file verification
-curl -X POST "http://127.0.0.1:8300/api/v1/verify?mode=deep" \
-  -H "Authorization: Bearer jt_abc123..." \
-  -F "file=@evidence_photo.jpg"
-
-# Batch verification with three files
-curl -X POST "http://127.0.0.1:8300/api/v1/verify/batch?mode=standard&concurrency=3" \
-  -H "Authorization: Bearer jt_abc123..." \
-  -F "files[]=@photo1.jpg" \
-  -F "files[]=@photo2.jpg" \
-  -F "files[]=@photo3.png"
-
-# Claim checking
-curl -X POST "http://127.0.0.1:8300/api/v1/claims/check" \
-  -H "Authorization: Bearer jt_abc123..." \
-  -H "Content-Type: application/json" \
-  -d '{"claim": "This image shows the 2024 Valencia floods.", "context": "Social media post."}'
-```
-
-### JavaScript / Node.js
-
-```javascript
-import { createReadStream } from 'fs';
-
-// Single file verification
-async function verifyFile(filePath, mode = 'standard') {
-  const form = new FormData();
-  form.append('file', createReadStream(filePath));
-
-  const response = await fetch(
-    `http://127.0.0.1:8300/api/v1/verify?mode=${mode}`,
-    {
-      method: 'POST',
-      body: form,
-      headers: { 'Authorization': 'Bearer jt_abc123...' },
-    }
-  );
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(`Verification failed: ${error.message}`);
-  }
-
-  return response.json();
-}
-
-// Usage — API wrapper uses snake_case field names
-const result = await verifyFile('./submission_photo.jpg', 'deep');
-console.log(`Trust score: ${result.overall_trust}`);
-console.log(`Deepfake verdict: ${result.deepfake_result?.verdict_level}`);
-```
-
-### Moodle plugin (PHP)
-
-```php
-<?php
-// Verify a student submission image via Jura Trace API
-function jura_verify_submission(string $filepath): array {
-    $ch = curl_init('http://127.0.0.1:8300/api/v1/verify?mode=deep');
-
-    $postFields = [
-        'file' => new CURLFile($filepath, mime_content_type($filepath)),
-    ];
-
-    curl_setopt_array($ch, [
-        CURLOPT_POST           => true,
-        CURLOPT_POSTFIELDS     => $postFields,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER     => [
-            'Authorization: Bearer ' . get_config('mod_jura', 'api_key'),
-        ],
-    ]);
-
-    $response = curl_exec($ch);
-    $status   = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($status !== 200) {
-        throw new moodle_exception('apierror', 'mod_jura', '', $status);
-    }
-
-    return json_decode($response, true);
-}
-```
-
----
-
-## Licence Tier Capabilities
-
-| Capability | Community | Professional | Enterprise |
-|-----------|-----------|--------------|------------|
-| API wrapper access | — | Single key | Multiple keys with scoping |
-| Rate limit | — | 100 req/hr | Unlimited (configurable) |
-| Batch endpoint | — | Yes | Yes |
-| Concurrency limit | — | 3 | 5 |
-| Watched folder mode | — | — | Yes |
-| Custom RAG knowledge base | — | — | Yes |
-| Key management console | — | Limited | Full |
-| OpenAPI spec download | — | Yes | Yes |
-| SLA on API availability | — | — | 24hr response |
-
-Community users access the VERIFY and PROTECT pipelines through the desktop interface. The API wrapper is a Professional and Enterprise feature.
-
----
-
-## Implementation Notes
-
-### Technology choices
-
-- **Axum** (Rust async HTTP framework) — already in the ecosystem via `tokio`. Shares memory space with the core engine; no serialisation overhead for internal calls.
-- **Tower middleware** — rate limiting, request tracing, and authentication implemented as Tower layers. Composable and testable.
-- **Multipart parsing** — `axum-multipart` for file uploads. Files are streamed to temporary storage and cleaned up after processing.
-- **OpenAPI generation** — `utoipa` crate for auto-generating the OpenAPI 3.1 spec from Rust struct annotations. Served at `/openapi.json`.
-
-### Estimated implementation effort
-
-| Component | Effort |
-|-----------|--------|
-| Axum server setup, middleware stack, configuration | 3–4 days |
-| Endpoint implementations (wrapping existing pipeline functions) | 5–7 days |
-| API key management and rate limiting | 2–3 days |
-| OpenAPI spec generation and documentation | 2–3 days |
-| Integration testing | 2–3 days |
-| **Total** | **2–3 weeks** |
-
-### Security considerations
-
-- The server binds exclusively to `127.0.0.1`. This is enforced in code, not just configuration. Any attempt to bind to `0.0.0.0` or a specific network interface will fail at startup.
-- API keys are stored as SHA-256 hashes in SQLite. The plaintext key is returned once at creation and never stored.
-- All API activity is written to the application audit log with key name, endpoint, timestamp, and result summary.
-- File uploads are validated for MIME type and size (100MB limit) before processing begins. Files are written to a temporary directory isolated from the application's data directory.
-- The server does not support HTTPS (TLS termination on localhost is not meaningful for security and adds operational complexity). All traffic is loopback-only.
-
-### Configuration for air-gapped deployments
-
-Enterprise deployments in air-gapped environments (no internet access) should configure `auto_update = false` in the TOML configuration and manage updates through the organisation's existing software distribution channel (SCCM, Jamf, Ansible, etc.).
-
----
-
-## Related Documents
-
-- [`docs/ARCHITECTURE.md`](./ARCHITECTURE.md) — full system architecture, data flow, and module specifications
-- [`src-tauri/src/lib.rs`](../src-tauri/src/lib.rs) — `VerificationResult` struct and Tauri command implementations the API wrapper calls
-- [`ui/src/lib/types.ts`](../ui/src/lib/types.ts) — TypeScript interfaces mirroring the Rust structs (useful for JavaScript client development)
-- [`sidecar/main.py`](../sidecar/main.py) — Python ML sidecar entry point (sidecar binds to `127.0.0.1` on an OS-assigned ephemeral port allocated by the Tauri shell at launch)
-
----
-
-## JTV-181 — `provenance` block on verify responses
-
-From v1.0 every verify endpoint response carries a top-level `provenance` block alongside the legacy `methodology` block. The `provenance` block is a **public API contract**: field names and types do not change between v1.x minor releases. The v1.0.1 `jura` CLI (JTV-182) reads this block to write per-verification reproducibility records into case files.
-
-### Field surface
 
 ```json
 {
   "data": {
-    "provenance": {
-      "engineVersion": "0.9.0",
-      "sidecarVersion": "0.9.0",
-      "modelHashes": {
-        "deepfakeClassifier": "512def7ec62cbeb023c5343859a15606a02742d48b1fca31df11667c0b9ba14a",
-        "univfdProbe": "0534a9e80e352a5bd8af5fc447d03e37be2e1aa68a05d81f05736d6ef8956a86"
-      },
-      "verificationMode": "standard",
-      "timestampUtc": "2026-05-13T17:30:00Z"
-    },
-    "..."
+    "server": "ready",
+    "sidecar": "ready",
+    "sidecarSince": "2026-11-02T09:14:07Z",
+    "sidecarPort": 51873,
+    "detail": null
   },
   "apiVersion": "1.0",
   "degraded": false
 }
 ```
 
-| Field | Type | Description |
-|---|---|---|
-| `engineVersion` | string | Jura Trace desktop engine version (e.g. `"0.9.0"`) |
-| `sidecarVersion` | string \| null | Python ML sidecar version. `null` when the sidecar was unavailable. |
-| `modelHashes.deepfakeClassifier` | string \| null | SHA-256 of `deepfake_classifier.joblib`. `null` when not loaded. |
-| `modelHashes.univfdProbe` | string \| null | SHA-256 of `univfd_probe.joblib`. `null` when the CLIP detector is not installed. |
-| `verificationMode` | string | `"quick"` \| `"standard"` \| `"deep"`. Legacy `"archival"` is normalised to `"deep"` upstream. |
-| `timestampUtc` | string | RFC 3339 / ISO 8601 UTC timestamp when verification completed |
+| `sidecar` | Meaning |
+|---|---|
+| `starting` | Started, not yet answering. Verifications run with reduced detectors |
+| `ready` | Answering |
+| `absent` | None running: not found, not asked for, or stopped by the app's power saver until the next verification |
+| `failed` | Its process exited. The state changes within about a second of the exit |
 
-### Why a new block instead of just renaming `methodology`?
-
-The legacy `methodology` block has slightly different field names (`pipelineVersion` / `analysisMode` / `analysedAt` / flat `classifierModelHash` + `univfdProbeModelHash`) and is consumed by the existing PDF / ZIP exporters. Renaming would break those consumers. The `provenance` block is the clean spec-aligned contract for new consumers (CLI, downstream automation); the legacy `methodology` block stays in the response for backward compatibility.
-
----
-
-## CLI exit-code contract (v1.0.1, JTV-182)
-
-The v1.0.1 `jura` CLI is a thin Rust client that calls this REST API. It honours the following exit codes — published now so downstream automation (CI pipelines, n8n workflows, case-management scripts) can rely on stable semantics from v1.0.1 onwards. The contract is **stable from v1.0.1**: new codes may be added at the end (≥ 7) but the existing assignments do not change.
-
-| Code | Meaning | Typical cause |
-|---|---|---|
-| `0` | Success | The verify / sign / version command completed and produced output on stdout |
-| `1` | Argument error | Missing required flag, invalid value, unknown subcommand |
-| `2` | Server unreachable | The local REST API on port 8300 is not running or the configured host:port is wrong |
-| `3` | Authentication failure | `JURA_API_KEY` is unset, malformed, or rejected by the server |
-| `4` | File error | Input path does not exist, is not readable, or exceeds the 100 MB upload limit |
-| `5` | Format error | Server returned 400 Bad Request — typically an unsupported MIME type or content type the engine cannot handle |
-| `6` | Server error | Server returned 5xx — sidecar crash, internal panic, database error |
-
-Codes are documented here ahead of the v1.0.1 CLI ship so any v1.0 consumer building automation against the REST API directly can mirror the same exit semantics. The contract lives in `project_cli_v101_locked.md` (agent memory) and will be cross-linked from the v1.0.1 CLI README on first ship.
+`sidecarSince` is when it entered that state, or `null` when there is no
+time to give. `detail` is a sentence when the state needs explaining,
+otherwise `null`. `degraded` is `true` unless `sidecar` is `ready`. The
+status is always `200`; read the body.
 
 ---
 
-*Last updated: 13 May 2026 — JTV-181 provenance + exit-code contract added*
-*Phase 3 feature — REST API wrapper documented; v1.0.1 `jura` CLI deferred per JTV-182*
+## Authentication
+
+Every endpoint except `GET /api/v1/health`, `GET /api/v1/ready` (v1.2.0),
+`/openapi.json` and `/swagger-ui/` needs an API key:
+
+```
+Authorization: Bearer jt_<key>
+```
+
+The `jt_` prefix is required. Keys are stored as SHA-256 hashes in the app's
+SQLite database; the raw key is shown once, at creation, and never again.
+A missing, malformed, unknown or revoked key gets `401` with the code
+`Unauthorized`.
+
+### Obtaining a key: the honest position
+
+**In v1.1.0 there is no supported way for a user to obtain a key.**
+
+- On first start the app creates a key named `bootstrap`. Its full value is
+  never stored or displayed: only its first eight characters are written to
+  the application log.
+- The Settings panel that would show and create keys is switched off in v1.x
+  (`V1_SHOW_API_KEYS = false` in `ui/src/lib/featureFlags.ts`).
+- `POST /api/v1/auth/keys` creates keys, but itself needs a key.
+
+So the API answers, and every authenticated call fails. **(v1.2.0)**
+`jura-trace-api keys add --name <label>` creates a key directly in the
+database, prints it once and exits, without a window and without an existing
+key.
+
+### Managing keys
+
+With a key, keys can be created, listed and revoked through the
+[`/api/v1/auth/keys` endpoints](#key-management). There is no endpoint to
+change a key's rate limit after creation.
+
+---
+
+## Investigation modes
+
+The mode decides which detectors run. It is sent as a multipart form field
+named `mode` on the upload routes, or a JSON field `mode` on
+`/api/v1/verify/url`. **(v1.2.0)** It may be sent as a query parameter
+instead, on all three verify routes.
+
+| Value | Runs | Notes |
+|---|---|---|
+| `quick` | EXIF and C2PA only; the sidecar is not called | `fast` is accepted as a synonym |
+| `standard` | Adds the core sidecar detectors | |
+| `deep` | The full automatic detector set | `archival` is accepted as a synonym; it was retired on 22 April 2026 and runs exactly what `deep` runs |
+
+Three behaviours a caller needs to know:
+
+1. **The default depends on the route.** With no `mode`, `POST
+   /api/v1/verify` and `POST /api/v1/verify/batch` run `deep`, but `POST
+   /api/v1/verify/url` runs `standard`. Send `mode` explicitly.
+2. **In v1.1.0, unrecognised values become `standard` without an error.**
+   That includes case variants: `Deep` or `DEEP` runs `standard`. **(v1.2.0)**
+   A value that is not one of the five above, in lower case, is refused with
+   `400 InvalidParameter`. The mode actually used is returned in the result's
+   `mode` field.
+3. **In v1.1.0, `mode` as a query parameter is ignored.** `POST
+   /api/v1/verify?mode=deep` runs the route default. Earlier versions of this
+   document used that form in every example. **(v1.2.0)** The query parameter
+   is read. If the query and the body both carry a mode they must be the same
+   value; if they differ the request is refused with `400 InvalidParameter`.
+
+---
+
+## Response envelope
+
+Successful responses from every endpoint except `health` and
+`protect/sign` are wrapped:
+
+```json
+{
+  "data": { "...": "the endpoint's result" },
+  "apiVersion": "1.0",
+  "degraded": false
+}
+```
+
+- `apiVersion` is the version of this envelope, currently always `"1.0"`. It
+  is not the application version; that is `data.provenance.engineVersion` on
+  verification results.
+- `degraded` is a boolean. There is no reason field.
+
+### What `degraded` means
+
+On `POST /api/v1/verify` and `POST /api/v1/verify/url`, `degraded` is `true`
+when **all** of these hold: the content is an image, the mode is not
+`quick`, and neither the ELA nor the deepfake classifier produced a result.
+In practice that means the sidecar was not available. A degraded response is
+still `200` with real results from the detectors that did run, chiefly EXIF
+and C2PA, and its `overallTrust` is computed from those.
+
+On `POST /api/v1/verify/batch` the flag is per item, and the rule omits the
+image check, so a non-image file in a batch is reported as degraded even
+though those detectors were never expected to run. Treat a batch item's
+`degraded` as meaningful for images only.
+
+---
+
+## Endpoints
+
+All paths are under `http://127.0.0.1:8300`. Upload routes take
+`multipart/form-data`; the others take and return `application/json`.
+
+| Method and path | Purpose |
+|---|---|
+| `GET /api/v1/health` | Liveness and sidecar status (no key) |
+| `GET /api/v1/ready` | **(v1.2.0)** Sidecar state from the server's own record, cheap to poll (no key) |
+| `POST /api/v1/verify` | Verify one uploaded file |
+| `POST /api/v1/verify/url` | Download a URL and verify it |
+| `POST /api/v1/verify/batch` | Verify up to 20 uploaded files |
+| `POST /api/v1/protect/sign` | Add C2PA Content Credentials to a file |
+| `POST /api/v1/protect/fingerprint` | Perceptual hashes of an image |
+| `POST /api/v1/protect/watermark/embed` | Not available. `503` in v1.1.0; **(v1.2.0)** the route is gone, `404` |
+| `POST /api/v1/protect/watermark/extract` | Not available. `503` in v1.1.0; **(v1.2.0)** the route is gone, `404` |
+| `POST /api/v1/claims/check` | Check a claim against the knowledge base; normally `503` |
+| `GET /api/v1/stats` | Counts from the local database |
+| `POST /api/v1/auth/keys` | Create a key |
+| `GET /api/v1/auth/keys` | List keys |
+| `DELETE /api/v1/auth/keys/{keyId}` | Revoke a key |
+| `GET /openapi.json` | OpenAPI document (no key) |
+| `GET /swagger-ui/` | Swagger UI (no key) |
+
+### POST /api/v1/verify
+
+Multipart fields:
+
+| Field | Required | Notes |
+|---|---|---|
+| `file` | yes | The media file. The type is detected from its content, not its name |
+| `mode` | no | See [modes](#investigation-modes). Default `deep` |
+
+Other fields are ignored. Returns the envelope with a
+[verification result](#the-verification-result) in `data`.
+
+| Status | When |
+|---|---|
+| `200` | Analysed. Includes degraded results and low trust scores |
+| `400` | No `file` field, an empty file, or malformed multipart. `BadRequest` for all three in v1.1.0; **(v1.2.0)** `MissingField`, `EmptyFile` and `BadRequest` respectively, plus `InvalidParameter` and `UnsupportedParameter` |
+| `401` | Key problem |
+| `413` | **(v1.2.0)** `PayloadTooLarge`: the body is over 200 MB. v1.1.0 answers `413` with no JSON body |
+| `422` | The file could not be read or processed (`FileSystem`, `C2pa`). **(v1.2.0)** Also `UnsupportedFormat`, for content that is not an image, video, audio or document type the pipeline analyses; v1.1.0 answers `200` with `contentType: "unknown"` and a score no detector stands behind |
+| `429` | Rate limit |
+| `500` | Internal failure |
+| `503` | The analysis service failed in a way the pipeline could not degrade around (`ServiceUnavailable`) |
+
+### POST /api/v1/verify/url
+
+JSON body:
+
+```json
+{ "url": "https://example.org/photo.jpg", "mode": "deep" }
+```
+
+The server downloads the URL itself, then verifies it as above. Only `http`
+and `https` are accepted. A URL whose host is written as a loopback or
+private address (`localhost`, `127.0.0.1`, `10.x`, `192.168.x`, `172.16.x` to
+`172.31.x`, `169.254.x`) is refused with `400`, and each redirect, up to five,
+is checked the same way. In v1.1.0 the check reads the host as written and
+does not resolve it, and it misses IPv6 forms such as `[::1]`, so it is not a
+complete guard against reaching local services. **(v1.2.0)** IPv4 and IPv6
+addresses are parsed, not matched as text, and a hostname is looked up: if it
+resolves only to local or private addresses the URL is refused, and the
+download connects to the addresses that were checked. Two limits remain. A
+name that does not resolve on this machine is passed to the HTTP client,
+because behind a proxy only the proxy resolves public names. And on a
+redirect the new host is checked but could change its answer before the
+connection.
+The download times out after 30 seconds.
+Default mode **`standard`**. Statuses as for `POST /api/v1/verify`.
+
+### POST /api/v1/verify/batch
+
+Multipart fields: one or more files, each in a field named `files` (a field
+named `file` is also accepted), and an optional `mode` (default `deep`)
+applied to all of them.
+
+- At most **20** files per request; more is `400`. Empty file parts are
+  skipped.
+- Files are verified **one after another**, not in parallel.
+- One file failing does not fail the request. **(v1.2.0)** That includes a
+  file of an unsupported type, which fails alone with its reason in `error`.
+
+```json
+{
+  "data": {
+    "items": [
+      {
+        "filename": "a.jpg",
+        "success": true,
+        "result": { "...": "verification result" },
+        "error": null,
+        "degraded": false
+      },
+      {
+        "filename": "b.bin",
+        "success": false,
+        "result": null,
+        "error": "...",
+        "degraded": false
+      }
+    ],
+    "total": 2,
+    "succeeded": 1,
+    "failed": 1
+  },
+  "apiVersion": "1.0",
+  "degraded": false
+}
+```
+
+Items are in upload order. The envelope's own `degraded` is always `false`
+here; read each item's flag, with the caveat under
+[What `degraded` means](#what-degraded-means).
+
+### POST /api/v1/protect/sign
+
+Adds a C2PA manifest to the uploaded file, signed with the installation's
+local certificate (the per-install Sovereign mode), with the action
+`c2pa.created`.
+
+| Field | Required | Notes |
+|---|---|---|
+| `file` | yes | The file to sign |
+| `creator_name` | yes | Creator or rights holder |
+| `license` | no | SPDX licence identifier |
+| `timestamp` | no | **(v1.2.0)** `yes` or `no`: whether the signature carries a trusted timestamp. Only needed in Standard network mode when nobody has chosen; it answers for this request and is not remembered. One that contradicts a choice already made is `400 InvalidParameter` |
+
+On success the response is the signed file itself, **not** JSON, as
+`application/octet-stream` with `Content-Disposition: attachment;
+filename="<name>_signed.<ext>"`.
+
+| Status | When |
+|---|---|
+| `200` | Signed file in the body |
+| `400` | Missing `file` or `creator_name`, or an empty file |
+| `409` | `TimestampChoiceRequired`: the app is in Standard network mode and nobody has yet chosen whether signatures should carry a trusted timestamp. The API cannot ask, so it refuses. Send `timestamp` (v1.2.0), sign once in the app, or set it in Settings, Network Access, then retry |
+| `422` | `C2pa`: the format cannot be signed or the certificate failed |
+
+### POST /api/v1/protect/fingerprint
+
+Multipart field `file`, an image. Returns three 64-bit perceptual hashes as
+16-character hex strings:
+
+```json
+{
+  "data": {
+    "hashes": [
+      { "algorithm": "aHash", "hashHex": "f0e0c0a080604020" },
+      { "algorithm": "dHash", "hashHex": "..." },
+      { "algorithm": "pHash", "hashHex": "..." }
+    ]
+  },
+  "apiVersion": "1.0",
+  "degraded": false
+}
+```
+
+A non-image is `422 UnsupportedFormat`; an image that cannot be hashed is
+`422 FingerprintFailed`.
+
+### POST /api/v1/protect/watermark/embed and /extract
+
+Invisible watermarking was withdrawn before v1.0 and has not returned. In
+v1.1.0 both routes exist, both return `503 ServiceUnavailable`, and both are
+listed in the OpenAPI document with their former fields. **(v1.2.0)** They
+are compiled out: the paths return `404` and the OpenAPI document does not
+list them. The code is kept behind the `watermark` Cargo feature, which is
+off.
+
+### POST /api/v1/claims/check
+
+```json
+{ "claim": "The photograph was taken in 2023.", "context": "optional text" }
+```
+
+Passes the claim to the sidecar's claim checker, which needs a local Ollama
+model. Jura Trace does not install Ollama, so on a normal installation this
+returns `503 ServiceUnavailable`. Do not build on it.
+
+### GET /api/v1/stats
+
+```json
+{
+  "data": {
+    "totalAssets": 42,
+    "totalVerifications": 18,
+    "totalFingerprints": 38,
+    "c2paSignedCount": 12
+  },
+  "apiVersion": "1.0",
+  "degraded": false
+}
+```
+
+### Key management
+
+**`POST /api/v1/auth/keys`**, JSON body `{ "name": "CI pipeline", "rate_limit": 100 }`.
+`name` must not be empty; `rate_limit` is requests per minute, default 100,
+minimum 1. The request fields are **snake case**, unlike every response: the
+request type is not renamed, so a body sending `rateLimit` gets the default
+of 100. Response:
+
+```json
+{
+  "data": {
+    "keyId": "550e8400-e29b-41d4-a716-446655440000",
+    "key": "jt_...",
+    "name": "CI pipeline",
+    "rateLimit": 100,
+    "createdAt": "2026-10-01T12:00:00+00:00"
+  },
+  "apiVersion": "1.0",
+  "degraded": false
+}
+```
+
+`key` is shown this once.
+
+**`GET /api/v1/auth/keys`** returns `data` as a list of
+`{ keyId, name, rateLimit, revoked, createdAt }`. Raw keys and hashes are
+never returned.
+
+**`DELETE /api/v1/auth/keys/{keyId}`** revokes a key and returns
+`{ "revoked": true }` in `data`. Requests with that key get `401` from then
+on. An unknown `keyId` also returns `200`.
+
+---
+
+## The verification result
+
+`data` on the verify routes, and `result` on batch items, is the same
+`VerificationResult` the desktop app uses (`src-tauri/src/verify/types.rs`),
+serialised in **camelCase**. Fields that do not apply are `null`, and some
+are omitted when absent.
+
+### Fields most callers need
+
+| Field | Type | Meaning |
+|---|---|---|
+| `overallTrust` | number, 0 to 1 | The composite trust score. Higher means fewer concerns found. It is not a probability that the content is genuine |
+| `mode` | string | The mode that actually ran: `quick`, `standard` or `deep` |
+| `contentType` | string | `image`, `video`, `audio`, `document` or `unknown` |
+| `sourceType` | string | `upload` for uploads; the URL route records its own value |
+| `detectorsRun` | string[] | The detectors that produced a result for this file |
+| `c2paValid` | boolean or null | `null` when the file carries no Content Credentials |
+| `c2paManifest`, `c2paChain` | object or null | The active manifest, and the full chain including ingredients |
+| `exifAnalysis` | object or null | EXIF findings, each with a severity |
+| `metadataFlags` | string[] | Short metadata warnings |
+| `inputSha256` | string or null | SHA-256 of the bytes analysed |
+| `provenance` | object | What produced this result; see below |
+
+### `verdict`
+
+In v1.1.0 the band the app shows beside the score is computed in the
+frontend and is **not** in the API response. **(v1.2.0)** Every verification
+result carries it, computed once in `src-tauri/src/verify/verdict.rs`, and
+the app's own screen and reports read the same field:
+
+```json
+"verdict": {
+  "band": "uncertain",
+  "score": 0.82,
+  "ceilingApplied": "noPositiveAuthenticitySignal",
+  "bandBoundaries": { "trusted": 0.7, "uncertain": 0.4 }
+}
+```
+
+| `band` | On screen | When |
+|---|---|---|
+| `trusted` | High Trust | Score at or above 0.7 and no ceiling applies |
+| `uncertain` | Moderate Trust | Score from 0.4 up to 0.7, or a higher score with a ceiling |
+| `untrusted` | Low Trust | Score below 0.4 |
+| `inconclusive` | Inconclusive | Image content where neither ELA nor the deepfake detector ran, at any score |
+
+`score` is `overallTrust` again. `ceilingApplied` is `null` when the band is
+simply the score's band, and otherwise says why it is not:
+
+| `ceilingApplied` | Meaning |
+|---|---|
+| `insufficientSignal` | The core image detectors did not run: the sidecar was unavailable, or the mode was `quick`. The band is `inconclusive` |
+| `noPositiveAuthenticitySignal` | The score alone would be `trusted`, but nothing positive supports it: no camera MakerNote, no recognised camera make and model with clean EXIF, and no valid Content Credentials that count. Valid credentials count when they declare no `digitalSourceType`, or declare only camera captures (`digitalCapture`, `computationalCapture`); any other declared type, in any manifest of the chain, stops them counting |
+| `deepfakeInconclusive` | The score alone would be `trusted`, but the deepfake detector was inconclusive |
+| `deepfakeSynthetic` | The score alone would be `trusted`, but the deepfake detector judged the image synthetic |
+
+A ceiling only ever lowers `trusted` to `uncertain`, or replaces the band
+with `inconclusive`. Do not band `overallTrust` yourself: a score of 0.82 can
+be `uncertain`, and a client that bands the number alone will disagree with
+the app on those files. A band is a summary of evidence for a person to
+weigh, not a finding that the content is genuine or false.
+
+### Detector results
+
+Each detector that ran has its own object, otherwise `null`: `elaResult`,
+`noiseResult`, `copyMoveResult`, `deepfakeResult`, `clipResult`,
+`nprResult`, `jpegGhostResult`, `segmentedElaResult`,
+`shadowConsistencyResult`, `colourTemperatureResult`,
+`spliceBoundaryResult`, `dctAnalysisResult`, `fourierAnalysisResult`,
+`platformFingerprintResult`, `contentTypeResult`, `inputQuality`,
+`filenameAnalysis`, `pdfProvenance`, `thumbnailCheck`, `imageMetadata`.
+Several also have a flat score: `elaScore`, `noiseScore`, `copyMoveScore`,
+`deepfakeScore`. Image-producing detectors return their heat maps as base64
+inside their objects, which makes responses large.
+
+`aiGenerator` names the generator when the file's Content Credentials declare
+one. Video and audio analysis was withdrawn from v1.0, so `videoMetadata`,
+`audioMetadata`, `videoDeepfakeResult`, `transcriptionResult`,
+`claimCheckResult` and `claimVerdict` are normally `null`.
+
+The full schema of each object is in `src-tauri/src/verify/types.rs` and
+`src-tauri/src/sidecar.rs`, and mirrored for TypeScript in
+`ui/src/lib/types.ts`. The OpenAPI document does not describe the
+verification result in detail.
+
+### `provenance`
+
+Present on every verification result. Use it to record exactly what produced
+a result.
+
+```json
+"provenance": {
+  "engineVersion": "1.1.0",
+  "sidecarVersion": "1.1.0",
+  "modelHashes": {
+    "deepfakeClassifier": "<sha256>",
+    "univfdProbe": "<sha256>"
+  },
+  "verificationMode": "deep",
+  "timestampUtc": "2026-10-01T12:00:00Z"
+}
+```
+
+| Field | Type | Meaning |
+|---|---|---|
+| `engineVersion` | string | The application version |
+| `sidecarVersion` | string or null | `null` when the sidecar was unavailable |
+| `modelHashes.deepfakeClassifier` | string or null | SHA-256 of the classifier model; `null` when not loaded |
+| `modelHashes.univfdProbe` | string or null | SHA-256 of the CLIP probe model; `null` when not loaded |
+| `verificationMode` | string | `quick`, `standard` or `deep` |
+| `timestampUtc` | string | RFC 3339 time the verification completed |
+
+### Same file, same result
+
+Verifying the same bytes twice in the same mode, on the same installation,
+gives the same response apart from `provenance.timestampUtc` and
+`methodology.analysedAt`. **(v1.2.0)** A test holds the server to this
+(`test_a8_the_same_file_gives_the_same_result`), so an archived result can
+be reproduced. A different version, different models (see
+`provenance.modelHashes`) or a sidecar that was unavailable for one of the
+two runs can give a different result, and the response says which.
+
+### `methodology`
+
+An older block with overlapping content, kept because the PDF and case
+exports read it: `pipelineVersion`, `sidecarVersion`, `classifierModelHash`,
+`univfdProbeModelHash`, `analysisMode`, `analysedAt`. New integrations should
+read `provenance`.
+
+---
+
+## Errors
+
+Every error has a JSON body:
+
+```json
+{
+  "code": "BadRequest",
+  "message": "Missing 'file' field"
+}
+```
+
+`code` is the machine-readable part and is stable across releases; branch on
+it, not on `message`. The type also defines `requestId`, but the server does
+not set it, so it is never present. A `429` adds `rateLimitInfo`.
+
+| `code` | Status | Meaning |
+|---|---|---|
+| `BadRequest` | 400 | Malformed request, too many batch files, unsafe URL, or a validation failure. In v1.1.0 also a missing field and an empty file |
+| `MissingField` | 400 | **(v1.2.0)** A required multipart field was not sent, or a batch had no files |
+| `EmptyFile` | 400 | **(v1.2.0)** The uploaded file had no bytes |
+| `InvalidParameter` | 400 | **(v1.2.0)** `mode` is not a known value, or the query and the body give different ones |
+| `UnsupportedParameter` | 400 | **(v1.2.0)** `mime_type` or `concurrency` was sent; neither is implemented |
+| `PayloadTooLarge` | 413 | **(v1.2.0)** The request body is over 200 MB |
+| `Unauthorized` | 401 | No usable key |
+| `TimestampChoiceRequired` | 409 | Signing in Standard network mode before the timestamp choice is made |
+| `FileSystem` | 422 | The file could not be read or written |
+| `C2pa` | 422 | A Content Credentials operation failed |
+| `UnsupportedFormat` | 422 | Fingerprinting a non-image. **(v1.2.0)** Also verifying content of a type the pipeline does not analyse |
+| `FingerprintFailed` | 422 | Fingerprinting could not decode the image |
+| `RateLimitExceeded` | 429 | See [Limits](#limits) |
+| `Internal` | 500 | An internal failure, including database errors |
+| `ServiceUnavailable` | 503 | The analysis service failed, or the feature is not available |
+
+In v1.1.0 `BadRequest` covers several different caller mistakes. From v1.2.0
+they have the separate codes above, with the same HTTP statuses as before
+except where the table says otherwise. A client written against v1.1.0 that
+matches on `BadRequest` for an empty file or a missing field needs the new
+codes added.
+
+---
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Request body | 200 MB, for single and batch uploads alike |
+| Files per batch | 20 |
+| URL download timeout | 30 s |
+| Rate limit | Per key, a token bucket of `rateLimit` requests (default 100) refilled every 60 s |
+
+When a request is over the limit the response is `429`:
+
+```json
+{
+  "code": "RateLimitExceeded",
+  "message": "Rate limit of 100 requests per minute exceeded. Retry after 37 seconds.",
+  "rateLimitInfo": { "limit": 100, "remaining": 0, "resetSeconds": 37 }
+}
+```
+
+with `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`
+(seconds until reset, not a timestamp) and `Retry-After` headers. Successful
+authenticated responses also carry the three `X-RateLimit-*` headers.
+
+**Verifications run one at a time.** The pipeline holds a single lock for
+the whole of each verification, shared with the desktop app's own Verify page,
+so concurrent requests to the verify routes queue behind each other and
+behind anything the user is verifying in the app. Set client timeouts with
+that in mind. There is no per-request `mime_type` or `concurrency` parameter.
+In v1.1.0 sending them has no effect. **(v1.2.0)** Sending either as a query
+parameter on a verify route returns `400 UnsupportedParameter` naming it,
+instead of being silently ignored. Other unknown query parameters are
+ignored. `concurrency` is refused rather than implemented because it could
+not do anything: verifications run one at a time by design, so two never
+interleave their detectors, and a batch with more than one worker would only
+queue at the same place.
+
+Browser requests are allowed only from the app's own origins
+(`localhost:1420`, `localhost:8300` and their `127.0.0.1` forms); other web
+pages cannot call the API from a browser.
+
+---
+
+## Schema as a public API contract
+
+From v1.0 the JSON shape of every response in this document is a public API
+contract, and the C2PA Validator Conformant award makes the verification
+result an evidence-bearing record. Within v1.x:
+
+- New fields may be added at any time. Clients must ignore fields they do not
+  know.
+- Existing fields are not renamed and their types do not change. A field that
+  is a string does not become nullable.
+- A field is removed only after at least one minor release in which it is
+  still sent (possibly as `null`) with a `CHANGELOG.md` note, and not before
+  v2.0.
+- `/api/v1/` paths stay for at least one full release after a v2.0.
+
+The contract is the wire format as implemented. Where this document and the
+server disagree, the server is right and the document is the bug. Schema
+changes are recorded in `CHANGELOG.md` with the prefix `[schema]`.
+
+---
+
+## The `jura` CLI
+
+**(v1.2.0)** `jura` is a thin client of this API. It uploads, waits, prints
+the response, and exits with a code from the table below. Every analysis
+runs in the server. It ships in every installer beside the app, with
+`jura-trace-api`; [CLI_QUICKSTART.md](CLI_QUICKSTART.md) says where, and how
+to get a key. The source is `cli/` (`cargo install --path cli` builds it).
+
+```bash
+jura verify photo.jpg                       # 0 whenever an analysis was produced
+jura verify a.jpg b.png --format json       # one JSON document per file
+jura verify *.jpg --format ndjson           # one line per file, with its exit code
+jura verify --url https://example.org/a.jpg --mode quick
+jura verify photo.jpg --fail-on uncertain   # 20 if the band is uncertain or untrusted
+jura verify photo.jpg --require-complete    # 8 if the result is degraded
+jura verify photo.jpg --wait-ready          # wait up to 300 s for the analysis engine
+jura version                                # client, engine and API versions
+jura auth set-key -                         # store a key in the OS keyring, read from stdin
+jura auth show-key                          # which key, from where, masked
+jura auth status                            # does the server accept it
+jura auth clear-key
+jura sign photo.jpg --creator "Ada Lovelace" --license CC-BY-4.0
+```
+
+**Where the address and key come from**, first match wins:
+
+```
+--api-url <url>  >  JURA_API_URL  >  http://127.0.0.1:8300
+--api-key <key>  >  JURA_API_KEY  >  OS keyring  >  none
+```
+
+`--api-key` puts the key in shell history and the process list, so prefer
+the other two. `JURA_NO_KEYRING=1` skips the keyring, for CI runners and
+containers that have none.
+
+**Output.** `--format text`, the default, is for people and may change in
+any release. `--format json` prints the API response body (pretty-printed;
+with `--compact`, one line per document), so the schema and the
+compatibility rules above apply to it unchanged. Errors go to stderr, never
+to stdout. The format never depends on whether stdout is a terminal.
+
+**NDJSON.** `--format ndjson` writes one line per input to `verify`:
+`{"input": "a.jpg", "exit": 0, "response": {…}}`, where `response` is the
+API body exactly as `--format json` would print it, or
+`{"input": "b.jpg", "exit": 4, "error": {"message": "…"}}` when no analysis
+came back. `exit` is that input's own code from the table below; the process
+exits with the rule for several files.
+
+**Signing.** `jura sign <file> --creator <name>` adds Content Credentials
+through `POST /api/v1/protect/sign` and writes the signed copy beside the
+original as `<name>_signed.<ext>` (or `--output`). It never replaces an
+existing file without `--force`. In Standard network mode with nobody asked,
+pass `--timestamp` or `--no-timestamp`; otherwise it exits 1 with the
+server's `TimestampChoiceRequired`.
+
+**Several files.** They are sent one after another, and every one is tried.
+The exit code is that of the first failure if there was one, otherwise 20 if
+any verdict met `--fail-on`, otherwise 0. A server that cannot be reached
+or refuses the key stops the run, because every later file would fail the
+same way.
+
+**`--timeout`** is per request, 600 seconds by default; `0` waits
+indefinitely. Verifications queue behind each other (see [Limits](#limits)),
+so a busy server can need it.
+
+### Exit codes
+
+This is the single authoritative table; it replaces the two inconsistent
+tables earlier versions of this document carried. Codes 0 to 6 keep their
+published meanings, with the two corrections below. New codes are only ever
+added, never reassigned.
+
+| Code | Name | Meaning |
+|---|---|---|
+| 0 | success | The command completed. For `verify`, an analysis was produced, **whatever the verdict** |
+| 1 | usage | Bad arguments, an unknown subcommand, or conflicting flags; or the server refused the request as malformed (`MissingField`, `InvalidParameter`, `UnsupportedParameter`, `BadRequest`) |
+| 2 | unreachable | Could not connect to the API; or `--wait-ready` ran out with nothing answering |
+| 3 | auth | No key, a malformed key, or a rejected key (`Unauthorized`) |
+| 4 | file | A local input problem: missing, unreadable, empty, or over 200 MB (also `EmptyFile`, `PayloadTooLarge`) |
+| 5 | format | The server refused the content (`UnsupportedFormat`, `FileSystem`, `C2pa`) |
+| 6 | server | The server failed (HTTP 5xx, `RateLimitExceeded`), or answered with something that is not the API's JSON |
+| 7 | timeout | The request exceeded `--timeout`; or `--wait-ready` expired with the server answering, or found the engine `failed` or `absent` |
+| 8 | incomplete | No usable verdict: `--require-complete` and a degraded response, or `--fail-on` and an `inconclusive` band |
+| 20 | verdict | `--fail-on` was given and the verdict met the threshold |
+
+Codes 1 to 8 mean no usable verification was produced; 0 and 20 mean one was.
+A low trust score is not a failure: without `--fail-on`, a file that scores
+0.02 exits 0 and the caller reads the verdict from the output.
+
+`--fail-on untrusted` exits 20 for `untrusted`; `--fail-on uncertain` for
+`uncertain` or `untrusted`. The band is the server's
+[`verdict`](#verdict); the client never bands a score itself. An
+`inconclusive` band exits **8**, not 20, because there is no verdict to meet a
+threshold (decided 3 October 2026). A server from before v1.2.0 sends no
+band, so `--fail-on` against it also exits 8.
+
+The two corrections to what was published before:
+
+- **6 is server errors only.** An earlier table also mapped a degraded
+  response to 6. A degraded response is a `200` with real results, and a
+  caller who needs completeness asks for it with `--require-complete` and gets
+  8.
+- **5 follows the error `code`, not the HTTP status.** An earlier table tied 5
+  to HTTP 422 and another to HTTP 400. The server returns 400 for several
+  unrelated problems, so the CLI reads `code` and falls back to the status
+  only for codes it does not know.
+
+---
+
+## Examples
+
+All assume a key in `JT_KEY`, including its `jt_` prefix. See
+[Obtaining a key](#obtaining-a-key-the-honest-position) for why that is not
+yet straightforward.
+
+### cURL
+
+```bash
+# One file, full detector set
+curl -s -H "Authorization: Bearer $JT_KEY" \
+  -F "file=@photo.jpg" -F "mode=deep" \
+  http://127.0.0.1:8300/api/v1/verify | jq '.data.overallTrust, .degraded'
+
+# A URL, with the mode stated (its default is standard)
+curl -s -H "Authorization: Bearer $JT_KEY" -H "Content-Type: application/json" \
+  -d '{"url":"https://example.org/photo.jpg","mode":"deep"}' \
+  http://127.0.0.1:8300/api/v1/verify/url
+
+# Three files in one request
+curl -s -H "Authorization: Bearer $JT_KEY" \
+  -F "files=@a.jpg" -F "files=@b.png" -F "files=@c.webp" -F "mode=deep" \
+  http://127.0.0.1:8300/api/v1/verify/batch | jq '.data.items[] | {filename, success}'
+```
+
+### Python
+
+```python
+import os
+import requests
+
+API = "http://127.0.0.1:8300/api/v1"
+headers = {"Authorization": f"Bearer {os.environ['JT_KEY']}"}
+
+with open("photo.jpg", "rb") as fh:
+    r = requests.post(
+        f"{API}/verify",
+        headers=headers,
+        files={"file": fh},
+        data={"mode": "deep"},  # a form field, not a query parameter
+        timeout=300,
+    )
+
+if r.status_code != 200:
+    err = r.json()
+    raise SystemExit(f"{r.status_code} {err['code']}: {err['message']}")
+
+body = r.json()
+result = body["data"]
+print(result["overallTrust"], result["mode"], body["degraded"])
+print(result["provenance"]["engineVersion"])
+```
+
+### JavaScript (Node 18 or later)
+
+```javascript
+import { readFile } from 'node:fs/promises';
+
+const form = new FormData();
+form.append('file', new Blob([await readFile('photo.jpg')]), 'photo.jpg');
+form.append('mode', 'deep');
+
+const res = await fetch('http://127.0.0.1:8300/api/v1/verify', {
+  method: 'POST',
+  headers: { Authorization: `Bearer ${process.env.JT_KEY}` },
+  body: form,
+});
+const body = await res.json();
+if (!res.ok) throw new Error(`${res.status} ${body.code}: ${body.message}`);
+console.log(body.data.overallTrust, body.degraded);
+```
+
+---
+
+## Related documents
+
+- [`docs/design/v1.2.0-headless-api-and-cli.md`](design/v1.2.0-headless-api-and-cli.md): the v1.2.0 design for the headless binary, the API corrections and the CLI
+- [`backlog/BL-API-001-the-headless-api-is-documented-and-does-not-exist.md`](../backlog/BL-API-001-the-headless-api-is-documented-and-does-not-exist.md): why this document was rewritten
+- [`src-tauri/src/api/`](../src-tauri/src/api/): the server; `routes.rs` for the handlers, `error.rs` for error codes
+- [`src-tauri/src/verify/types.rs`](../src-tauri/src/verify/types.rs): `VerificationResult`, `Provenance` and `MethodologyRecord`
+- [`src-tauri/tests/api_integration.rs`](../src-tauri/tests/api_integration.rs): integration tests against the router
+- [`docs/ARCHITECTURE.md`](ARCHITECTURE.md): the wider system

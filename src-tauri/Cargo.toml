@@ -4,9 +4,9 @@ version = "1.1.0"
 description = "Local-first content verification and protection. In a world of synthetic media, verification matters."
 authors = ["Paul Griffiths"]
 edition = "2021"
-rust-version = "1.88"
+rust-version = "1.90"
 license = "AGPL-3.0-or-later"
-repository = "https://codeberg.org/jura-labs/jura-trace"
+repository = "https://github.com/Jura-Labs/jura-trace-dev"
 homepage = "https://juralabs.org"
 # With the introduction of the `gen-detectors` codegen binary (commit
 # 485856a), `cargo run` without a `--bin` flag can no longer pick a
@@ -23,12 +23,43 @@ crate-type = ["lib", "cdylib", "staticlib"]
 # Generates ui/src/lib/generated/expectedDetectors.ts from the Rust
 # MODE_MATRIX constant — the single source of truth for expected detectors
 # per (mode × content-type) combination.  Run via:
-#   cargo run --bin gen-detectors -- <repo-root>
+#   cargo run --features codegen --bin gen-detectors -- <repo-root>
 # or let `npm run predev` / `npm run prebuild` invoke it automatically.
+# The REST API without the desktop window (v1.2.0 B2a). The logic is in the
+# library's `headless` module; this target only passes it the arguments.
+#
+# Shipped from v1.2.0 (stage 5). tauri-cli bundles a [[bin]] only when its
+# required features are passed with --features, so release.yml and
+# build-local-mac.sh build with `--features api,cli`, and a plain
+# `cargo tauri build` produces an app without this or `jura`. The source is
+# NOT in src/bin/: tauri-cli 2.10.1 bundles every file there by file stem
+# whatever its required features, which broke the macOS bundle step when
+# this lived at src/bin/jura_trace_api.rs (1 October 2026).
+[[bin]]
+name = "jura-trace-api"
+path = "src/headless_main.rs"
+required-features = ["api"]
+
+# The `jura` command-line client, built from cli/ so the installers can ship
+# it beside the app and sign it with the app (v1.2.0 stage 5). cli/ stays a
+# crate of its own for development and its tests (`cargo test` there); this
+# target compiles the same source with this crate's dependency versions and
+# reports the app's version. Its two extra dependencies are optional and
+# behind `cli`, so a default build does not pull them in.
+[[bin]]
+name = "jura"
+path = "../cli/src/main.rs"
+required-features = ["cli"]
+
+# Behind `codegen` and outside src/bin/ so that no installer ships it. Until
+# v1.2.0 it had no required features, so tauri-cli bundled it: every
+# installer carried a 225 KB build-time tool beside the app (unsigned on
+# Windows, and first in /usr/bin on Linux). `npm run predev` and `prebuild`
+# pass --features codegen.
 [[bin]]
 name = "gen-detectors"
-path = "src/bin/gen_detectors.rs"
-required-features = []
+path = "src/gen_detectors.rs"
+required-features = ["codegen"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -81,6 +112,10 @@ image_hasher = "3.1"
 
 # HTTP client for Python ML sidecar (Phase 2)
 reqwest = { version = "0.12", features = ["blocking", "multipart", "json"] }
+# For the `jura` binary only (feature `cli`), at the versions cli/Cargo.toml
+# names.
+clap = { version = "4.6", features = ["derive"], optional = true }
+keyring = { version = "4.2", optional = true }
 url = "2"
 
 # Temp files for URL verification
@@ -99,11 +134,17 @@ bitvec = "1"
 # HTTP server for local REST API wrapper (port 8300)
 axum = { version = "0.8", features = ["multipart"], optional = true }
 tower = { version = "0.5", optional = true }
-tower-http = { version = "0.6", features = ["cors", "trace", "limit"], optional = true }
+tower-http = { version = "0.7", features = ["cors", "trace", "limit"], optional = true }
 utoipa = { version = "5", features = ["axum_extras"], optional = true }
-utoipa-swagger-ui = { version = "8", features = ["axum"], optional = true }
+utoipa-swagger-ui = { version = "9", features = ["axum", "vendored"], optional = true }
 dashmap = { version = "6", optional = true }
-tokio = { version = "1", features = ["net", "rt", "macros", "sync"], optional = true }
+tokio = { version = "1", features = ["net", "rt", "rt-multi-thread", "macros", "sync", "signal", "time"], optional = true }
+
+# BL-PERF-001: the Windows orphan-sidecar sweep enumerates processes in
+# process instead of waiting on a taskkill child. Already in Cargo.lock as a
+# transitive dependency; only the three API families it needs are enabled.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Diagnostics_ToolHelp", "Win32_System_Threading"] }
 
 [dev-dependencies]
 # Integration test helpers (API wrapper tests)
@@ -114,6 +155,14 @@ reqwest = { version = "0.12", features = ["json", "multipart"] }
 default = ["custom-protocol", "api"]
 custom-protocol = ["tauri/custom-protocol"]
 api = ["axum", "tower", "tower-http", "utoipa", "utoipa-swagger-ui", "dashmap", "tokio"]
+# The `gen-detectors` build tool. See its [[bin]] entry.
+codegen = []
+# The `jura` binary. See its [[bin]] entry.
+cli = ["dep:clap", "dep:keyring"]
+# The two REST watermark routes. Off by default: watermarking is not in this
+# release (V1_SHOW_WATERMARK = false, BL-WM-001), so the routes and their
+# OpenAPI entries are compiled out rather than advertised and answered 503.
+watermark = ["api"]
 
 # Dev-profile speedup (2026-06-12): optimise DEPENDENCIES at O2 while keeping
 # this crate's own code unoptimised for fast incremental builds and usable

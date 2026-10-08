@@ -339,6 +339,45 @@ describe('classifyError — channel-unavailable normalisation', () => {
     expect(classifyError('Request failed with status 404').state).toBe('error');
   });
 
+  it('maps a cross-device rename failure to the move-it-to-Applications message', () => {
+    // Verbatim from the 9 September staging run with the app on an external SSD.
+    const result = classifyError('Cross-device link (os error 18)');
+    expect(result.state).toBe('error');
+    if (result.state === 'error') {
+      expect(result.message).toContain('Applications folder on your startup disk');
+      expect(result.message).toContain('has not been changed');
+      expect(result.message).not.toContain('os error');
+      expect(result.message).not.toContain('—');
+      expect(result.message).not.toMatch(/[^\x00-\x7F]/);
+    }
+  });
+
+  it('reaches the user when the install itself fails cross-device, without relaunching', async () => {
+    const update = {
+      version: '1.2.0',
+      downloadAndInstall: vi.fn(async () => {
+        throw new Error('Cross-device link (os error 18)');
+      }),
+    };
+    const relaunch = vi.fn(async () => undefined);
+    const deps = makeDeps({ checkPlugin: vi.fn(async () => update), relaunch });
+    const transitions = await run(deps);
+
+    expect(relaunch).not.toHaveBeenCalled();
+    const last = transitions[transitions.length - 1];
+    expect(last.state).toBe('error');
+    if (last.state === 'error') {
+      expect(last.message).toContain('Applications folder on your startup disk');
+    }
+  });
+
+  it('does not treat os error 180 as a cross-device failure', () => {
+    expect(classifyError('something (os error 180)')).toEqual({
+      state: 'error',
+      message: 'something (os error 180)',
+    });
+  });
+
   it('falls through to raw error for unknown messages', () => {
     const result = classifyError('Signature verification failed');
     expect(result).toEqual({ state: 'error', message: 'Signature verification failed' });

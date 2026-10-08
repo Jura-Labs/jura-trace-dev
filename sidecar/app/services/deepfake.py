@@ -1195,8 +1195,8 @@ def _perform_deepfake_detection_impl(
     else:
         confidence = "low"
 
-    # Summary.  The score comes from the GBM classifier on the 84-feature
-    # vector; the per-signal flags are explanatory thresholded checks on
+    # Summary.  The score comes from the GBM classifier on the feature
+    # vector (80 wide for v4, which trims the 84 extracted); the per-signal flags are explanatory thresholded checks on
     # individual features.  The classifier can output a high probability
     # without any single signal crossing its own threshold (multivariate
     # evidence).  Phrase the summary honestly so we do not claim "Strong
@@ -1212,7 +1212,7 @@ def _perform_deepfake_detection_impl(
             summary = (
                 f"Classifier flags as synthetic via multivariate evidence "
                 f"(0 of {len(signals)} per-feature signals individually triggered; "
-                f"the GBM uses the full 84-feature vector)"
+                f"the GBM uses the whole feature vector)"
             )
     elif score > 0.35:
         summary = (

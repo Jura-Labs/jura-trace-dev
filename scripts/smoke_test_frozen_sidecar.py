@@ -30,7 +30,6 @@ Exit codes:
 Wire this into:
   - scripts/build-local-mac.sh post-PyInstaller, pre-Tauri-bundle
   - .github/workflows/release.yml post-PyInstaller step, before signing
-  - .forgejo/workflows/release.yml when the Codeberg migration completes
 
 Usage:
   python3 scripts/smoke_test_frozen_sidecar.py <path-to-bundled-sidecar>

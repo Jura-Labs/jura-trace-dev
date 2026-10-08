@@ -57,9 +57,11 @@ mod heatmap;
 mod menu;
 mod metadata;
 mod monitor_scheduler;
+mod net_guard;
 mod network_mode;
 mod pdf_provenance;
 pub mod sidecar;
+pub mod sidecar_supervisor;
 mod startup;
 mod state;
 mod sun_position;
@@ -69,13 +71,13 @@ mod watermark;
 
 #[cfg(feature = "api")]
 pub mod api;
+#[cfg(feature = "api")]
+pub mod headless;
 
 use config::{dir_is_writable, read_app_config, resolve_db_path, write_app_config};
 use error::AppError;
 use startup::{dirs_next_data_dir, init_logging, pick_ephemeral_port, spawn_sidecar};
-use verify::pipeline::{
-    apply_heatmaps_to_result, compute_file_sha256, is_private_or_loopback_host, VERIFY_GATE,
-};
+use verify::pipeline::{apply_heatmaps_to_result, compute_file_sha256, VERIFY_GATE};
 
 // Re-export the public pipeline functions so `crate::verify_content_inner`
 // and `crate::verify_url_inner` continue to resolve from the crate root
@@ -89,6 +91,7 @@ pub use verify::types::{
     InputQualityAssessment, MethodologyRecord, ModelHashes, Provenance, ThumbnailCheck,
     VerificationResult,
 };
+pub use verify::verdict::{Band, Ceiling, Verdict};
 
 // ===== Types =====
 
@@ -860,7 +863,7 @@ fn verify_content_blocking(
             // do NOT block this caller waiting for the other respawner —
             // the winner's spawn_sidecar above also no longer blocks on
             // readiness, so the most we'd be waiting for is the
-            // sub-millisecond `app.shell().sidecar().spawn()` Tauri call
+            // sub-millisecond supervisor spawn (a std::process spawn)
             // plus the state-mutex write. By the time control returns
             // here the AtomicBool will almost certainly be clear; if it
             // somehow is not, proceed immediately and let the verify
@@ -900,6 +903,57 @@ fn verify_content_blocking(
     let mut result = verify_content_inner(&source, &source_type, mode.as_deref(), state.as_ref())?;
     apply_heatmaps_to_result(&mut result, &app, state);
     Ok(result)
+}
+
+/// Returned by signing when Standard mode has no remembered answer to the
+/// timestamp question. The UI asks before signing, so reaching this means a
+/// caller skipped the question; the text says what to do.
+const SIGNING_TIMESTAMP_CHOICE_REQUIRED: &str = "Choose whether signatures made in Standard \
+network mode should carry a trusted timestamp before signing. Jura Trace asks the first \
+time you sign in Standard mode; you can also set it in Settings, Network Access.";
+
+/// What signing will do about the trusted timestamp, and the remembered
+/// Standard-mode answer, so the UI can ask once (BL-CLAIM-004, option 3).
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SigningTimestampChoice {
+    network_mode: network_mode::NetworkMode,
+    standard_mode_answer: Option<bool>,
+    effective: network_mode::SigningTimestamp,
+}
+
+#[tauri::command]
+fn get_signing_timestamp_choice(
+    app_handle: tauri::AppHandle,
+) -> Result<SigningTimestampChoice, AppError> {
+    let data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| AppError::Internal(format!("app data dir unavailable: {e}")))?;
+    Ok(SigningTimestampChoice {
+        network_mode: network_mode::get_network_mode(&data_dir),
+        standard_mode_answer: network_mode::get_standard_mode_timestamp(&data_dir),
+        effective: network_mode::signing_timestamp(&data_dir),
+    })
+}
+
+/// Remember the Standard-mode answer. `None` forgets it, so the next signing
+/// in Standard mode asks again.
+#[tauri::command]
+fn set_signing_timestamp_choice(
+    answer: Option<bool>,
+    app_handle: tauri::AppHandle,
+) -> Result<SigningTimestampChoice, AppError> {
+    let data_dir = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| AppError::Internal(format!("app data dir unavailable: {e}")))?;
+    network_mode::set_standard_mode_timestamp(&data_dir, answer).map_err(|e| {
+        log::error!("set_signing_timestamp_choice: {e}");
+        AppError::Internal("Could not save the timestamp choice".into())
+    })?;
+    log::info!("Standard-mode signing timestamp answer set to {answer:?}");
+    get_signing_timestamp_choice(app_handle)
 }
 
 /// Sign an asset with a C2PA provenance manifest.
@@ -977,6 +1031,20 @@ fn sign_asset(
         }
     };
 
+    // BL-CLAIM-004, option 3 (Paul, 24 September 2026). The timestamp
+    // request sends a hash of the signature to the TSA, so in Standard mode
+    // it goes only if the user said yes when asked. Unanswered, signing is
+    // refused here as well as in the UI, so no caller can skip the question.
+    let tsa_url = match network_mode::signing_timestamp(&data_dir) {
+        network_mode::SigningTimestamp::Use => Some(c2pa::TSA_URL),
+        network_mode::SigningTimestamp::Skip => None,
+        network_mode::SigningTimestamp::Ask => {
+            return Err(AppError::Validation(
+                SIGNING_TIMESTAMP_CHOICE_REQUIRED.into(),
+            ));
+        }
+    };
+
     let _manifest_info = c2pa::sign_file_with_active_mode(
         &source,
         &output,
@@ -984,6 +1052,7 @@ fn sign_asset(
         license.as_deref(),
         sign_action,
         &data_dir,
+        tsa_url,
     )
     .map_err(|e| {
         log::error!("C2PA sign_file_with_active_mode failed for asset {asset_id}: {e}");
@@ -1708,11 +1777,20 @@ fn verify_url_blocking(
     }
 
     // Block requests to loopback, private, and link-local addresses
+    // The host as written, then what a hostname resolves to (net_guard).
+    let mut pin: Option<(String, Vec<std::net::SocketAddr>)> = None;
     if let Some(host) = parsed.host_str() {
-        if is_private_or_loopback_host(host) {
-            return Err(AppError::Validation(
-                "Cannot verify URLs pointing to local or private network addresses.".to_string(),
-            ));
+        match net_guard::check_host(host) {
+            net_guard::HostCheck::Blocked => {
+                return Err(AppError::Validation(
+                    "Cannot verify URLs pointing to local or private network addresses."
+                        .to_string(),
+                ));
+            }
+            net_guard::HostCheck::Public(addrs) if !addrs.is_empty() => {
+                pin = Some((host.to_string(), addrs));
+            }
+            net_guard::HostCheck::Public(_) | net_guard::HostCheck::Unresolved => {}
         }
     } else {
         return Err(AppError::Validation(
@@ -1721,7 +1799,7 @@ fn verify_url_blocking(
     }
 
     // SECURITY: custom redirect policy re-validates each hop against the SSRF blocklist
-    let response = reqwest::blocking::Client::builder()
+    let mut builder = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
         // An honest, identifiable User-Agent. Many image CDNs / WAFs (e.g.
         // Fastly, Cloudflare, Akamai fronting newsrooms like the Guardian)
@@ -1740,12 +1818,17 @@ fn verify_url_blocking(
                 return attempt.error("too many redirects");
             }
             if let Some(host) = attempt.url().host_str() {
-                if is_private_or_loopback_host(host) {
+                if net_guard::check_host(host) == net_guard::HostCheck::Blocked {
                     return attempt.error("redirect to private address blocked");
                 }
             }
             attempt.follow()
-        }))
+        }));
+    // Connect to the addresses that were checked, not to a second lookup.
+    if let Some((host, addrs)) = &pin {
+        builder = builder.resolve_to_addrs(host, addrs);
+    }
+    let response = builder
         .build()
         .map_err(|e| AppError::Internal(format!("Failed to build HTTP client: {e}")))?
         .get(&url)
@@ -2763,14 +2846,9 @@ fn create_api_key(
         .lock()
         .map_err(|_| AppError::Internal("State lock failed".into()))?;
     let key_id = uuid::Uuid::new_v4().to_string();
-    // 256-bit raw key (two UUID v4 values concatenated) for parity with the
-    // REST API key generation path and the sidecar shared secret pattern.
-    let raw_key = format!(
-        "jt_{}{}",
-        uuid::Uuid::new_v4().simple(),
-        uuid::Uuid::new_v4().simple(),
-    );
-    let key_hash = crate::api::auth::hash_key(&raw_key);
+    // The shared key maker. This command used to hash the whole key, jt_
+    // prefix included, so a key made in Settings never authenticated.
+    let (raw_key, key_hash) = crate::api::auth::new_key();
     let rl = rate_limit.unwrap_or(100);
     guard
         .db
@@ -2885,14 +2963,17 @@ async fn get_signing_mode(app_handle: tauri::AppHandle) -> Result<c2pa::SigningM
 /// previously invisible to the user:
 /// * `claim_generator` — the `Jura Trace/<ver>` string embedded in the
 ///   manifest, useful to confirm which build sealed the file.
-/// * `tsa_url` — RFC 3161 timestamp-authority used by `sign_file`.
+/// * `tsa_url` — RFC 3161 timestamp-authority used by `sign_file`, or
+///   `None` when Standard mode's remembered answer is "no timestamp"
+///   (BL-CLAIM-004). Still the TSA while the question is unanswered: the
+///   sign flow asks before anything is sent.
 /// * `cert_sha256_fingerprint` — SHA-256 of the active per-install
 ///   signing certificate, rendered as `XX:XX:...`. Lets a signer
 ///   verify which certificate will bind the file.
 #[derive(Debug, serde::Serialize)]
 struct SigningDisclosure {
     claim_generator: String,
-    tsa_url: String,
+    tsa_url: Option<String>,
     cert_sha256_fingerprint: String,
 }
 
@@ -2912,7 +2993,10 @@ async fn get_signing_disclosure(
 
     Ok(SigningDisclosure {
         claim_generator: format!("Jura Trace/{}", env!("CARGO_PKG_VERSION")),
-        tsa_url: c2pa::TSA_URL.to_string(),
+        tsa_url: match network_mode::signing_timestamp(&data_dir) {
+            network_mode::SigningTimestamp::Skip => None,
+            _ => Some(c2pa::TSA_URL.to_string()),
+        },
         cert_sha256_fingerprint: fingerprint,
     })
 }
@@ -4136,9 +4220,9 @@ pub fn run() {
     // the app data directory here; Tauri's proper path resolver is available
     // only inside the `.setup()` callback, but by then it is too late to
     // capture early startup messages.  The platform-specific default paths are:
-    //   macOS: ~/Library/Application Support/com.juralabs.jura-trace
-    //   Linux: ~/.local/share/com.juralabs.jura-trace
-    //   Windows: %APPDATA%\com.juralabs.jura-trace\data
+    //   macOS: ~/Library/Application Support/org.juralabs.trace
+    //   Linux: ~/.local/share/org.juralabs.trace
+    //   Windows: %APPDATA%\org.juralabs.trace
     //
     // We derive this early approximation using the same crate that Tauri uses
     // internally (dirs_next / home_dir), then let `.setup()` confirm the real
@@ -4149,7 +4233,10 @@ pub fn run() {
     if let Some(ref p) = log_file_path {
         log::info!("Log file: {}", p.display());
     }
+    // Startup target, so the default log filter keeps it as the anchor for
+    // the startup timeline (BL-LOG-001).
     log::info!(
+        target: "jura_trace_lib::startup",
         "Starting Jura Trace v{} ({})",
         env!("CARGO_PKG_VERSION"),
         std::env::consts::OS
@@ -4360,7 +4447,10 @@ pub fn run() {
                                     .map(|d| d.as_secs())
                                     .unwrap_or(0)
                                     .saturating_sub(started_at_arc.load(Ordering::Relaxed));
+                                // Targeted at the startup module so it is kept
+                                // by the default log filter (BL-LOG-001).
                                 log::info!(
+                                    target: "jura_trace_lib::startup",
                                     "Sidecar ready after {attempt} poll attempt(s) (\
                                     elapsed {elapsed}s)",
                                 );
@@ -4472,6 +4562,9 @@ pub fn run() {
                 sidecar_port,
                 sidecar_startup_status: Arc::clone(&sidecar_startup_status),
                 sidecar_startup_started_at: Arc::clone(&sidecar_startup_started_at),
+                sidecar_status_since: Arc::new(AtomicU64::new(
+                    sidecar_startup_started_at.load(Ordering::Relaxed),
+                )),
             }));
 
             // ── Register managed state FIRST ─────────────────────────────────
@@ -4614,14 +4707,11 @@ pub fn run() {
                         };
 
                         if let Some(child) = child {
-                            if let Err(e) = child.kill() {
-                                log::warn!("Power-saver kill failed: {e}");
-                            } else {
-                                log::info!(
-                                    "Sidecar process killed for RAM reclamation \
-                                     (power-saver mode, idle {idle_secs}s)"
-                                );
-                            }
+                            child.shutdown();
+                            log::info!(
+                                "Sidecar process stopped for RAM reclamation \
+                                 (power-saver mode, idle {idle_secs}s)"
+                            );
                         }
 
                         // Respawn will be triggered by verify_content on the
@@ -4694,6 +4784,8 @@ pub fn run() {
             clear_asset_library,
             verify_content,
             sign_asset,
+            get_signing_timestamp_choice,
+            set_signing_timestamp_choice,
             read_manifest,
             verify_c2pa,
             get_fingerprints,
@@ -4776,11 +4868,8 @@ pub fn run() {
                         }
 
                         if let Some(child) = guard.sidecar_process.take() {
-                            if let Err(e) = child.kill() {
-                                log::warn!("Failed to kill sidecar on exit: {e}");
-                            } else {
-                                log::info!("Sidecar process terminated on app exit");
-                            }
+                            child.shutdown();
+                            log::info!("Sidecar process terminated on app exit");
                         }
                     }
                 }

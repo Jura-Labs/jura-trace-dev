@@ -6,6 +6,86 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## Unreleased: v1.2.0
+
+Command-line client:
+
+- New `jura` CLI: `jura verify` (files or `--url`), `jura version` and
+  `jura auth` (`set-key`, `show-key`, `status`, `clear-key`), with the
+  exit-code contract in `docs/API_WRAPPER.md`. `--fail-on` exits 20 on a
+  band and 8 on an inconclusive one; `--require-complete` exits 8 on a
+  degraded result; `--wait-ready` waits for the analysis engine.
+- Every installer now includes `jura` and `jura-trace-api` (the analysis
+  server without the window) beside the app. See `docs/CLI_QUICKSTART.md`.
+- `jura sign` adds Content Credentials from the command line.
+- `jura verify --format ndjson`: one line per file with its own exit code.
+- `jura-trace-api --ephemeral`: a session whose database is deleted when it
+  stops.
+- A Linux server tarball (`JuraTrace-<version>-Linux-x86_64-server.tar.gz`)
+  with `jura-trace-api`, `jura`, the analysis engine and models, for
+  servers without a desktop.
+- `[schema]` `POST /api/v1/protect/sign` takes an optional `timestamp`
+  field (`yes`/`no`) that answers the Standard-mode timestamp question for
+  one request when nobody has.
+
+Installers:
+
+- Windows: the app's own executables are now signed. In v1.1.0 the
+  installers were signed and the sidecar was signed, but `jura-trace.exe`
+  inside them was not, which Smart App Control can block.
+- `gen-detectors`, a build tool, is no longer installed.
+- Smaller downloads on every platform: the CLIP text encoder (243 MiB) is
+  no longer shipped. It only ever encoded five fixed prompts, whose
+  embeddings now ship precomputed (10 KB). This change leaves verdicts and
+  scores unchanged: the embeddings are checked bit for bit at build time on
+  each platform, and a 217-image golden set gives identical results with
+  and without the encoder.
+- macOS: the analysis engine is built from the same pinned dependency list
+  as Windows and Linux, not from the build machine's Python. The macOS app
+  loses about 258 MiB of libraries nothing used (pyarrow, chromadb,
+  sentence-transformers), and its onnxruntime moves from 1.23.2 to the
+  pinned 1.24.4. On macOS only, the AI-detection score can differ slightly
+  from v1.1.0 as a result: on the 217-image golden set it moved on 68
+  images (median 0.003, largest 0.056) and one verdict changed, from
+  Uncertain to Low Trust.
+
+Local REST API (`docs/API_WRAPPER.md`):
+
+- `[schema]` Every verification result has a new `verdict` object: `band`
+  (`trusted`, `uncertain`, `untrusted`, `inconclusive`), `score`,
+  `ceilingApplied` and `bandBoundaries`. It is the band the app shows, now
+  computed once in the backend. Additive.
+- `[schema]` New endpoint `GET /api/v1/ready`: the analysis engine's state
+  (`starting`, `ready`, `absent`, `failed`) without a call to it. No key.
+- `[schema]` Error codes. A missing multipart field is `MissingField` and an
+  empty upload is `EmptyFile`, where both were `BadRequest`. An oversized
+  body is `413 PayloadTooLarge` with a JSON body, where it had none. New:
+  `InvalidParameter`, `UnsupportedParameter`. HTTP statuses are unchanged.
+- `[schema]` `POST /api/v1/verify` and `/verify/batch` refuse content the
+  pipeline does not analyse with `422 UnsupportedFormat` (per item in a
+  batch). They used to answer `200` with a score no detector stood behind.
+- `mode` is read from the query string on the three verify routes. It was
+  ignored there. Query and body must agree if both are sent.
+- An unknown or wrong-case `mode` (`Deep`, `fast2`) is refused with
+  `400 InvalidParameter`. It ran `standard` without saying so.
+- `mime_type` and `concurrency` as query parameters are refused with `400`.
+  They were ignored.
+- `[schema]` The two watermark routes, which could only answer `503`, are
+  no longer served or listed in the OpenAPI document.
+- Trust band: valid Content Credentials that declare a camera capture
+  (`digitalCapture` or `computationalCapture`) now count as positive
+  evidence of authenticity, as credentials declaring no source type
+  already did. A high-scoring image
+  with such credentials reads "High Trust", where it was capped at
+  "Moderate Trust".
+- URL verification, in the app and on `POST /api/v1/verify/url`, refuses a
+  URL whose host is, or resolves to, this machine or a private address. The
+  old check compared text, so it missed every IPv6 form (`[::1]`) and never
+  looked a hostname up.
+- The PDF report and case export print the same trust band as the screen.
+  They banded the raw score, so a capped result read "High Trust" on paper
+  and "Moderate Trust" in the app.
+
 ## 11 September 2026: v1.1.0, auto-update works
 
 Jura Trace v1.0.0 was published in June 2026, and until now no update has

@@ -52,6 +52,9 @@ src-tauri/models/clip-vit-b32-vision.onnx
 src-tauri/models/clip-vit-b32-vision.onnx.data
 src-tauri/models/clip-vit-b32-text.onnx
 src-tauri/models/clip-vit-b32-text.onnx.data
+# Staged copies of the committed models/clip-vit-b32-text-prompts.* (B4).
+src-tauri/models/clip-vit-b32-text-prompts.npy
+src-tauri/models/clip-vit-b32-text-prompts.json
 
 
 # ===== Data (local only, never commit) =====

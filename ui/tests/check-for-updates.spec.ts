@@ -70,6 +70,9 @@ test.describe('Check for Updates — /settings', () => {
     // Tab through the page until the button receives focus.
     // Cap at 60 presses to avoid an infinite loop on unexpected DOM changes.
     const button = page.getByRole('button', { name: 'Check for Updates' });
+    // Wait for the page to render first. On a slow CI runner the Tabs could
+    // otherwise all land before the button exists (flaky from 29 Sep 2026).
+    await expect(button).toBeVisible();
     let focused = false;
 
     for (let i = 0; i < 60; i++) {
@@ -91,7 +94,9 @@ test.describe('Check for Updates — /settings', () => {
   test('pressing Enter on the focused button triggers the browser-mode error', async ({ page }) => {
     // Tab to the button then activate with Enter.
     const button = page.getByRole('button', { name: 'Check for Updates' });
+    await expect(button).toBeVisible();
 
+    let focused = false;
     for (let i = 0; i < 60; i++) {
       await page.keyboard.press('Tab');
       const activeHandle = await page.evaluateHandle(() => document.activeElement);
@@ -99,8 +104,14 @@ test.describe('Check for Updates — /settings', () => {
         (el) => el instanceof HTMLButtonElement && el.textContent?.trim() === 'Check for Updates',
         activeHandle,
       );
-      if (isButton) break;
+      if (isButton) {
+        focused = true;
+        break;
+      }
     }
+    // Fail here, not at the alert, if Tab never reached the button: otherwise
+    // Enter lands on whatever has focus and the failure reads as a missing alert.
+    expect(focused).toBe(true);
 
     await page.keyboard.press('Enter');
 

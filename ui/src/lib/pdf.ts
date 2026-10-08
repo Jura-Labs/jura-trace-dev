@@ -7,7 +7,7 @@
 
 import { jsPDF } from 'jspdf';
 import type { VerificationResult, VerifyMode } from './types';
-import { getTrustLevel } from './types';
+import { trustLevelLabel } from './types';
 import { DETECTOR_ID_LABELS } from './detectorLabels';
 import {
   C2PA_ACTION_LABELS,
@@ -15,7 +15,7 @@ import {
   C2PA_STATUS_INVALID,
 } from './c2pa-labels';
 // ── Single source of truth for the expected-detector matrix ──────────────
-// Generated from src-tauri/src/bin/gen_detectors.rs (MODE_MATRIX const).
+// Generated from src-tauri/src/gen_detectors.rs (MODE_MATRIX const).
 // DO NOT edit this import or the file it points to by hand — run:
 //   cargo run --bin gen-detectors -- <repo-root>
 // or let `npm run predev` / `npm run prebuild` regenerate it automatically.
@@ -544,10 +544,9 @@ export async function generateTrustReport(result: VerificationResult, meta: Repo
   // ── Summary ─────────────────────────────────────────────────
   heading('Summary');
   const trustPercent = Math.round(result.overallTrust * 100);
-  const trustLevel = getTrustLevel(result.overallTrust);
   row('File', meta.fileName);
   row('File Size', formatBytes(meta.fileSize));
-  row('Trust Score', `${trustPercent}% (${trustLevel === 'high' ? 'High Trust' : trustLevel === 'medium' ? 'Moderate Trust' : 'Low Trust'})`);
+  row('Trust Score', `${trustPercent}% (${trustLevelLabel(result)})`);
   row('Source Type', result.sourceType);
   row('Content Type', result.contentType);
   if (result.aiGenerator) {
@@ -714,7 +713,14 @@ export async function generateTrustReport(result: VerificationResult, meta: Repo
       // Fall back to claim generator only when no richer label is available.
       wrappedRow('App or device used', m.claimGenerator);
     }
-    if (m.signedAt) wrappedRow('Date', new Date(m.signedAt).toLocaleString('en-GB'));
+    // signedAt comes from the trusted timestamp; its absence is a fact about
+    // the seal, so the report states it rather than dropping the row (BL-CLAIM-004).
+    wrappedRow(
+      'Date',
+      m.signedAt
+        ? new Date(m.signedAt).toLocaleString('en-GB')
+        : 'No trusted timestamp. This seal does not show when it was signed.',
+    );
     if (m.format) wrappedRow('Format', m.format);
     if (m.title) wrappedRow('Title', m.title);
 
@@ -1468,7 +1474,7 @@ export async function generateTrustReport(result: VerificationResult, meta: Repo
       citationKey: 'copyMove',
     },
     {
-      text: 'AI Generation Detection: A two-head ensemble — GBM v4 (84-feature gradient-boosted classifier on hand-engineered forensic features, AUC 0.9868) and UnivFD v10onnx (logistic regression on CLIP ViT-B/32 embeddings, AUC 0.9929, multi-format augmentation across PNG/TIFF/WebP/HEIC). Each head runs independently and the verdict reflects their combined output.',
+      text: 'AI Generation Detection: A two-head ensemble — GBM v4 (80-feature gradient-boosted classifier on hand-engineered forensic features, AUC 0.9868) and UnivFD v10onnx (logistic regression on CLIP ViT-B/32 embeddings, AUC 0.9929, multi-format augmentation across PNG/TIFF/WebP/HEIC). Each head runs independently and the verdict reflects their combined output.',
       citationKey: 'deepfake',
     },
     {

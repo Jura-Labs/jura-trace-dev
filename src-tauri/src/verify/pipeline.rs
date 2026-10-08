@@ -15,31 +15,15 @@ use super::types::{
 use crate::error::AppError;
 use crate::verify::input_quality::assess_input_quality;
 use crate::verify::trust::{compute_trust, document_trust};
+use crate::verify::verdict::{compute_verdict, VerdictInputs};
 use crate::AppState;
 use crate::{c2pa, exif_anomaly, filename_analysis, fingerprint, format_router, heatmap};
 use crate::{metadata, pdf_provenance, sidecar};
 
 // ===== SSRF host validation =====
 
-/// Returns `true` if the given hostname resolves to a loopback, private (RFC 1918),
-/// or link-local address. Used by both `verify_url` (Tauri IPC) and `verify_url_inner`
-/// (REST API) to block SSRF — including post-redirect validation.
-pub(crate) fn is_private_or_loopback_host(host: &str) -> bool {
-    let h = host.to_lowercase();
-    h == "localhost"
-        || h == "127.0.0.1"
-        || h == "::1"
-        || h == "0.0.0.0"
-        || h.starts_with("10.")
-        || h.starts_with("192.168.")
-        || h.starts_with("169.254.")
-        || (h.starts_with("172.")
-            && h[4..]
-                .split('.')
-                .next()
-                .and_then(|s| s.parse::<u8>().ok())
-                .is_some_and(|n| (16..=31).contains(&n)))
-}
+// The checks live in `net_guard`.
+use crate::net_guard::HostCheck;
 
 /// Compute the SHA-256 hash of a file, returning a lowercase hex string.
 /// Returns `None` if the file does not exist or cannot be read.
@@ -1557,13 +1541,13 @@ pub fn verify_content_inner(
     //
     // ── CODEGEN CONTRACT ─────────────────────────────────────────────────
     // The TypeScript "Not run in this analysis" PDF rows are generated from
-    // the MODE_MATRIX constant in src-tauri/src/bin/gen_detectors.rs, which
+    // the MODE_MATRIX constant in src-tauri/src/gen_detectors.rs, which
     // is the single source of truth for the expected-detector matrix.
     //
     // When you ADD a detector here:
     //   1. Add the push("your_new_id") below.
     //   2. Add "your_new_id" to the appropriate rows in MODE_MATRIX inside
-    //      src-tauri/src/bin/gen_detectors.rs.
+    //      src-tauri/src/gen_detectors.rs.
     //   3. Run: cargo run --bin gen-detectors -- <repo-root>
     //      (or `npm run predev` — it does this automatically).
     //   4. Commit both files together.
@@ -1701,6 +1685,17 @@ pub fn verify_content_inner(
     );
     log::info!("PERF: total pipeline took {:?}", t_pipeline.elapsed());
 
+    let verdict = compute_verdict(&VerdictInputs {
+        overall_trust,
+        detectors_run: &detectors_run_list,
+        exif_analysis: exif_analysis.as_ref(),
+        image_metadata: raw_exif_meta.as_ref(),
+        c2pa_valid,
+        c2pa_manifest: c2pa_manifest.as_ref(),
+        c2pa_chain: c2pa_chain.as_ref(),
+        deepfake_result: deepfake_result.as_ref(),
+    });
+
     Ok(VerificationResult {
         source_type: source_type.to_string(),
         content_type: info.content_type.as_str().to_string(),
@@ -1713,6 +1708,7 @@ pub fn verify_content_inner(
         metadata_flags,
         claim_verdict: None,
         overall_trust,
+        verdict: Some(verdict),
         exif_analysis,
         image_metadata: raw_exif_meta,
         c2pa_manifest,
@@ -1858,31 +1854,41 @@ pub fn verify_url_inner(
             "Only http and https URLs are supported".to_string(),
         ));
     }
-    // SECURITY: block loopback/private ranges
+    // SECURITY: block loopback/private ranges, as written and as resolved.
+    let mut pin: Option<(String, Vec<std::net::SocketAddr>)> = None;
     if let Some(host) = parsed.host_str() {
-        if is_private_or_loopback_host(host) {
-            return Err(AppError::Validation(
-                "URL targets a local or private address".to_string(),
-            ));
+        match crate::net_guard::check_host(host) {
+            HostCheck::Blocked => {
+                return Err(AppError::Validation(
+                    "URL targets a local or private address".to_string(),
+                ));
+            }
+            HostCheck::Public(addrs) if !addrs.is_empty() => pin = Some((host.to_string(), addrs)),
+            HostCheck::Public(_) | HostCheck::Unresolved => {}
         }
     }
 
     // Download to a temp file then verify.
     // SECURITY: custom redirect policy re-validates each hop against the SSRF blocklist
     // to prevent open-redirect attacks that bounce through a public host to a private one.
-    let client = reqwest::blocking::Client::builder()
+    let mut builder = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
         .redirect(reqwest::redirect::Policy::custom(|attempt| {
             if attempt.previous().len() >= 5 {
                 return attempt.error("too many redirects");
             }
             if let Some(host) = attempt.url().host_str() {
-                if is_private_or_loopback_host(host) {
+                if crate::net_guard::check_host(host) == HostCheck::Blocked {
                     return attempt.error("redirect to private address blocked");
                 }
             }
             attempt.follow()
-        }))
+        }));
+    // Connect to the addresses that were checked, not to a second lookup.
+    if let Some((host, addrs)) = &pin {
+        builder = builder.resolve_to_addrs(host, addrs);
+    }
+    let client = builder
         .build()
         .map_err(|e| AppError::Internal(format!("Failed to build HTTP client: {e}")))?;
     let resp = client
@@ -1913,6 +1919,7 @@ mod tests {
     use super::*;
     use crate::exif_anomaly;
     use crate::format_router;
+    use crate::net_guard::is_private_or_loopback_host;
     use crate::sidecar;
 
     // trust_* and input_quality_* tests have moved to verify/trust.rs and

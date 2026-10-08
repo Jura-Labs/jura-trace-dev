@@ -79,8 +79,8 @@ curl -i https://juralabs.org/api/updates/darwin-aarch64/0.9.0
 curl https://juralabs.org/api/updates/darwin-aarch64/0.8.0 | jq .
 ```
 
-The desktop app's smoke test (`infrastructure/forgejo-runner/...` or
-manual via Settings → Service Status → Check for Updates) hits the
+The desktop app's updater check (automatic, or manual via Settings →
+Service Status → Check for Updates) hits the
 endpoint on launch.
 
 ## Local development

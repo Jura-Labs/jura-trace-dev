@@ -97,6 +97,17 @@ The part automation cannot reach. Look at the screen.
 - [ ] Settings → Check for Updates responds, with a visible status rather than
       silence
 - [ ] If an update is genuinely available, it downloads and applies
+- [ ] From v1.1.0 onwards, the app restarts itself once the install finishes.
+      Updating **from v1.0.0** it will not, and that is expected rather than a
+      fault: the restart is v1.1.0's code and v1.0.0 does not have it. The
+      button stays on "Installing, restarting shortly..." with the new version
+      already on disk. Quit and reopen, then confirm the version.
+
+**Recorded, v1.1.0 on 10 September 2026.** Live update from a pristine public
+v1.0.0 against production, no hosts entry and no test certificate: bundle
+1.1.0 on disk one minute after the click, then health 1.1.0 with the sidecar
+available after quitting and reopening, "Notarized Developer ID", no updater
+temporary directories left. See gate item 2 in `v1.1.0-plan.md`.
 
 On a release where this Mac is already on the newest version, the honest
 result is "up to date", and that is worth confirming rather than skipping: a

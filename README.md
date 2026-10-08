@@ -2,34 +2,81 @@
 
 **Know What's Real.**
 
-In a world of synthetic media, verification matters. Jura Trace helps cultural institutions protect their digital assets from unauthorised AI extraction and helps communities verify the authenticity of media they encounter.
+In a world of synthetic media, evidence matters. Jura Trace helps cultural institutions protect their digital assets from unauthorised AI extraction, and helps communities weigh up the media they encounter.
 
-All processing happens locally on your machine. No data is uploaded to external servers.
+Your files are analysed on your own machine. Nothing you open, sign or check
+is uploaded anywhere.
+
+Jura Trace does make a small number of network calls. Each one is either
+something you asked for or something you can turn off:
+
+- **Update check.** When you press Check for Updates, and once a day at
+  startup. Enhanced network mode only.
+- **Timestamp when you sign.** Signing sends a hash derived from your file to
+  `timestamp.digicert.com` so the signature carries a trusted time. The file
+  itself does not leave your machine, and the app shows you this before it
+  seals anything.
+- **A URL you paste.** Verify by URL fetches the address you gave it.
+- **Weather lookup.** One detector cross-references historical weather for a
+  stated time and place. Enhanced network mode only.
+- **API documentation.** In v1.1.0 and earlier, opening the local REST API's
+  docs page loads Swagger UI from `unpkg.com`. From v1.2.0 the page is built
+  into the app and makes no network call.
+
+Standard network mode, in Settings, turns off the update check and the weather
+lookup. The timestamp request made when you sign is not covered by that switch
+today.
 
 ## Status
+V1.1.0 (public release September 2026)
+- Linux AppImage
+- Security updates
 
 v1.0.0 (public release, June 2026)
 
 ## What It Does
 
 **PROTECT** — Safeguard digital assets
-- Auto-catalogue: AI-generated descriptions, tags, and metadata for bulk archives
-- C2PA signing: Embed provenance manifests proving origin and rights
+- C2PA signing: Embed tamper-evident provenance manifests recording origin and rights
 - Fingerprinting: Perceptual hashes that survive crop, resize, and recompression
+- Auto-catalogue *(optional, off by default)*: descriptions and tags for bulk
+  archives, written by a local multimodal model. Cataloguing only. It plays no
+  part in verification
 - Watermarking *(planned)*: invisible watermarks for scrape detection
 
 **VERIFY** — Check content authenticity
 - Image forensics: Error Level Analysis, noise patterns, metadata anomalies
-- Deepfake detection: Local AI model scoring for synthetic media
+- Deepfake detection: local classifier scoring (a gradient-boosted model
+  ensembled with UnivFD, plus CLIP zero-shot), not a language model
 - Claim checking *(planned)*: source-grounded credibility assessment
 - Provenance reading: Verify C2PA provenance manifests on any file
 
+**No language model is in the verdict pipeline.** Every verdict comes from the
+forensic detectors and thresholds set by a human. The optional auto-catalogue
+model writes a description field for the archive and is never an input to a
+detector, a score, or a verdict. See "On the use of Generative AI in this
+codebase" below.
+
 ## Prerequisites
 
+To run Jura Trace:
+
 - macOS 12+, Windows 10+, or Linux (Ubuntu 22.04+)
-- [Ollama](https://ollama.com/) with `llava:7b` model (for auto-catalogue)
-- [Rust](https://rustup.rs/) 1.88+ (for development)
-- [Node.js](https://nodejs.org/) 20+ (for development)
+
+Nothing else. Verification and signing work offline, with no model to download
+and no service to start.
+
+To develop it:
+
+- [Rust](https://rustup.rs/) 1.90+
+- [Node.js](https://nodejs.org/) 20+
+
+Optional, and neither required nor bundled:
+
+- [Ollama](https://ollama.com/) with the `llava:7b` model. This serves the
+  auto-catalogue descriptions and nothing else. It stays off until you enable
+  it in Settings, the application is fully functional without it, and it has no
+  role in verification or in any verdict.
 
 ## Quick Start (Development)
 
@@ -42,8 +89,26 @@ cd ui && npm run dev          # Terminal 1
 cd src-tauri && cargo tauri dev  # Terminal 2
 ```
 
+## Command line and scripts
+
+From v1.2.0 the installers include `jura`, a command-line client, and
+`jura-trace-api`, the analysis server without the window. Analysis still
+runs on your machine.
+
+```bash
+jura-trace-api keys add --name my-laptop   # once
+jura auth set-key -                        # paste the key
+jura verify photo.jpg --wait-ready
+```
+
+See [docs/CLI_QUICKSTART.md](docs/CLI_QUICKSTART.md) for where each installer
+puts them and how to script with them. In the app, Help, Settings, "API keys
+and the command line" covers the same ground.
+
 ## Documentation
 
+- [Command line quickstart](docs/CLI_QUICKSTART.md) — `jura` and `jura-trace-api`
+- [Local REST API](docs/API_WRAPPER.md) — endpoints, the verification result, errors, exit codes
 - [Architecture](docs/ARCHITECTURE.md) — system design, data flow, four-layer stack
 - [Technical Architecture](docs/ARCHITECTURE.md) — system design
 - [Brand Guidelines](docs/BRAND_GUIDELINES.md) — visual identity

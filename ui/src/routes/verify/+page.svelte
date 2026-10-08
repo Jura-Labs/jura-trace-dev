@@ -15,7 +15,7 @@
     runNprOnDemand, runShadowConsistencyOnDemand, runSpliceBoundaryOnDemand,
     findCatalogueMatches,
   } from '$lib/api';
-  import { getTrustLevel, formatFileSize, formatDuration } from '$lib/types';
+  import { getTrustLevel, verdictTrustLevel, formatFileSize, formatDuration } from '$lib/types';
   import type {
     VerificationResult, SidecarHealth, VerifyMode, LicenceTier,
     AnomalyFinding, InputQualityAssessment, ManifestInfo,
@@ -37,6 +37,7 @@
     C2PA_MSG_VALID_AT_SIGNING_DETAIL,
     C2PA_TRAINING_MINING_REASONS,
     c2paTrainingMiningPolicyLabel,
+    formatSoftwareAgent,
     parseTrainingMiningEntries,
   } from '$lib/c2pa-labels';
   import LimitationBanner from '$lib/components/LimitationBanner.svelte';
@@ -103,9 +104,6 @@
 
   // Raw scores toggle (persisted to localStorage)
   let showRawScores = $state(false);
-
-  // First-run intro card (shown once, dismissed to localStorage)
-  let introDismissed = $state(true); // default true to avoid flash; set false in onMount if key absent
 
   // Batch state
   let batchItems = $state<BatchItem[]>([]);
@@ -336,6 +334,9 @@
   //     maintain back-compat with old DB records opened in newer builds.
   const insufficientSignal = $derived(() => {
     if (!result) return false;
+    // v1.2.0: the backend decides this once (verify/verdict.rs). What
+    // follows is kept only for results saved before the verdict block.
+    if (result.verdict) return result.verdict.ceilingApplied === 'insufficientSignal';
     const ran: string[] | undefined = result.detectorsRun;
     if (ran && ran.length > 0) {
       // Authoritative path: use the backend list.
@@ -399,7 +400,12 @@
   });
 
   const trustLevel = $derived(() => {
-    if (!rawTrustLevel) return null;
+    if (!rawTrustLevel || !result) return null;
+    // v1.2.0: read the band the backend computed (verify/verdict.rs), the
+    // same one the REST API and the reports give. The rule below is the one
+    // that was ported, kept only for results saved before the verdict block.
+    const fromVerdict = verdictTrustLevel(result);
+    if (fromVerdict) return fromVerdict;
     if (insufficientSignal()) return 'inconclusive' as const;
     // Safety cap (added 2026-05-11 after a re-encoded AI PNG passed as High
     // Trust): cannot claim "Authentic" without positive provenance evidence.
@@ -630,13 +636,15 @@
     if (!actionsAssertion) return [];
     try {
       const parsed = JSON.parse(actionsAssertion.value);
-      const actions: { action: string; description?: string; digitalSourceType?: string; softwareAgent?: string }[] = parsed?.actions ?? parsed ?? [];
+      // Field types are not trusted: a manifest is external input, and
+      // softwareAgent changed from a string (1.x) to an object (2.x).
+      const actions: { action: string; description?: unknown; digitalSourceType?: unknown; softwareAgent?: unknown }[] = parsed?.actions ?? parsed ?? [];
       return actions.map((a) => ({
         raw: a.action,
         label: C2PA_ACTION_LABELS[a.action] ?? a.action,
-        description: a.description ?? null,
-        sourceType: a.digitalSourceType ? humaniseDigitalSourceType(a.digitalSourceType) : null,
-        softwareAgent: a.softwareAgent ?? null,
+        description: typeof a.description === 'string' ? a.description : null,
+        sourceType: typeof a.digitalSourceType === 'string' ? humaniseDigitalSourceType(a.digitalSourceType) : null,
+        softwareAgent: formatSoftwareAgent(a.softwareAgent),
       }));
     } catch {
       return [];
@@ -1330,9 +1338,6 @@
 
   // ── Lifecycle ─────────────────────────────────────────────────────
   onMount(() => {
-    // Intro card: show unless the user has already dismissed it.
-    introDismissed = localStorage.getItem('jura-verify-intro-dismissed') === 'true';
-
     const savedMode = localStorage.getItem('jura-verify-mode');
     // Migrate 'archival' -> 'deep' — archival was removed 2026-04-22 because
     // it ran the identical pipeline to Deep.  Existing pilot users had
@@ -2206,37 +2211,6 @@
     </div>
   {/if}
 
-  <!-- ── First-run intro card ──────────────────────────────────── -->
-  <!-- Shown once, until the user dismisses it. Dismissal is persisted to
-       localStorage so it never reappears. Does not block interaction. -->
-  {#if !introDismissed}
-    <div
-      class="mb-5 flex items-start gap-3 px-4 py-3 rounded-xl border border-lapis/25 bg-lapis/5"
-      role="note"
-      aria-label="How to use Jura Trace verification"
-    >
-      <p class="flex-1 text-sm text-text-light dark:text-quartz leading-relaxed">
-        Jura Trace gives you a second opinion, not a verdict. Use it alongside your other verification steps.
-      </p>
-      <button
-        type="button"
-        class="flex-shrink-0 text-xs text-flint-dark dark:text-flint-light hover:text-obsidian dark:hover:text-quartz min-h-[32px] min-w-[32px] flex items-center justify-center rounded
-               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
-               transition-colors duration-150"
-        aria-label="Dismiss this note"
-        onclick={() => {
-          introDismissed = true;
-          localStorage.setItem('jura-verify-intro-dismissed', 'true');
-        }}
-      >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-        </svg>
-        <span class="sr-only">Dismiss</span>
-      </button>
-    </div>
-  {/if}
-
   <!-- ── Input panel ─────────────────────────────────────────────── -->
   {#if !checked || !result}
     <div class="mb-6 bg-white dark:bg-graphite border border-border-light dark:border-border-dark rounded-xl overflow-hidden">
@@ -2760,6 +2734,14 @@
           >
             How this score is calculated
           </a>
+
+          <!-- Reliance note (JTV-208). Always shown with the verdict and never
+               dismissible: it used to be a first-run card above the input panel
+               with a dismiss button, so most people read it once, before they had
+               a result to apply it to. -->
+          <p class="text-xs text-text-light dark:text-quartz mb-2" role="note">
+            Jura Trace gives you a second opinion, not a verdict. Use it alongside your other verification steps.
+          </p>
 
           <p class="text-sm muted-help mb-3">
             {fileName}{#if imageDimensions()} · {imageDimensions()}{/if}
@@ -3495,7 +3477,7 @@
                         {#if c2paSignerName && c2paSignedDate()}
                           Issued by {c2paSignerName} on {c2paSignedDate()}
                         {:else if c2paSignerName}
-                          Issued by {c2paSignerName}
+                          Issued by {c2paSignerName}, with no trusted timestamp
                         {:else if c2paSignedDate()}
                           Signed on {c2paSignedDate()}
                         {:else}
@@ -3578,13 +3560,18 @@
                             {/if}
                           </div>
 
-                          <!-- Signed date -->
-                          {#if c2paSignedDate()}
-                            <div>
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider mb-0.5">Date</p>
+                          <!-- Signed date. signedAt comes from the RFC 3161 timestamp
+                               (signature_info.time), so its absence means the seal
+                               carries no trusted time, which a Standard-mode user can
+                               now choose (BL-CLAIM-004). Say so rather than omit it. -->
+                          <div>
+                            <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider mb-0.5">Date</p>
+                            {#if c2paSignedDate()}
                               <p class="text-xs text-obsidian dark:text-quartz">{c2paSignedDate()}</p>
-                            </div>
-                          {/if}
+                            {:else}
+                              <p class="text-xs text-obsidian dark:text-quartz">No trusted timestamp. This seal does not show when it was signed.</p>
+                            {/if}
+                          </div>
 
                           <!-- Edits and activity — per C2PA UX Rec v1.4 §4.3 -->
                           {#if c2paActions().length > 0}
@@ -4886,7 +4873,7 @@
                          the accordion below does not read as a contradiction. -->
                     {#if gbmHighScoreNoSignals && gbmSignals.length > 0}
                       <p class="text-[11px] text-flint-dark dark:text-flint-light italic mt-1.5 leading-snug">
-                        Score reflects statistical patterns across the model's 84-feature vector. None of the {gbmSignals.length} named indicators triggered individually.
+                        Score reflects statistical patterns across the model's whole feature vector. None of the {gbmSignals.length} named indicators triggered individually.
                       </p>
                     {/if}
                     {#if gbmSignals.length > 0}
@@ -5051,14 +5038,14 @@
                   <span
                     class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-lapis/10 text-lapis dark:text-lapis-light border border-lapis/20"
                   >
-                    Planned: v1.0.1
+                    Not yet available
                   </span>
                 </div>
                 <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mb-2">
-                  Video deepfake analysis is in active development for v1.0.1. It will ship with calibration data covering Global Majority devices and current-generation generators (Sora, Runway Gen-3, HeyGen, Synthesia). v1.0 verifies what we can stand behind: provenance and metadata.
+                  Video deepfake analysis is not part of this release. It will ship only with calibration data covering Global Majority devices and current-generation generators (Sora, Runway Gen-3, HeyGen, Synthesia). For video, Jura Trace reports what it can stand behind: provenance and metadata.
                 </p>
                 <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
-                  <strong>Available now for video files:</strong> C2PA content credentials, EXIF metadata extraction, and native video preview above. <strong>Coming in v1.0.1:</strong> per-frame deepfake detection, audio-visual sync analysis, transcription, and claim verification.
+                  <strong>Available now for video files:</strong> C2PA content credentials, EXIF metadata extraction, and native video preview above. <strong>Not yet available:</strong> per-frame deepfake detection, audio-visual sync analysis, transcription, and claim verification.
                 </p>
               </section>
             {/if}
