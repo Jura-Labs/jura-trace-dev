@@ -179,7 +179,7 @@ than by naming a release.
 One process note for the next sweep: grep the whole of `ui/src` rather than
 the rendered surface, and treat `{#if <FLAG>}` blocks as in scope.
 
-**Resolved 5 October 2026**, 8877d8c7 (PR #157, plan item A10). The paragraph was rewritten to describe behaviour, and API keys are available in Settings on every tier.
+**Resolved 8 October 2026**, 8877d8c7 (PR #157, plan item A10). The paragraph was rewritten to describe behaviour, and API keys are available in Settings on every tier.
 
 ## Update, 21 September 2026: promise 2 fixed on `main`, ships in v1.2.0
 
