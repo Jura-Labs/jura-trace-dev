@@ -66,6 +66,7 @@ mod startup;
 mod state;
 mod sun_position;
 pub mod telemetry;
+pub mod verification_record;
 mod verify;
 mod watermark;
 
@@ -3001,6 +3002,63 @@ async fn get_signing_disclosure(
     })
 }
 
+/// Build and sign a Verification Record for a result the verify page holds.
+///
+/// The result comes back from the webview and is not re-derived here. That
+/// does not weaken the record: it is signed with a key that lives on this
+/// install, so whoever controls the install could sign anything in any case,
+/// and the record says as much. What the signature protects is the record
+/// after it leaves this machine.
+///
+/// The export is written to the audit log with the record's own hash, so the
+/// install keeps a chained note of which records it has issued.
+#[tauri::command]
+async fn export_verification_record(
+    app_handle: tauri::AppHandle,
+    state: State<'_, Arc<Mutex<AppState>>>,
+    result: serde_json::Value,
+    file_name: Option<String>,
+) -> Result<verification_record::VerificationRecordExport, AppError> {
+    let data_dir = app_handle.path().app_data_dir().map_err(|e| {
+        log::error!("Failed to resolve app data dir: {e}");
+        AppError::Internal("Failed to resolve application data directory".into())
+    })?;
+    let created_at = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+
+    let export = verification_record::export(&data_dir, &result, file_name.as_deref(), &created_at)
+        .map_err(|e| {
+            log::error!("Verification Record export failed: {e}");
+            AppError::Validation(e)
+        })?;
+
+    let file_sha256 = result
+        .get("inputSha256")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default();
+    let details = serde_json::json!({
+        "recordSha256": export.record_sha256,
+        "certificateSha256": export.certificate_sha256,
+        "formatVersion": verification_record::FORMAT_VERSION,
+    })
+    .to_string();
+    let app = state
+        .lock()
+        .map_err(|_| AppError::Internal("State lock failed".into()))?;
+    if let Err(e) = app.db.log_action(
+        "verification_record_exported",
+        "file",
+        file_sha256,
+        Some(&details),
+        None,
+        None,
+    ) {
+        // The record is valid without the note, so the export still succeeds.
+        log::warn!("Verification Record exported but not written to the audit log: {e}");
+    }
+
+    Ok(export)
+}
+
 /// Set the active signing mode.
 ///
 /// Returns an error if `conformant` is requested but no certificate has been
@@ -4836,6 +4894,7 @@ pub fn run() {
             get_signing_mode,
             set_signing_mode,
             get_signing_disclosure,
+            export_verification_record,
             get_conformant_cert_info,
             clear_conformant_cert,
             read_manifest_chain,

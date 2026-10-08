@@ -171,6 +171,32 @@ test.describe('Verdict card — reliance note', () => {
 });
 
 // ──────────────────────────────────────────────────────────────────
+// Verification Record export (v1.2.0 B3). The signing is in Rust and is
+// tested there, against openssl. What this suite can see is the browser
+// build, where there is no key: the button must say the record was not
+// made and why, and must never report a save that did not happen.
+// ──────────────────────────────────────────────────────────────────
+
+test.describe('Actions footer — Verification Record', () => {
+  test.use({ viewport: { width: 1280, height: 900 } });
+
+  test('outside the desktop app, the button says no record was made', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('jura-onboarded', 'true');
+      localStorage.setItem('jura-setup-complete', 'true');
+    });
+    await injectAndOpenProvenanceCard(page, baseResult());
+
+    await page.getByRole('button', { name: 'Export a signed Verification Record as ZIP' }).click();
+
+    const alert = page.getByRole('alert').filter({ hasText: 'The Verification Record was not made.' });
+    await expect(alert).toBeVisible();
+    await expect(alert).toContainText('only be signed in the desktop application');
+    await expect(page.getByText('Verification Record saved.')).toHaveCount(0);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────
 // Card header
 // ──────────────────────────────────────────────────────────────────
 
