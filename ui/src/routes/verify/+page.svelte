@@ -8,7 +8,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { writable } from 'svelte/store';
   import {
-    verifyFile, verifyUrl, checkSidecarHealth, markFalsePositive,
+    verifyFile, verifyUrl, checkSidecarHealth, markFalsePositive, exportVerificationRecord,
     parseAppError, getLicenceTier, getVersion,
     openBatchFileDialog, extractTextFromImage,
     getNetworkMode, getPowerSaverMode,
@@ -54,6 +54,7 @@
   import { generateTrustReport } from '$lib/pdf';
   import type { ReportContext, ReportFormat } from '$lib/pdf';
   import { exportCaseZip } from '$lib/zip';
+  import { packVerificationRecord, verificationRecordFileName } from '$lib/verificationRecord';
   import { saveVerifySession, restoreVerifySession, clearVerifySession, saveBatchSession, restoreBatchSession, clearBatchSession } from '$lib/stores/verifySession';
   import { consumeVerifyHandoff } from '$lib/stores/verifyHandoff';
   import { focusTrap } from '$lib/actions/focusTrap';
@@ -81,6 +82,10 @@
   let licenceTier = $state<LicenceTier>('community');
   let exportingReport = $state(false);
   let exportingCase = $state(false);
+  let exportingRecord = $state(false);
+  // What the last Verification Record export did, said in the page: the
+  // download itself is silent, and a refusal has to give its reason.
+  let recordExportNote = $state<{ ok: boolean; text: string } | null>(null);
   let showReportModal = $state(false);
   let analystName = $state('');
   let analystOrg = $state('');
@@ -1517,6 +1522,7 @@
     filePath = path;
     fileName = name;
     result = null;
+    recordExportNote = null;
     checked = false;
     error = null;
     errorType = null;
@@ -1541,6 +1547,7 @@
     fileName = url.split('/').pop()?.split('?')[0] || url;
     filePath = null;
     result = null;
+    recordExportNote = null;
     checked = false;
     error = null;
     errorType = null;
@@ -1558,7 +1565,7 @@
 
   function reset() {
     filePath = null; fileName = null; urlInput = '';
-    result = null; checked = false; error = null;
+    result = null; checked = false; error = null; recordExportNote = null;
     loading = false; cancelled = false;
     openCard = null; showImageOverlay = false;
     previewUrl = null;
@@ -1631,6 +1638,25 @@
       triggerDownload(blob, `jura-case-${safe}-${ts}.zip`);
     } finally {
       exportingCase = false;
+    }
+  }
+
+  async function handleExportRecord() {
+    if (!result || exportingRecord) return;
+    exportingRecord = true;
+    recordExportNote = null;
+    try {
+      const ex = await exportVerificationRecord(result, fileName ?? null);
+      const blob = await packVerificationRecord(ex);
+      triggerDownload(blob, verificationRecordFileName(fileName, Math.floor(Date.now() / 1000)));
+      recordExportNote = {
+        ok: true,
+        text: `Verification Record saved. It is signed in Sovereign mode, with a key made on this computer. HOW-TO-CHECK.txt inside tells the person you send it to how to check it. Signing certificate SHA-256: ${ex.certificateSha256}`,
+      };
+    } catch (e) {
+      recordExportNote = { ok: false, text: `The Verification Record was not made. ${parseAppError(e).message}` };
+    } finally {
+      exportingRecord = false;
     }
   }
 
@@ -1840,6 +1866,7 @@
   function backToBatchList() {
     batchDrilldownActive = false;
     result = null;
+    recordExportNote = null;
     checked = false;
     error = null;
     errorType = null;
@@ -5364,6 +5391,20 @@
       </button>
 
       <button
+        class="flex items-center gap-2 px-4 py-2.5 min-h-[44px] border border-border-light dark:border-border-dark text-obsidian dark:text-quartz text-sm font-medium rounded-lg hover:bg-white/5 transition-colors disabled:opacity-50
+               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
+        disabled={exportingRecord}
+        onclick={handleExportRecord}
+        aria-label="Export a signed Verification Record as ZIP"
+        title="A signed, tamper-evident record of the checks that were run, which someone else can check without Jura Trace."
+      >
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/>
+        </svg>
+        {exportingRecord ? 'Signing…' : 'Verification Record'}
+      </button>
+
+      <button
         class="flex items-center gap-2 px-4 py-2.5 min-h-[44px] border border-border-light dark:border-border-dark text-flint-dark dark:text-flint-light text-sm rounded-lg hover:text-obsidian dark:hover:text-quartz hover:bg-white/5 transition-colors
                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
         onclick={() => showFalsePositiveModal = true}
@@ -5371,6 +5412,13 @@
       >
         Report False Positive
       </button>
+
+      {#if recordExportNote}
+        <p
+          class="basis-full text-xs break-words {recordExportNote.ok ? 'text-flint-dark dark:text-flint-light' : 'text-red-700 dark:text-red-300'}"
+          role={recordExportNote.ok ? 'status' : 'alert'}
+        >{recordExportNote.text}</p>
+      {/if}
 
     </div>
 
