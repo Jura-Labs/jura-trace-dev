@@ -1433,6 +1433,7 @@ jobs:
           cp "src-tauri/binaries/${{ matrix.sidecar_name }}" "$stage/jura-sidecar"
           cp src-tauri/models/* "$stage/models/"
           cp LICENSE NOTICE THIRD-PARTY-LICENSES.txt packaging/linux-server/README.txt "$stage/"
+          cp docs/CLI_QUICKSTART.md "$stage/QUICKSTART.md"
           strip "$stage/jura-trace-api" "$stage/jura"
           chmod 755 "$stage/jura-trace-api" "$stage/jura" "$stage/jura-sidecar"
           for f in jura-trace-api jura jura-sidecar; do

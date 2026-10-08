@@ -2846,14 +2846,9 @@ fn create_api_key(
         .lock()
         .map_err(|_| AppError::Internal("State lock failed".into()))?;
     let key_id = uuid::Uuid::new_v4().to_string();
-    // 256-bit raw key (two UUID v4 values concatenated) for parity with the
-    // REST API key generation path and the sidecar shared secret pattern.
-    let raw_key = format!(
-        "jt_{}{}",
-        uuid::Uuid::new_v4().simple(),
-        uuid::Uuid::new_v4().simple(),
-    );
-    let key_hash = crate::api::auth::hash_key(&raw_key);
+    // The shared key maker. This command used to hash the whole key, jt_
+    // prefix included, so a key made in Settings never authenticated.
+    let (raw_key, key_hash) = crate::api::auth::new_key();
     let rl = rate_limit.unwrap_or(100);
     guard
         .db

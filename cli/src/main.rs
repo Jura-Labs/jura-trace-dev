@@ -14,7 +14,7 @@ mod exit;
 mod pretty;
 mod verdict;
 
-use std::io::{IsTerminal, Read, Write};
+use std::io::{IsTerminal, Write};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
@@ -568,9 +568,12 @@ fn auth(ctx: &Ctx, cmd: AuthCommand) -> Result<Exit, Failure> {
                 if std::io::stdin().is_terminal() {
                     eprintln!("Paste the key, then press Enter:");
                 }
+                // One line: the prompt says press Enter, and reading to the
+                // end of input left a person waiting for a Ctrl+D they were
+                // never told about. A piped key works the same way.
                 let mut s = String::new();
                 std::io::stdin()
-                    .read_to_string(&mut s)
+                    .read_line(&mut s)
                     .map_err(|e| Failure::new(Exit::Usage, format!("could not read stdin: {e}")))?;
                 s.trim().to_string()
             } else {

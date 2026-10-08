@@ -42,5 +42,4 @@ It listens on 127.0.0.1 only. To run it as a service, give systemd (or your
 own supervisor) the full path; it stops cleanly on SIGTERM and stops the
 analysis engine with it.
 
-More: https://github.com/Jura-Labs/jura-trace/blob/main/docs/CLI_QUICKSTART.md
-and docs/API_WRAPPER.md in the source. Licence: AGPL-3.0-or-later (LICENSE).
+More: QUICKSTART.md beside this file. Licence: AGPL-3.0-or-later (LICENSE).
