@@ -8,6 +8,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased: v1.2.0
 
+Verification Record:
+
+- New **Verification Record** export on the verify page: a signed,
+  tamper-evident record of the checks that were run on a file, saved as a
+  ZIP. Someone else can confirm it has not been altered with OpenSSL, without
+  Jura Trace. It is signed in Sovereign mode, with a key made on your
+  computer, so it shows the record is unchanged and does not prove who made
+  it or when. It does not determine, certify, or guarantee compliance with
+  anything. See `docs/VERIFICATION_RECORD.md`.
+
 Command-line client:
 
 - New `jura` CLI: `jura verify` (files or `--url`), `jura version` and

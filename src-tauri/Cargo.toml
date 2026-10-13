@@ -104,6 +104,10 @@ rcgen = { version = "0.13", features = ["x509-parser"] }
 # issuer RDN SEQUENCE directly via x509-parser. Already compiled as a
 # transitive dep of c2pa and rcgen; no new crate added to the build.
 x509-parser = "0.18"
+# Detached ECDSA signature over a Verification Record (verification_record.rs).
+# ring is already compiled as rcgen's crypto backend at this version, so this
+# adds no new crate to the build.
+ring = "0.17"
 # time is a direct dependency of rcgen; we use OffsetDateTime for cert validity
 time = { version = "0.3", features = ["std"] }
 
