@@ -16,6 +16,11 @@ version:
 
 ## Open items
 
+**Reconciled 13 October 2026** against `origin/main` at `a7b58e65`, after
+the v1.2.0 Tier A and Tier B work. Six items moved to Closed, seven rows
+were rewritten and three items were added. Rows not mentioned in that
+sentence were not re-checked and still carry their September wording.
+
 Statuses reconciled 8 September 2026 against `origin/main` at `d0ca411d`,
 after the fourteen merges of that day. Each item's own file carries a dated
 "Update, 8 September 2026" section with the evidence.
@@ -29,10 +34,9 @@ also recorded as instances in BL-SILENT-001.
 |---|---|---|---|
 | [BL-REL-002](BL-REL-002-updater-manifest-carries-urls-not-signatures.md) | The updater manifest held URLs where signatures belong; the live manifest is now correct, the fallback resolves, and the re-download notice and the live update on a real v1.0.0 install remain | Open, largely resolved server-side | Highest |
 | [BL-DEPS-001](BL-DEPS-001-dependabot-queue-is-saturated.md) | The Dependabot queue was at the cap in every ecosystem; cap raised, queue moving, 18 open across pip and cargo and actions; steps 4 to 6 remain. Security updates were never subject to the cap | Open, largely resolved | High |
-| [BL-CLAIM-001](BL-CLAIM-001-nothing-leaves-the-device-is-nearly-true.md) | "No data is uploaded to external servers" is nearly true, and nearly is not good enough | Open, narrowed | High |
+| [BL-CLAIM-001](BL-CLAIM-001-nothing-leaves-the-device-is-nearly-true.md) | "No data is uploaded to external servers" was nearly true. The README text, the vendored Swagger assets and the public download README are all fixed on `main`; closes when v1.2.0 is published | Open, fixed in tree | High |
 | [BL-DEPS-002](BL-DEPS-002-frontend-advisories-one-ships.md) | Ten frontend advisories (was twelve), none of which reaches a user | Open, partly resolved | Medium |
-| [BL-UX-001](BL-UX-001-tool-object-object-in-the-c2pa-panel.md) | The C2PA panel shows "Tool: [object Object]" | Open | Low to fix |
-| [BL-CLAIM-002](BL-CLAIM-002-the-app-makes-two-promises-the-release-did-not-keep.md) | Two promises shipped inside the app that the release did not keep. The Article 50 sentence and eleven frozen "v1.0" strings corrected 10 September, before v1.1.0; the model-card metadata file is still open | Open, partly resolved | Medium |
+| [BL-CLAIM-002](BL-CLAIM-002-the-app-makes-two-promises-the-release-did-not-keep.md) | Two promises shipped inside the app that the release did not keep. Both corrected; the Settings paragraph about the API was the last (#157) | Resolved 8 Oct, ships in v1.2.0 | Medium |
 | [BL-DOC-001](BL-DOC-001-pdfs-already-half-work-and-the-help-page-denies-it.md) | PDFs already half-work by drag and drop, and the help page denies it | Open | Medium |
 | [BL-WM-001](BL-WM-001-watermarking-is-two-bugs-and-a-bundle-problem.md) | What enabling watermarking actually requires, and the robustness cliff | Open | Scope risk |
 | [BL-DEPS-003](BL-DEPS-003-four-reachable-advisories-in-the-shipped-binary.md) | Five reachable advisories in the shipped product; every one is fixed on `main`, `cargo audit` and `pip-audit` report zero, and nothing reaches a user until v1.1.0 ships | Open, largely resolved (fixed in tree, not for users) | High |
@@ -42,16 +46,14 @@ also recorded as instances in BL-SILENT-001.
 | [BL-TEST-001](BL-TEST-001-nothing-tests-the-installed-product.md) | Nothing tested the installed product; the updater leg now runs green on this repo (10 September, Windows, request path only), the macOS leg is proven by hand, the Windows verdict and Linux remain | Open, partly resolved | High, v1.1.0 floor |
 | [BL-TEST-003](BL-TEST-003-the-e2e-suite-runs-nowhere.md) | 314 end-to-end tests ran nowhere; 296 now run in CI, the 18 visual tests run only on a Mac | Open, partly resolved | Medium |
 | [BL-SILENT-001](BL-SILENT-001-mechanisms-that-report-success-while-doing-nothing.md) | The class behind five defects: mechanisms reporting success while doing nothing. Two more fixed 8 September; on 10 September the pre-commit hook itself turned out never to have been a gate, four of its five checks piped through `tail` | Open | High as a class |
-| [BL-CLAIM-003](BL-CLAIM-003-the-pdf-report-asserts-checks-that-never-ran.md) | The exported forensic report asserts OCSP/CRL checks that never run | Open | High, legal |
-| [BL-API-001](BL-API-001-the-headless-api-is-documented-and-does-not-exist.md) | The headless API is documented and does not exist; it gates the CLI | Open | Medium |
-| [BL-SIZE-001](BL-SIZE-001-242mb-of-download-computes-10kb-of-constants.md) | 242 MB of every download computes 10 KB of constants | Open | High for adoption |
-| [BL-REL-005](BL-REL-005-the-macos-build-ships-whatever-is-installed-on-one-laptop.md) | The macOS build freezes the sidecar against whatever is installed on one laptop; 258 MiB of packages named in no manifest reached v1.1.0 users, and Windows and Linux carry none of it | Open | High |
-| [BL-REL-006](BL-REL-006-the-only-thing-keeping-a-release-a-draft-is-a-failing-ci-job.md) | The only thing keeping a release a draft is the macOS CI job failing at its known signing step; repair that job and the next tag publishes itself | Open | High |
-| [BL-REL-007](BL-REL-007-the-checksum-file-omits-the-one-file-the-updater-downloads.md) | `SHA256SUMS.txt` omits the updater archive, the largest asset on the release and the one the updater fetches; the workflow's own filter would have included it | Open | Medium |
-| [BL-API-002](BL-API-002-the-api-server-announces-a-port-it-has-not-bound.md) | The API server logs that it is listening two lines before it binds, and reports success when the bind fails | Open | Medium, High from v1.2.0 |
-| [BL-API-003](BL-API-003-an-authenticated-api-runs-on-every-install-and-no-user-can-get-a-key.md) | An authenticated REST API runs on every install and no user can obtain a key for it; the panel that would issue one is behind a false feature flag | Open | Medium |
-| [BL-API-004](BL-API-004-the-swagger-crate-is-compiled-into-every-build-and-never-used.md) | The Swagger crate is compiled into every build and never referenced, while the page it exists to serve is a literal that fetches unpinned assets from a CDN | Open | Low |
-| [BL-SIDECAR-001](BL-SIDECAR-001-the-sidecar-contract-disagrees-with-everything-that-describes-it.md) | The sidecar's contract disagrees with its Rust client, its own settings, two of its docstrings, its only auth test and the scripts that call it | Open | Medium |
+| [BL-REL-005](BL-REL-005-the-macos-build-ships-whatever-is-installed-on-one-laptop.md) | The macOS build froze the sidecar against whatever was installed on one laptop. It now freezes from a venv built from `requirements-ci.txt` (#158); the `excludes` half was not added | Open, largely resolved | High |
+| [BL-REL-006](BL-REL-006-the-only-thing-keeping-a-release-a-draft-is-a-failing-ci-job.md) | The only thing keeping a release a draft was the macOS CI job failing. The publish decision now asserts what is attached (#87); the macOS and Linux freshness gate is still missing | Open, partly resolved | High |
+| [BL-REL-007](BL-REL-007-the-checksum-file-omits-the-one-file-the-updater-downloads.md) | `SHA256SUMS.txt` omitted the updater archive. The workflow now fails on a missing line; the published v1.1.0 file still lists five of six | Open, partly resolved | Medium |
+| [BL-API-002](BL-API-002-the-api-server-announces-a-port-it-has-not-bound.md) | The API server logged that it was listening before it bound. The log line now follows the bind; the desktop still cannot show that the API is not running | Open, partly resolved | Medium |
+| [BL-SIDECAR-001](BL-SIDECAR-001-the-sidecar-contract-disagrees-with-everything-that-describes-it.md) | The sidecar's contract disagreed with its client, its settings, its docstrings and its auth test. The auth test is fixed (#101); the dead settings and client methods remain | Open, partly resolved | Medium |
+| [BL-REL-008](BL-REL-008-a-deb-install-is-never-offered-an-update-it-can-install.md) | A `.deb` install is offered an update it cannot install: the manifest's one Linux entry is the AppImage. Fires for the first time when v1.2.0 is published | Open | Medium |
+| [BL-CLAIM-005](BL-CLAIM-005-the-in-app-model-card-shows-the-previous-models-figures.md) | The in-app model card shows 4.12% false positives for the UnivFD probe; the shipped model's metadata says 3.87% | Open | Medium |
+| [BL-LIC-001](BL-LIC-001-what-the-licensing-audit-left.md) | What the licensing audit left: one sentence in `TRAINING.md` that still reads as a licence term, no `license` field in `ui/package.json`, 51 files without an SPDX header | Open | Low |
 
 ## Closed items
 
@@ -60,6 +62,12 @@ Kept in the table because the history is the point. Each file carries its
 
 | Item | What it was | Closed |
 |---|---|---|
+| [BL-API-001](BL-API-001-the-headless-api-is-documented-and-does-not-exist.md) | The headless API was documented and did not exist. `docs/API_WRAPPER.md` rewritten against the source, `jura-trace-api` and the `jura` client built (v1.2.0 B2a stages 0 to 6, B2b) | 5 Oct |
+| [BL-API-003](BL-API-003-an-authenticated-api-runs-on-every-install-and-no-user-can-get-a-key.md) | An authenticated API ran on every install and no user could get a key. Keys are issued in Settings on every tier (#157) | 8 Oct |
+| [BL-SIZE-001](BL-SIZE-001-242mb-of-download-computes-10kb-of-constants.md) | 242 MB of every download computed 10 KB of constants. The CLIP text encoder is precomputed and no longer shipped (#158) | 8 Oct |
+| [BL-API-004](BL-API-004-the-swagger-crate-is-compiled-into-every-build-and-never-used.md) | The Swagger crate was compiled in and never used while the page fetched from a CDN. The crate now serves vendored assets from the binary (#99) | 21 Sept |
+| [BL-UX-001](BL-UX-001-tool-object-object-in-the-c2pa-panel.md) | The C2PA panel showed "Tool: [object Object]". It shows the generator's name (#95) | 17 Sept |
+| [BL-CLAIM-003](BL-CLAIM-003-the-pdf-report-asserts-checks-that-never-ran.md) | The exported report asserted OCSP/CRL checks that never ran. The report, `api.ts` and the settings toast no longer claim them (#35) | 29 Sept |
 | [BL-PERF-001](BL-PERF-001-five-seconds-of-every-windows-launch-is-taskkill.md) | About 5 s of every Windows launch was the app waiting on a `taskkill` child, and each sidecar `/health` cost 2 s on Ollama. Replaced with an in-process sweep and `/health/ready` (#109); warm launch 3.7 s with the B1 port | 24 Sept |
 | [BL-LOG-001](BL-LOG-001-the-app-log-file-records-errors-only.md) | The app's log file recorded errors only. Default filter now `warn,jura_trace_lib=info`, millisecond timestamps (#109) | 24 Sept |
 | [BL-CLAIM-004](BL-CLAIM-004-standard-mode-does-not-cover-the-signing-timestamp.md) | Signing sent a hash to DigiCert even in Standard mode. Option 3: ask once, remember, refuse until answered (#112) | 24 Sept |
@@ -99,4 +107,4 @@ been or will be deleted.
 Until that is decided, the items above are the ones found by reading the
 code and the live systems from 3 September 2026 onwards, not by mining
 Plane. (This paragraph said "the eight items" when the directory held
-eight; it holds twenty-nine as of 11 September.)
+eight; it holds thirty-five as of 13 October.)

@@ -163,3 +163,7 @@ because it is produced by the other utoipa crate, which is genuinely used.
 Written up as **BL-API-004**, which holds the dependency evidence. The
 decision belongs to this item, because it is this item's row 5 that the
 fix closes. Whoever takes A2 should read both.
+
+## Update, 13 October 2026: reconciled against `main` at `a7b58e65`
+
+No change to the finding. For the record against the v1.2.0 plan: the README text (A4), the vendored Swagger assets (A12, PR #99) and the public download README (`Jura-Labs/jura-trace` PR #2, merged 8 October) are all done. Everything here is fixed on `main` and reaches users with v1.2.0. Close it when v1.2.0 is published.
