@@ -1,6 +1,6 @@
 # BL-REL-006: the only thing keeping a release a draft is a failing CI job
 
-**Status**: Open. Found 11 September 2026, reading `release.yml` while
+**Status**: Open, partly resolved. Step 1 is on `main` (PR #87). See the update of 13 October 2026. Found 11 September 2026, reading `release.yml` while
 planning the v1.2.0 release work. It is what remains of item 6 of
 BL-SILENT-001's "still to file, ranked" list. That item's first half, an
 incomplete `latest.json` reaching the live endpoint, was closed by the
@@ -175,3 +175,11 @@ BL-SILENT-001 of 11 September 2026 as well as here.
   both fixed by asserting what is required, but one is a publish decision
   and one is a checksum file, and BL-REL-007 is cheap enough that it should
   not wait for this.
+
+## Update, 13 October 2026: reconciled against `main` at `a7b58e65`
+
+Read from `.github/workflows/release.yml` on `main`, not run.
+
+- **Step 1, done** in PR #87 (`93bf8347`, 16 September, plan items A1a and A1b). The publish decision no longer reads `needs.build.result == 'success'`; the comment at `:2749` records the change, and publishing asserts what is attached.
+- **Step 2, open.** The freshness gate exists for Windows only (`:1792`). There is no equivalent for macOS or Linux.
+- **Steps 3 and 4, not checked** in this pass.

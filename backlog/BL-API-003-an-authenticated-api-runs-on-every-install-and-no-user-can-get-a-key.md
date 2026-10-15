@@ -1,6 +1,6 @@
 # BL-API-003: an authenticated API runs on every install and no user can get a key for it
 
-**Status**: Open. Found 11 September 2026, reading the Axum surface and the
+**Status**: Resolved 8 October 2026 (PR #157). Found 11 September 2026, reading the Axum surface and the
 settings page while planning the v1.2.0 headless API and CLI.
 **Raised**: 11 September 2026
 **Severity**: Medium. Nothing is exposed and no user is harmed, because the
@@ -142,3 +142,5 @@ authentication, it needs an issuance path, and there is none.
   derivation at `:813` is a second gate, and the copy behind it is wrong.
   Flipping the flag alone shows Community users a panel telling them the
   feature does not exist while their machine serves it.
+
+Resolved: 2026-10-08 8877d8c7 — PR #157, plan item A10. API keys are issued in Settings on every tier, and a key made there is accepted by the API.

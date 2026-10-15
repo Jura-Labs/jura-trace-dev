@@ -1,6 +1,6 @@
 # BL-UX-001: the C2PA panel shows "Tool: [object Object]"
 
-**Status**: Open. Found in the shipped v1.0.0 on 21 June 2026 (Plane
+**Status**: Resolved 17 September 2026 (PR #95). Found in the shipped v1.0.0 on 21 June 2026 (Plane
 JTV-248); confirmed still present in the code on 3 September 2026.
 **Raised**: 3 September 2026
 **Severity**: Low to fix, high to be seen. It appears in the one panel that
@@ -83,3 +83,5 @@ threw, and the surrounding `catch` returned an empty list, hiding every
 action in the panel without a word. Both are now read only when they are
 strings. The fix lives in `formatSoftwareAgent` in `ui/src/lib/c2pa-labels.ts`,
 pinned by `c2pa-labels.test.ts` using the exact shape Trace signs with.
+
+Resolved: 2026-09-17 7db07c54 — PR #95. The C2PA panel shows the generator's name when `softwareAgent` is a `GeneratorInfo` object, and still accepts the bare string.

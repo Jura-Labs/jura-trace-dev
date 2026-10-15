@@ -1,6 +1,6 @@
 # BL-SIDECAR-001: the sidecar's contract disagrees with everything that describes it
 
-**Status**: Open. Found 11 September 2026, reading the sidecar's HTTP and
+**Status**: Open, partly resolved. Finding 4, the security one, is fixed (PR #101). See the update of 13 October 2026. Found 11 September 2026, reading the sidecar's HTTP and
 configuration surface while planning the v1.2.0 headless API and CLI.
 **Raised**: 11 September 2026
 **Severity**: Medium. Four of the five findings are dead weight and stale
@@ -193,3 +193,10 @@ that agrees with them regardless of what they do.
 - **Do not fold finding 1 into the v1.0.1 video and audio work and forget
   it.** That work will be looking at the sidecar side. The stale client is
   on the Rust side and is what the sidecar work will trip over.
+
+## Update, 13 October 2026: reconciled against `main` at `a7b58e65`
+
+- **Finding 4, done** in PR #101 (`7187c79d`, 21 September). The `PYTEST_CURRENT_TEST` carve-out is gone from `sidecar/main.py` and the test is now `test_forensics_refused_when_key_not_configured`.
+- **Finding 5, done as far as the client goes.** `JURA_API_URL` is the one name used by the `jura` client and `docs/API_WRAPPER.md`. `JURA_SIDECAR_URL` survives in two script lines.
+- **Finding 2, open.** `sidecar_port` and `sidecar_host` are still in `sidecar/app/config.py`.
+- **Findings 1 and 3, not checked** in this pass. `src-tauri/src/sidecar.rs` still mentions video and audio 78 times, which suggests finding 1 is open.

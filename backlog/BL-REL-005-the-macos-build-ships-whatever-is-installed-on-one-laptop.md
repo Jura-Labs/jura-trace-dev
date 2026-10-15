@@ -1,6 +1,6 @@
 # BL-REL-005: the macOS build ships whatever is installed on one laptop, and 258 MiB of it reached users
 
-**Status**: Open. Found 11 September 2026, measuring the installed v1.1.0
+**Status**: Open, largely resolved. Steps 1 and 4 are on `main` (PR #158); step 2 is open and step 5 was not checked. See the update of 13 October 2026. Found 11 September 2026, measuring the installed v1.1.0
 bundle while planning the v1.2.0 size work.
 **Raised**: 11 September 2026
 **Severity**: High. Not for the megabytes, which are merely embarrassing,
@@ -196,3 +196,15 @@ A cross-reference is added to BL-DEPS-004 under "Update, 11 September
 - **Do not add the packages to the requirements files to make the bundle
   legitimate.** They are unused. The manifests are right and the bundle is
   wrong.
+
+## Update, 13 October 2026: reconciled against `main` at `a7b58e65`
+
+Read from the tree on `main`, not built.
+
+- **Step 1, done** in PR #158 (`4f1ddbb1`, 8 October, plan item A2). The opportunistic `chromadb` and `sentence_transformers` collection is removed from `sidecar/jura-sidecar.spec` (the comment at `:112-117` records why).
+- **Step 2, open.** None of `pyarrow`, `pandas`, `chromadb`, `sentence_transformers` or `datasets` is in the spec file's `excludes`. Step 4 makes this matter less, because the build environment no longer has them, but the fail-closed half was not added.
+- **Step 4, done** in the same PR. `scripts/build-local-mac.sh` freezes the sidecar from a virtual environment built from `sidecar/requirements-ci.txt` (`:60-66`) and refuses to run without `uv` (`:105`).
+- **Step 3** is recorded in PR #158, not repeated here.
+- **Step 5, not checked.** Whether the script compares the `_internal` package set against the previous release's.
+
+This closes when a v1.2.0 macOS build has been measured without the 258 MiB.
