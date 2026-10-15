@@ -379,6 +379,18 @@ jobs:
       - name: Run e2e tests (296 of 314; visual baselines are macOS-only)
         run: cd ui && npx playwright test --grep-invert "visual:"
 
+      # TEMPORARY, C3: generate the Linux baselines on this runner. Removed
+      # before merge, once the *-linux.png files are committed.
+      - name: Generate Linux visual baselines (temporary)
+        run: cd ui && npx playwright test --grep "visual:" --update-snapshots=missing
+
+      - name: Upload Linux visual baselines (temporary)
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: linux-visual-baselines
+          path: ui/tests/**/*-linux.png
+          retention-days: 7
+
       - name: Upload Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
