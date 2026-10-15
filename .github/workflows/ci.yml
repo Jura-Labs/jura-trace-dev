@@ -382,9 +382,11 @@ jobs:
       # TEMPORARY, C3: generate the Linux baselines on this runner. Removed
       # before merge, once the *-linux.png files are committed.
       - name: Generate Linux visual baselines (temporary)
+        continue-on-error: true
         run: cd ui && npx playwright test --grep "visual:" --update-snapshots=missing
 
       - name: Upload Linux visual baselines (temporary)
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: linux-visual-baselines
