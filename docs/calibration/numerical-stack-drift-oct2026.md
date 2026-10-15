@@ -1,7 +1,7 @@
 # numpy, scipy, OpenCV and pillow-avif bump: drift rerun before merge
 
 **Date**: 15 October 2026
-**Result**: **No user-visible output changed on any of the 84 golden images.** Score, verdict level, triggered signals, heatmap, GBM probability, UnivFD probability and copy-move results are bit-identical between the current lock and the bumped one.
+**Result**: **No user-visible output changed on any of the 84 drift images, and the 217-image golden verdict set matches exactly.** Score, verdict level, triggered signals, heatmap, GBM probability, UnivFD probability and copy-move results are bit-identical between the current lock and the bumped one.
 **Consequence**: numpy 2.5.4, scipy 1.18.1, opencv-python-headless 5.0.0.93 and pillow-avif-plugin 1.6.0 are taken in v1.2.0 (C1 step 4) without recalibration. One behaviour change ships with them: the GAN fingerprint detector now runs on AVIF.
 
 ## Why it was rerun
@@ -51,6 +51,27 @@ the lock's header.
 
 The sidecar test suite under the candidate environment: 366 passed,
 71 skipped.
+
+## The 217-image golden verdict set
+
+The second check the v1.2.0 plan names. `scripts/golden_verdicts.py` over
+the 213 JPEG and PNG images in the corpus `test_set` plus the four images
+in `docs/sample-media/jura-trace-sample-images.zip`, through the whole
+product: `jura-trace-api --ephemeral` with its sidecar started from each
+environment's Python running `sidecar/main.py`, and `jura verify --mode
+deep --format ndjson` per image.
+
+```
+compared 217 images (expected 217), tolerance 0.0
+OK: every verdict, score and CLIP readout is unchanged, and CLIP ran on every image in both runs
+```
+
+Both runs used the same debug `jura-trace-api` build, from 5 October.
+That build fails to parse the sidecar's content-type reply ("Sidecar
+content-type classification failed"), which `main` has since fixed. It
+failed the same way in both runs, so the comparison holds, but it is not a
+run of the release candidate. The release gate's own golden run on the
+built installers covers that.
 
 ## The behaviour change: GAN fingerprint on AVIF
 
