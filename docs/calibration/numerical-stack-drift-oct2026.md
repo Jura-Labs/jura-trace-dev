@@ -67,11 +67,12 @@ OK: every verdict, score and CLIP readout is unchanged, and CLIP ran on every im
 ```
 
 Both runs used the same debug `jura-trace-api` build, from 5 October.
-That build fails to parse the sidecar's content-type reply ("Sidecar
-content-type classification failed"), which `main` has since fixed. It
-failed the same way in both runs, so the comparison holds, but it is not a
-run of the release candidate. The release gate's own golden run on the
-built installers covers that.
+In both, "Sidecar content-type classification failed: error decoding
+response body" was logged on all 217 images. That is not this bump and not
+the old build: `ContentTypeResult` in `src-tauri/src/sidecar.rs` has
+deserialised camelCase since 14 April (`672bba5f`) while the sidecar sends
+snake_case, so `ai_detection_suitable` never parses. It failed identically
+in both runs, so this comparison holds. It is filed as BL-SILENT-002.
 
 ## The behaviour change: GAN fingerprint on AVIF
 
