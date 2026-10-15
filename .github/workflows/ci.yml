@@ -364,34 +364,16 @@ jobs:
       - name: Install Playwright browser
         run: cd ui && npx playwright install --with-deps chromium
 
-      # The nine visual-regression tests (eighteen across the two projects)
-      # are deselected rather than ignored, so they show as not-run instead
-      # of silently passing.
-      #
-      # Every committed baseline is a *-darwin.png, because they were all
-      # generated on a Mac. Playwright puts the platform in the snapshot
-      # filename, so on an Ubuntu runner it looks for *-linux.png, finds
-      # nothing, and fails. Deselecting is honest about that; passing
-      # --ignore-snapshots would make the assertions succeed without
-      # comparing anything, which is the failure mode this workflow exists to
-      # prevent. Generating and committing Linux baselines is the fix and is
-      # tracked in BL-TEST-003.
-      - name: Run e2e tests (296 of 314; visual baselines are macOS-only)
-        run: cd ui && npx playwright test --grep-invert "visual:"
-
-      # TEMPORARY, C3: generate the Linux baselines on this runner. Removed
-      # before merge, once the *-linux.png files are committed.
-      - name: Generate Linux visual baselines (temporary)
-        continue-on-error: true
-        run: cd ui && npx playwright test --grep "visual:" --update-snapshots=missing
-
-      - name: Upload Linux visual baselines (temporary)
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: linux-visual-baselines
-          path: ui/tests/**/*-linux.png
-          retention-days: 7
+      # All 318 tests, including the nine visual-regression tests (eighteen
+      # across the two projects). Playwright puts the platform in the snapshot
+      # name, so this Ubuntu runner compares against the committed
+      # *-linux.png set, generated on this runner image on 15 October 2026
+      # (v1.2.0 C3). The *-darwin.png set serves macOS developers. They are
+      # independent on purpose: font rendering differs, and one tolerance wide
+      # enough for both would hide real regressions. Regenerate the Linux set
+      # with `--update-snapshots` on a runner, never on a Mac. BL-TEST-003.
+      - name: Run e2e tests
+        run: cd ui && npx playwright test
 
       - name: Upload Playwright report on failure
         if: failure()
