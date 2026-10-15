@@ -275,7 +275,8 @@ Top-level entry points and non-obvious files. Sidecar services live under `sidec
 - **Error module**: `src-tauri/src/error.rs` — `AppError` enum with structured IPC serialisation `{ code, message }`
 - **Tauri config**: `src-tauri/tauri.conf.json` — app name, window, permissions, auto-updater endpoint
 - **Sidecar entry**: `sidecar/main.py` — FastAPI application
-- **CI requirements** (non-obvious): `sidecar/requirements-ci.txt` — the file CI actually uses for PyInstaller builds (excludes torch/whisper/chromadb). Separate from `requirements.txt`.
+- **Sidecar manifests** (non-obvious): three files, three consumers. `sidecar/requirements-ci.txt` is what `release.yml` installs before the Windows and Linux PyInstaller builds (excludes torch/whisper/chromadb). `sidecar/requirements.lock` is what `ci.yml` installs to run the sidecar tests. `sidecar/requirements.txt` is the source the lock is compiled from. `scripts/check_requirements_sync.py` fails CI when they disagree.
+- **A sidecar dependency bump is a four-file change** (BL-DEPS-004 option (d)): `requirements.txt`, `requirements-ci.txt`, the lock regenerated with the `pip-compile` command in its header, and, for anything under the detector arithmetic (numpy, scipy, opencv, Pillow and its plugins, scikit-learn, onnxruntime), a before-and-after drift run written up in `docs/calibration/`. Dependabot pip pull requests change only the first two and stay red until the lock is regenerated; that is the guard working.
 - **PyInstaller spec**: `sidecar/jura-sidecar.spec` — parameterised for macOS/Windows/Linux
 - **Frontend contract**: `ui/src/lib/types.ts` (mirrors Rust structs) and `ui/src/lib/api.ts` (Tauri IPC wrapper with browser mock fallback)
 - **Main UI**: `ui/src/routes/verify/+page.svelte`, `ui/src/routes/protect/+page.svelte`, `ui/src/routes/+layout.svelte`

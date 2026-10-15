@@ -38,8 +38,19 @@ Comparison rules:
     requirements-ci.txt without touching the lock, so no single pip run
     ever sees the conflict. The result was a green Python job that had
     tested the version being replaced. See backlog/BL-DEPS-004.
-  - Specifiers other than `==` (for example `>=1.4.0`) are name-checked
-    only; there is no single version to compare.
+  - Specifiers other than `==` (for example `>=1.4.0`) in requirements.txt
+    or requirements-ci.txt are checked against the version the lock pins,
+    and fail when the lock does not satisfy them. Added 15 October 2026
+    (v1.2.0 C2). Before that they were name-checked only, so a floor above
+    the locked version passed silently: Dependabot's #12 proposed
+    `pytest-asyncio>=1.4.0` while the lock pinned 1.3.0, and ci.yml
+    installed 1.3.0. Supported operators: ==, !=, >=, >, <=, <, ~=.
+  - Every package in requirements-ci.txt must also be pinned in the lock,
+    added 15 October 2026 (v1.2.0 C2). release.yml freezes
+    requirements-ci.txt and ci.yml installs the lock, so a package in the
+    first and not the second ships without CI ever installing it. The
+    version check above cannot see this, because it needs a package in two
+    files. Known exceptions are listed in CI_ONLY_ALLOWED with a reason.
   - Testing-only markers such as `pytest` that appear in requirements.txt
     under a comment block "# Testing" are excluded from the check via
     an explicit allowlist — they are not needed in the frozen binary.
@@ -70,6 +81,21 @@ TESTING_ONLY = {
 TESTING_ONLY_BARE = {
     "httpx",  # bare re-pin under # Testing block; runtime version already pinned
 }
+
+# Packages in requirements-ci.txt that the lock does not pin, and why that
+# is accepted. Each entry ships in the Windows and Linux sidecar without CI
+# installing it. Keep this list empty if possible.
+CI_ONLY_ALLOWED = {
+    # Pinned in requirements-ci.txt as a transitive of anyio, but the lock is
+    # a full pip-compile resolution of requirements.txt and does not contain
+    # it, so nothing in the resolved graph needs it any more (anyio 4.14.2
+    # does not depend on sniffio). An orphan pin, not a missing test.
+    # Removing it changes what release.yml freezes, so it goes with the
+    # C1 step 4 sidecar bump rather than with this guard (15 October 2026).
+    "sniffio",
+}
+
+SPEC_OPS = ("===", "~=", "==", "!=", ">=", "<=", ">", "<")
 
 
 def normalise(name: str) -> str:
@@ -117,6 +143,92 @@ def extract_pin(line: str) -> tuple[str, str] | None:
     if not match:
         return None
     return normalise(match.group(1)), match.group(2)
+
+
+def extract_specifiers(line: str) -> tuple[str, list[tuple[str, str]]] | None:
+    """Return (normalised name, [(operator, version), ...]) for a requirement line.
+
+    `pytest>=9.1.1` gives ("pytest", [(">=", "9.1.1")]); a bare name gives an
+    empty list. Returns None for comments, blank lines and option lines.
+    """
+    line = line.strip()
+    if not line or line.startswith("#") or line.startswith("-"):
+        return None
+    line = line.split("#")[0].split(";")[0].strip().rstrip("\\").strip()
+    match = re.match(r"^([A-Za-z0-9._-]+)(?:\[[^\]]*\])?\s*(.*)$", line)
+    if not match:
+        return None
+    specs: list[tuple[str, str]] = []
+    for part in filter(None, (p.strip() for p in match.group(2).split(","))):
+        op = next((o for o in SPEC_OPS if part.startswith(o)), None)
+        if op is None:
+            raise ValueError(f"unparseable specifier {part!r} in line {line!r}")
+        specs.append((op, part[len(op):].strip()))
+    return normalise(match.group(1)), specs
+
+
+def version_key(version: str) -> tuple:
+    """A sortable key for a release version such as 2.5.2 or 2026.10.23.
+
+    Stdlib only, so this covers release segments and treats any pre-release,
+    post or local suffix on a segment as sorting before the bare number. That
+    is enough for the plain release pins these manifests use; the guard's job
+    is to notice a floor above the lock, not to reimplement PEP 440.
+    """
+    key: list[tuple[int, str]] = []
+    for segment in version.split("+")[0].split("."):
+        match = re.match(r"^(\d+)(.*)$", segment)
+        if match:
+            # A suffix ("0rc1") sorts before the bare number ("0").
+            key.append((int(match.group(1)), match.group(2) or "~"))
+        else:
+            key.append((-1, segment))
+    # Pad so 1.4 and 1.4.0 compare equal and 1.0rc1 sorts before 1.0.
+    key.extend([(0, "~")] * (8 - len(key)))
+    return tuple(key)
+
+
+def satisfies(version: str, op: str, wanted: str) -> bool:
+    """Whether `version` meets the single specifier `op wanted`."""
+    if op == "===":
+        return version == wanted
+    if op in ("==", "!=") and wanted.endswith(".*"):
+        prefix_len = len(wanted[:-2].split("."))
+        matched = version_key(version)[:prefix_len] == version_key(wanted[:-2])[:prefix_len]
+        return matched if op == "==" else not matched
+    have, want = version_key(version), version_key(wanted)
+    if op == "==":
+        return have == want
+    if op == "!=":
+        return have != want
+    if op == ">=":
+        return have >= want
+    if op == ">":
+        return have > want
+    if op == "<=":
+        return have <= want
+    if op == "<":
+        return have < want
+    if op == "~=":
+        # ~=1.4.2 means >=1.4.2 and ==1.4.*
+        prefix_len = len(wanted.split(".")) - 1
+        return have >= want and have[:prefix_len] == want[:prefix_len]
+    raise ValueError(f"unsupported operator {op!r}")
+
+
+def load_specifiers(path: Path) -> dict[str, list[tuple[str, str]]]:
+    """Return {normalised name: specifiers} for every line in a requirements file.
+
+    A package listed twice (httpx, pinned and then bare under # Testing) keeps
+    the union of its specifiers.
+    """
+    specs: dict[str, list[tuple[str, str]]] = {}
+    with open(path) as f:
+        for line in f:
+            parsed = extract_specifiers(line)
+            if parsed:
+                specs.setdefault(parsed[0], []).extend(parsed[1])
+    return specs
 
 
 def load_pins(path: Path) -> dict[str, str]:
@@ -255,6 +367,64 @@ def main() -> int:
         )
         return 1
 
+    if lock_path.exists():
+        lock_pins = load_pins(lock_path)
+
+        # Check: every specifier in requirements.txt and requirements-ci.txt
+        # must be met by the version the lock pins. The `==` check above
+        # covers equal pins; this covers floors and ranges, where a `>=`
+        # above the locked version is a version CI never installs.
+        unmet: list[str] = []
+        for path in (req_path, ci_path):
+            for pkg, specs in sorted(load_specifiers(path).items()):
+                locked = lock_pins.get(pkg)
+                if locked is None:
+                    continue
+                for op, wanted in specs:
+                    if op != "==" and not satisfies(locked, op, wanted):
+                        unmet.append(
+                            f"  {pkg}: {path.name} wants {op}{wanted}, "
+                            f"{lock_path.name} pins {locked}"
+                        )
+        if unmet:
+            print(
+                "FAIL: The following specifier(s) are not met by the version "
+                f"{lock_path.name} pins:",
+                file=sys.stderr,
+            )
+            print("\n".join(unmet), file=sys.stderr)
+            print(
+                "\nci.yml installs the lock, so CI is testing a version the "
+                "manifest has ruled out. Regenerate requirements.lock with "
+                "pip-compile (see the header of that file).",
+                file=sys.stderr,
+            )
+            return 1
+
+        # Check: every package release.yml freezes must be one ci.yml
+        # installs. A package in requirements-ci.txt and not in the lock ships
+        # in the Windows and Linux sidecar without CI ever installing it.
+        allowed = {normalise(p) for p in CI_ONLY_ALLOWED}
+        untested = sorted(
+            pkg for pkg in ci_pkgs if pkg not in lock_pins and pkg not in allowed
+        )
+        if untested:
+            print(
+                f"FAIL: The following package(s) are in {ci_path.name}, which "
+                f"release.yml freezes, but not in {lock_path.name}, which "
+                "ci.yml installs:",
+                file=sys.stderr,
+            )
+            for pkg in untested:
+                print(f"  {pkg}", file=sys.stderr)
+            print(
+                "\nAdd them to requirements.txt and regenerate the lock, or "
+                "remove them from requirements-ci.txt. If neither is right, "
+                "add them to CI_ONLY_ALLOWED in this script with the reason.",
+                file=sys.stderr,
+            )
+            return 1
+
     # Informational: packages in requirements-ci.txt not in requirements.txt.
     # These are transitive pins — allowed, not an error.
     extras = ci_pkgs - req_pkgs - excluded
@@ -266,6 +436,13 @@ def main() -> int:
         f"OK: {len(all_pinned)} pinned package(s) agree on version across "
         f"{len(manifests)} manifest(s)."
     )
+    if lock_path.exists():
+        print(
+            f"OK: every specifier is met by {lock_path.name}, and every package "
+            f"in {ci_path.name} is in it"
+            + (f" except {', '.join(sorted(CI_ONLY_ALLOWED))} (CI_ONLY_ALLOWED)."
+               if CI_ONLY_ALLOWED else ".")
+        )
     if extras:
         print(
             f"INFO: {len(extras)} package(s) in requirements-ci.txt are "
