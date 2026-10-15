@@ -73,3 +73,16 @@ against Python 3.12 with the PyPI wheels. It has not been bisected further.
 - The per-platform bit-identical check of the prompt embeddings on Windows
   and Linux. It runs inside `release.yml` and has only been run on macOS
   arm64.
+
+## Later changes that move these verdicts
+
+**15 October 2026, BL-SILENT-002 (#175).** Screenshot and document
+suppression starts working. Against a run without the fix, 22 images move,
+all authentic screenshots or documents (18 from untrusted to uncertain, 4
+within uncertain), and no photograph changes. That A/B was a source-level
+run on the merged lock, written up in
+`backlog/BL-SILENT-002-content-type-suppression-has-never-run.md`. It is
+not comparable row for row with the two files here: those come from built
+macOS apps on 5 October, before the numerical-stack bump (#173) and ten
+days of other changes. So neither file is a baseline for a v1.2.0 build.
+Capture a fresh one from the built release candidate at the gate.

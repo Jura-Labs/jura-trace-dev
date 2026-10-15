@@ -87,7 +87,9 @@ the type has `category`; corrected (no snapshot changed).
 ### What it changes, on the 217-image golden set
 
 Two debug `jura-trace-api` builds from the same tree, without and with the
-fix, against the same sidecar environment (the lock merged in #173).
+fix, against the same sidecar environment (the lock merged in #173). The
+"with" build predates only the reworded suppression flag text, which no
+compared field reads.
 Classification failed on 217 of 217 before and succeeded on 217 of 217
 after: 192 photograph, 21 screenshot, 4 document.
 
@@ -103,7 +105,10 @@ after: 192 photograph, 21 screenshot, 4 document.
     from 0.87 to 0.59, and `screenshot_007` from 0.54 to 0.59. Pinning the
     AI score to neutral removes the benefit an authentic-looking AI score
     gave as well as the penalty.
-- 3 more screenshots were suppressed with no change to score or band.
+- 3 more screenshots (`screenshot_009`, `_013`, `_015`) were suppressed
+  with no change. Their AI score was already 0.15, "authentic", and their
+  trust sat at 0.55 in both runs, so a limit other than the AI score set it
+  before and after.
 - No deepfake, CLIP or UnivFD score changed on any image. Suppression
   works in trust scoring only; the detector results are still reported.
 
