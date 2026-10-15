@@ -97,6 +97,7 @@ class MainTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("idna", output)
 
+    @mock.patch.object(guard, "CI_ONLY_ALLOWED", {"sniffio"})
     def test_allowed_release_only_package_passes(self):
         code, output = self.run_guard(
             "numpy==2.2.4\n",
