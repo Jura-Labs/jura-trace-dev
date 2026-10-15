@@ -58,6 +58,12 @@ Installers:
   from v1.1.0 as a result: on the 217-image golden set it moved on 68
   images (median 0.003, largest 0.056) and one verdict changed, from
   Uncertain to Low Trust.
+- The analysis engine's numerical libraries are updated: numpy 2.5.4,
+  scipy 1.18.1, OpenCV 5.0 and pillow-avif-plugin 1.6.0. Scores and
+  verdicts are unchanged on the 84-image drift set
+  (`docs/calibration/numerical-stack-drift-oct2026.md`). One detector
+  changes: GAN fingerprint analysis now runs on AVIF images, where it
+  reported an error before.
 
 Local REST API (`docs/API_WRAPPER.md`):
 

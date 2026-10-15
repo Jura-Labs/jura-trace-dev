@@ -85,15 +85,9 @@ TESTING_ONLY_BARE = {
 # Packages in requirements-ci.txt that the lock does not pin, and why that
 # is accepted. Each entry ships in the Windows and Linux sidecar without CI
 # installing it. Keep this list empty if possible.
-CI_ONLY_ALLOWED = {
-    # Pinned in requirements-ci.txt as a transitive of anyio, but the lock is
-    # a full pip-compile resolution of requirements.txt and does not contain
-    # it, so nothing in the resolved graph needs it any more (anyio 4.14.2
-    # does not depend on sniffio). An orphan pin, not a missing test.
-    # Removing it changes what release.yml freezes, so it goes with the
-    # C1 step 4 sidecar bump rather than with this guard (15 October 2026).
-    "sniffio",
-}
+CI_ONLY_ALLOWED: set[str] = set()
+# sniffio was here until 15 October 2026: an orphan transitive pin that
+# nothing in the resolved graph needed, removed with the C1 step 4 bump.
 
 SPEC_OPS = ("===", "~=", "==", "!=", ">=", "<=", ">", "<")
 
