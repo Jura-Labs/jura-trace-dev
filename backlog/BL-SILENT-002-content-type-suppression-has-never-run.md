@@ -1,7 +1,8 @@
 # BL-SILENT-002: screenshot and document AI suppression has not run since April
 
-**Status**: Open. Found 15 October 2026, while running the 217-image golden
-verdict set for the C1 step 4 bump. Not fixed: fixing it changes verdicts.
+**Status**: Fixed 15 October 2026 for v1.2.0, Paul's decision the same day.
+Found while running the 217-image golden verdict set for the C1 step 4 bump.
+See "Fixed" at the foot of this file.
 **Severity**: High. A shipped safeguard is off, and nothing reports it
 except a `WARN` line in the log.
 **Raised**: 15 October 2026
@@ -67,3 +68,54 @@ needs:
 
 The `contentTypeResult` field also starts appearing in API responses,
 which `docs/API_WRAPPER.md` should describe if it does not already.
+
+## Fixed, 15 October 2026
+
+`#[serde(alias = "ai_detection_suitable")]` on the field, the pattern the
+other structs in `sidecar.rs` already use, with no `default`, so a reply
+missing the field still fails rather than choosing a suppression value. The
+new test `test_content_type_result_deserialise_sidecar_reply` deserialises a
+reply captured from the sidecar, checks the `false` case, and checks the
+field still serialises as `aiDetectionSuitable` for the frontend. With the
+alias removed it fails with the production error, `missing field
+aiDetectionSuitable`.
+
+The suppression flag text no longer begins "Screenshot", because it is also
+used for documents. The three AI-card test mocks used `contentType` where
+the type has `category`; corrected (no snapshot changed).
+
+### What it changes, on the 217-image golden set
+
+Two debug `jura-trace-api` builds from the same tree, without and with the
+fix, against the same sidecar environment (the lock merged in #173).
+Classification failed on 217 of 217 before and succeeded on 217 of 217
+after: 192 photograph, 21 screenshot, 4 document.
+
+- **195 images unchanged.** Every photograph is unchanged.
+- **22 moved**, all of them classified screenshot or document, all from
+  the corpus folders `authentic/screenshots` and
+  `edge_cases/edge_double_screenshot`, so all authentic.
+  - 18 from **untrusted to uncertain**. Before, the AI detectors had scored
+    these authentic screenshots 0.65 to 0.82 synthetic and capped them at
+    0.25 to 0.35. This is the false positive the April change was written
+    for.
+  - 4 stay uncertain at a new score: `screenshot_011`, `_017` and `_019`
+    from 0.87 to 0.59, and `screenshot_007` from 0.54 to 0.59. Pinning the
+    AI score to neutral removes the benefit an authentic-looking AI score
+    gave as well as the penalty.
+- 3 more screenshots were suppressed with no change to score or band.
+- No deepfake, CLIP or UnivFD score changed on any image. Suppression
+  works in trust scoring only; the detector results are still reported.
+
+Two checked by eye (`screenshot_014`, classified document, and
+`edge_double_screenshot_000`): both synthetic window-style screenshots, as
+their folder says.
+
+### What this does not show
+
+The golden set has no AI-generated screenshot or document. Suppression
+pins the AI score to neutral for anything classified that way, so an
+AI-generated image the classifier calls a screenshot would also lose its
+untrusted verdict. That is the trade-off the April design accepted, and
+these 217 images cannot measure it. A set of AI-generated screenshots and
+documents would.

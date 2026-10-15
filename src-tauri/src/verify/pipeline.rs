@@ -1353,7 +1353,7 @@ pub fn verify_content_inner(
     if !ai_detection_suitable {
         let category = content_type_category.unwrap_or("unknown");
         metadata_flags.push(format!(
-            "Screenshot — AI detection disabled: content classified as \"{category}\"; deepfake and AI-origin scores are not reliable for this content type and have been excluded from the trust score."
+            "AI detection disabled: content classified as \"{category}\". Deepfake and AI-origin scores are not reliable for this content type and have been excluded from the trust score."
         ));
     }
 

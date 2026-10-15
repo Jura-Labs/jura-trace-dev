@@ -752,6 +752,12 @@ pub struct ContentTypeResult {
     /// When `false`, AI-detection models (deepfake GBM + CLIP probe) are
     /// unreliable for this content type and their scores must be suppressed
     /// in trust scoring.
+    ///
+    /// The alias is load-bearing. Without it this field never parsed from
+    /// the sidecar's snake_case reply, every classification failed, and
+    /// suppression silently never ran from April to October 2026
+    /// (BL-SILENT-002).
+    #[serde(alias = "ai_detection_suitable")]
     pub ai_detection_suitable: bool,
     /// Raw classification signals returned by the sidecar (passthrough dict).
     pub signals: serde_json::Value,
@@ -2288,6 +2294,38 @@ mod tests {
         assert!(caps.noise);
         assert!(caps.copy_move);
         assert!(!caps.deepfake);
+    }
+
+    #[test]
+    fn test_content_type_result_deserialise_sidecar_reply() {
+        // A reply captured from the sidecar's /forensics/content-type on
+        // 15 October 2026, `signals` trimmed. The sidecar sends snake_case;
+        // this failed to parse from April to October 2026 (BL-SILENT-002).
+        let json = r#"{
+            "category": "photograph",
+            "confidence": 0.85,
+            "ai_detection_suitable": true,
+            "signals": {"format": "MPO", "has_camera_exif": true},
+            "reasoning": "photograph: camera EXIF google pixel 8"
+        }"#;
+        let result: ContentTypeResult = serde_json::from_str(json).unwrap();
+        assert_eq!(result.category, "photograph");
+        assert!(result.ai_detection_suitable);
+
+        // The case suppression exists for: the flag must arrive as false.
+        let json = r#"{
+            "category": "screenshot",
+            "confidence": 0.9,
+            "ai_detection_suitable": false,
+            "signals": {},
+            "reasoning": "screenshot"
+        }"#;
+        let result: ContentTypeResult = serde_json::from_str(json).unwrap();
+        assert!(!result.ai_detection_suitable);
+
+        // The frontend still receives camelCase.
+        let out = serde_json::to_value(&result).unwrap();
+        assert_eq!(out["aiDetectionSuitable"], serde_json::json!(false));
     }
 
     #[test]

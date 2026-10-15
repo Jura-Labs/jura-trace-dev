@@ -265,9 +265,10 @@ test.describe('AI card — header', () => {
   test('"Suppressed" badge replaces state-label when content type unsuitable', async ({ page }) => {
     const r = baseResult();
     r.contentTypeResult = {
-      contentType: 'screenshot',
+      category: 'screenshot',
       confidence: 0.95,
       aiDetectionSuitable: false,
+      signals: {},
       reasoning: 'Screenshot — AI detection unreliable',
     };
     r.deepfakeResult = gbmFixture({ score: 0.5, suspicious: false });
@@ -360,9 +361,10 @@ test.describe('AI card — verdict sentence', () => {
   test('NO verdict sentence when aiDetectionSuppressed', async ({ page }) => {
     const r = baseResult();
     r.contentTypeResult = {
-      contentType: 'screenshot',
+      category: 'screenshot',
       confidence: 0.95,
       aiDetectionSuitable: false,
+      signals: {},
       reasoning: 'Screenshot',
     };
     r.deepfakeResult = gbmFixture();
@@ -748,9 +750,10 @@ test.describe('AI card — visual regression', () => {
   test('visual: AI card when suppressed', async ({ page }) => {
     const r = baseResult();
     r.contentTypeResult = {
-      contentType: 'screenshot',
+      category: 'screenshot',
       confidence: 0.95,
       aiDetectionSuitable: false,
+      signals: {},
       reasoning: 'Screenshot — AI detection unreliable',
     };
     r.deepfakeResult = gbmFixture();
