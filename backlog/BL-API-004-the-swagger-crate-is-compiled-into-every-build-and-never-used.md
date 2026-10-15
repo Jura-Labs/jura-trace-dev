@@ -1,6 +1,6 @@
 # BL-API-004: the Swagger crate is compiled into every build and never used
 
-**Status**: Open. Found 11 September 2026, reading the Axum surface while
+**Status**: Resolved 21 September 2026 (PR #99). Found 11 September 2026, reading the Axum surface while
 planning the v1.2.0 headless API and CLI.
 **Raised**: 11 September 2026
 **Severity**: Low on its own. It matters because it changes the cost of a
@@ -109,3 +109,5 @@ rather than a patch.
   BL-CLAIM-001 exists because the README says there are none.
 - **Do not remove `utoipa` itself.** It generates the OpenAPI document the
   v1.2.0 CLI work depends on. Only the `-swagger-ui` crate is unused.
+
+Resolved: 2026-09-21 baf31507 — PR #99. The other way round from what this item proposed: the crate was kept and put to use. `utoipa-swagger-ui` is built with its `vendored` feature and `api/mod.rs` serves the page from the binary, so nothing is fetched from `unpkg.com`. It is no longer compiled and unused.

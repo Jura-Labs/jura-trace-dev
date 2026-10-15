@@ -1,6 +1,6 @@
 # BL-API-001: the headless API deployment story is documented and does not exist
 
-**Status**: Open. Found 3 September 2026, while assessing what would most
+**Status**: Resolved 5 October 2026 (v1.2.0 B2a, stages 0 to 6). Found 3 September 2026, while assessing what would most
 increase adoption. Documentation half done 1 October 2026 (v1.2.0 B2a stage
 0): `docs/API_WRAPPER.md` rewritten against the source, so it no longer
 describes a binary, flag or config file that do not exist. The headless
@@ -143,3 +143,5 @@ everywhere. Whether five seconds is the right number once a headless binary
 shares the file is a real question for the design and a different one from
 the defect as written. Recorded here rather than edited into the design
 document, per the constraint on the deliverable that found it.
+
+Resolved: 2026-10-05 63f3a039 — v1.2.0 B2a stages 0 to 6 (#131, #134, #135, #137, #139, #141, #142, #143, #156) and B2b. `docs/API_WRAPPER.md` describes the source, `jura-trace-api` is a real headless binary, and the `jura` client is a workspace member. Ships in v1.2.0.

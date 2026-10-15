@@ -1,6 +1,6 @@
 # BL-API-002: the API server announces a port it has not bound, and reports success when it fails to bind
 
-**Status**: Open. Found 11 September 2026, reading the Axum surface while
+**Status**: Open, partly resolved. Step 1 is on `main`; the desktop still does not show the state. See the update of 13 October 2026. Found 11 September 2026, reading the Axum surface while
 planning the v1.2.0 headless API and CLI.
 **Raised**: 11 September 2026
 **Severity**: Medium today, because the only common trigger is a second
@@ -133,3 +133,14 @@ each instance.
 - **Do not add a retry loop on the port.** Silently moving to 8301 gives
   every consumer a port it cannot predict, and it is the same defect in a
   new shape: the log would then name a port nobody was told about.
+
+## Update, 13 October 2026: reconciled against `main` at `a7b58e65`
+
+Read from `src-tauri/src/api/mod.rs` on `main`, not run.
+
+- **Step 1, done.** "API server listening" is logged inside `bind` (`:188-190`), after the bind succeeds.
+- **Step 2, decided differently.** The desktop path still returns `Ok(())` when the bind fails (`:171-176`), now with a `warn!` that says the REST API is unavailable for the session. The headless binary treats the same failure as fatal. That is a deliberate split, stated in the comment at `:166-168`.
+- **Step 3, open.** Nothing on `AppState` records whether the API is listening, so Settings cannot say it is not. A desktop user whose port was taken still learns it only from the log.
+- **Step 4, answered** by the v1.2.0 design: desktop carries on, headless fails.
+
+What remains is step 3.

@@ -1,6 +1,6 @@
 # BL-REL-007: the checksum file omits the one file the updater downloads
 
-**Status**: Open. Found 11 September 2026, checking the published v1.1.0
+**Status**: Open, partly resolved. The workflow assertion is on `main`; the published v1.1.0 file is still incomplete. See the update of 13 October 2026. Found 11 September 2026, checking the published v1.1.0
 assets while planning the v1.2.0 release work.
 **Raised**: 11 September 2026
 **Severity**: Medium. Nobody is misled, because the file does not claim to
@@ -143,3 +143,10 @@ published for people, not about what the updater checks.
 - **Do not wait for BL-REL-006.** They share a cause and a fix shape, and
   this one is a day's work at most. Shipping it first is fine and gives
   BL-REL-006 a working pattern to copy.
+
+## Update, 13 October 2026: reconciled against `main` at `a7b58e65`
+
+- **Step 1, done.** `release.yml:2138`, "Assert SHA256SUMS covers every installer artefact", fails the run when an attached artefact has no line.
+- **Step 2, open, and checked against the live release today.** The `SHA256SUMS.txt` published on v1.1.0 still lists five files. `Jura.Trace.app.tar.gz`, the archive the macOS updater downloads, has no line. Replacing a published asset on the public repository needs Paul's approval, so it has not been done.
+- **Step 3** is answered by step 1 for releases cut from the workflow.
+- **Step 4** stands: v1.0.0 is left alone.
