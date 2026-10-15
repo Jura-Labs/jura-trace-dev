@@ -554,6 +554,11 @@ jobs:
       # sidecar/requirements-ci.txt. Catches the class of drift that caused
       # onnxruntime (and regex) to be missing from CI sidecar builds (JTV-143,
       # 3 May 2026), making clip_detect silently false on Windows/Linux installs.
-      # The guard runs without installing any extra packages (stdlib only).
+      # Since BL-DEPS-004 it also fails when the three manifests pin different
+      # versions, when a `>=` floor is above the locked version, or when a
+      # package release.yml freezes is missing from the lock ci.yml installs.
+      # The guard and its tests run without installing anything (stdlib only).
       - name: Check requirements-ci.txt is in sync with requirements.txt
-        run: python3 scripts/check_requirements_sync.py
+        run: |
+          python3 -m unittest scripts/test_check_requirements_sync.py
+          python3 scripts/check_requirements_sync.py
