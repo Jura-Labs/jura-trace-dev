@@ -326,20 +326,20 @@
         </thead>
         <tbody class="muted-help">
           <tr class="border-b border-border-light/50 dark:border-border-dark/50">
-            <td class="py-2 pr-4">AUC-ROC (5-fold cross-validation)</td>
-            <td class="py-2 pr-4 font-mono">0.9933</td>
+            <td class="py-2 pr-4">AUC-ROC (held-out test set)</td>
+            <td class="py-2 pr-4 font-mono">0.9929</td>
           </tr>
           <tr class="border-b border-border-light/50 dark:border-border-dark/50">
             <td class="py-2 pr-4">Authentic false positive rate</td>
-            <td class="py-2 pr-4 font-mono">4.12%</td>
+            <td class="py-2 pr-4 font-mono">3.87%</td>
           </tr>
           <tr class="border-b border-border-light/50 dark:border-border-dark/50">
             <td class="py-2 pr-4">AI detection rate (recall)</td>
-            <td class="py-2 pr-4 font-mono">95.70%</td>
+            <td class="py-2 pr-4 font-mono">95.77%</td>
           </tr>
           <tr>
-            <td class="py-2 pr-4">Cross-validation folds</td>
-            <td class="py-2 pr-4 font-mono">5 (stratified)</td>
+            <td class="py-2 pr-4">Held-out test set</td>
+            <td class="py-2 pr-4 font-mono">5,633 images (10%, stratified)</td>
           </tr>
         </tbody>
       </table>
