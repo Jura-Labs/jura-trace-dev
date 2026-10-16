@@ -100,10 +100,10 @@ htmlcov/
 test-results/
 playwright-report/
 ui/test-results/
-# Playwright visual-regression baselines are regenerated locally per
-# platform and not committed (the suite passes only the structural
-# assertions in CI; snapshot comparison runs on developer machines).
-ui/tests/*-snapshots/
+# Playwright visual-regression baselines ARE committed, one set per platform
+# (*-darwin.png and *-linux.png), since v1.2.0 C3 on 15 October 2026. CI runs
+# the visual specs against the Linux set. Until then this directory was
+# ignored and only 9 of the 18 macOS baselines had been force-added.
 
 # ===== Build artifacts =====
 *.dmg
