@@ -58,6 +58,14 @@ Installers:
   from v1.1.0 as a result: on the 217-image golden set it moved on 68
   images (median 0.003, largest 0.056) and one verdict changed, from
   Uncertain to Low Trust.
+- Screenshots and documents: AI-detection scores are now left out of the
+  trust score, as intended since April and never in effect until now. A
+  parsing fault meant every image was scored as a photograph. Verdicts
+  change on screenshots and documents only: on the 217-image golden set,
+  18 authentic screenshots move from Low Trust to Uncertain and 4 more
+  change score within Uncertain; no photograph changes. The verification
+  page shows the notice explaining why, and `[schema]`
+  `contentTypeResult` is now filled in, where it was always `null`.
 - The analysis engine's numerical libraries are updated: numpy 2.5.4,
   scipy 1.18.1, OpenCV 5.0 and pillow-avif-plugin 1.6.0. Scores and
   verdicts are unchanged on the 84-image drift set
