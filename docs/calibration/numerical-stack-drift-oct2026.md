@@ -106,3 +106,21 @@ hiding. The next joblib or numpy bump should check it.
 0.0049 from 0.30 (`webp_test_set_04`); nearest 0.25 is 0.0064, 0.50 is
 0.0060 and 0.70 is 0.0090. The closest is about eighteen times the largest
 feature drift. That is a margin, not a proof.
+
+## Addendum, 16 October 2026: regex 2025.10.23 to 2026.9.29 (C1 step 5)
+
+`regex` reaches one place: `sidecar/app/services/clip_tokenizer.py`
+compiles the CLIP byte-pair-encoding pattern with it. Since B4 the shipped
+sidecar uses precomputed prompt embeddings and runs the tokeniser only if
+that file is unusable. The release also runs it at build time, in
+`scripts/clip_text_embeddings.py check`, to prove the precomputed array
+still matches the encoder. So the question is whether the token ids change.
+
+A `regex_only` environment, the merged lock with only `regex` changed:
+
+| Check | 2025.10.23 | 2026.9.29 |
+|---|---|---|
+| `scripts/drift/tokenizer_hash.py`, 21,497 texts (the five prompts, every line of the first 400 files under `docs/`, and mixed-script, emoji, whitespace and long-input samples) | `a6a966b1...86b34141` | `a6a966b1...86b34141` |
+| `clip_text_embeddings.py check --models-dir models` | OK, bit-identical | OK, bit-identical |
+
+Identical token ids, identical embeddings. Taken in v1.2.0.
