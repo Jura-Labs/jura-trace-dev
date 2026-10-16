@@ -1573,17 +1573,19 @@
   }
 
   // ── Export helpers ────────────────────────────────────────────────
-  async function triggerDownload(blob: Blob, filename: string) {
+  // Returns false when the user cancels the save dialog, so callers do not
+  // report a file as saved when none was written. The browser fallback
+  // cannot tell, and returns true once the download has been started.
+  async function triggerDownload(blob: Blob, filename: string): Promise<boolean> {
     if (inTauri) {
       try {
         const { save } = await import('@tauri-apps/plugin-dialog');
         const { writeFile } = await import('@tauri-apps/plugin-fs');
         const chosen = await save({ defaultPath: filename });
-        if (chosen) {
-          await writeFile(chosen, new Uint8Array(await blob.arrayBuffer()));
-          console.log(`Saved to: ${chosen}`);
-        }
-        return;
+        if (!chosen) return false;
+        await writeFile(chosen, new Uint8Array(await blob.arrayBuffer()));
+        console.log(`Saved to: ${chosen}`);
+        return true;
       } catch (e) {
         console.warn('Tauri save dialog failed, falling back to browser download:', e);
       }
@@ -1592,6 +1594,7 @@
     const a = document.createElement('a');
     a.href = url; a.download = filename; a.click();
     URL.revokeObjectURL(url);
+    return true;
   }
 
   async function handleExportReport() {
@@ -1648,7 +1651,8 @@
     try {
       const ex = await exportVerificationRecord(result, fileName ?? null);
       const blob = await packVerificationRecord(ex);
-      triggerDownload(blob, verificationRecordFileName(fileName, Math.floor(Date.now() / 1000)));
+      const saved = await triggerDownload(blob, verificationRecordFileName(fileName, Math.floor(Date.now() / 1000)));
+      if (!saved) return;
       recordExportNote = {
         ok: true,
         text: `Verification Record saved. It is signed in Sovereign mode, with a key made on this computer. HOW-TO-CHECK.txt inside tells the person you send it to how to check it. Signing certificate SHA-256: ${ex.certificateSha256}`,

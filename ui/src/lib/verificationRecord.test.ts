@@ -47,8 +47,15 @@ describe('packVerificationRecord', () => {
 describe('verificationRecordFileName', () => {
   it('keeps the name filesystem-safe', () => {
     expect(verificationRecordFileName('my photo (1).jpg', 1700000000)).toBe(
-      'jura-verification-record-my_photo__1_.jpg-1700000000.zip',
+      'jura-verification-record-my_photo__1_-1700000000.zip',
     );
     expect(verificationRecordFileName(null, 1)).toBe('jura-verification-record-file-1.zip');
+  });
+
+  it("drops only the image's own extension", () => {
+    expect(verificationRecordFileName('authentic.jpg', 1)).toBe('jura-verification-record-authentic-1.zip');
+    expect(verificationRecordFileName('scan.v2.tiff', 1)).toBe('jura-verification-record-scan.v2-1.zip');
+    expect(verificationRecordFileName('noext', 1)).toBe('jura-verification-record-noext-1.zip');
+    expect(verificationRecordFileName('.hidden', 1)).toBe('jura-verification-record-.hidden-1.zip');
   });
 });
