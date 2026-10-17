@@ -16,4 +16,38 @@
 # 8 September 2026 until v1.2.0, because every c2pa release required `rsa`.
 # c2pa-rs 0.91 moved its crypto into `c2pa_raw_crypto` and `rsa` left the
 # tree, which was the entry's own exit condition, so it was deleted.
-ignore = []
+ignore = [
+    # RUSTSEC-2026-0367, RUSTSEC-2026-0368, RUSTSEC-2026-0369 — `zip`
+    # before 9.0.0: extraction keeps SUID/SGID bits (0367), creates
+    # symlinks that point outside the destination (0368), and applies
+    # permissions through symlinks (0369).
+    #
+    # All three are about unpacking an attacker's archive to disk with
+    # `ZipArchive::extract()` or `ZipStreamReader::extract()`. Two crates
+    # in this tree still pull in an affected `zip` (c2pa moved to zip 9 in
+    # v1.2.0, #178), and neither unpacks an untrusted archive. Checked
+    # against their sources on 17 October 2026:
+    #
+    #   - `tauri-plugin-updater` 2.12 (zip 4.6.1) calls `extract()` only on
+    #     Windows, and only on bytes that have already passed
+    #     `verify_signature` against the updater public key pinned in
+    #     `tauri.conf.json`. A malicious archive needs our updater key.
+    #   - `utoipa-swagger-ui` 9.0.2 (zip 3.0.0) is a build dependency. Its
+    #     build script reads its own vendored Swagger UI bundle entry by
+    #     entry through `enclosed_name()`, and does not call `extract()`.
+    #
+    # Our own code makes no archive calls at all (no `from_archive`,
+    # `to_archive` or `zip::`).
+    #
+    # When this comes back out: neither has a fixed release yet (updater
+    # 2.14.0 still requires zip ^4, utoipa-swagger-ui 10.0.1 requires zip
+    # ^8.6). Delete all three entries once `cargo tree -i zip` shows
+    # nothing below 9.0.0, and re-assess at once if anything in this tree
+    # starts calling `extract()` on an archive that has not been
+    # signature-checked.
+    #
+    # Approved by Paul at the terminal, 17 October 2026.
+    "RUSTSEC-2026-0367",
+    "RUSTSEC-2026-0368",
+    "RUSTSEC-2026-0369",
+]
