@@ -312,9 +312,14 @@
 
   const rawTrustLevel = $derived(result ? getTrustLevel(result.overallTrust) : null);
 
+  // A deepfake verdict only counts when AI detection was not suppressed for
+  // the content type. On a screenshot or document the backend already leaves
+  // the score out of the trust band (BL-SILENT-002); letting its verdictLevel
+  // through here put "Low Trust" over an amber, uncertain-band ring.
   const hasUncertainDeepfake = $derived(
-    result?.deepfakeResult?.verdictLevel === 'inconclusive' ||
-    result?.deepfakeResult?.verdictLevel === 'synthetic'
+    result?.contentTypeResult?.aiDetectionSuitable !== false &&
+    (result?.deepfakeResult?.verdictLevel === 'inconclusive' ||
+      result?.deepfakeResult?.verdictLevel === 'synthetic')
   );
 
   // A verdict is "insufficient signal" when the core image forensic detectors
