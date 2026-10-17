@@ -118,7 +118,13 @@ file upstream when there is time.
    bundle. **Done, 10 September 2026, 08:28:15: pid 28116 became 28254,
    health 1.1.0, sidecar true, notarised, no temp directories left.**
 4. Fault 2: add the friendly error to `classifyError` in a later release;
-   open an upstream issue against tauri-plugin-updater.
+   open an upstream issue against tauri-plugin-updater. **Local half done on
+   `main`, 21 September 2026, ships in v1.2.0**: `classifyError` maps
+   `cross-device link` or `os error 18` to the move-it-to-Applications
+   message and adds that the current version has not been changed, which
+   holds because the failing rename is the first step to touch the bundle.
+   Linux is not affected: the AppImage path picks a temp directory on the
+   same device first. Upstream issue not yet filed.
 
 ## Why this belongs beside BL-SILENT-001
 

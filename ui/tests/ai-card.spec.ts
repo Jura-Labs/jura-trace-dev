@@ -265,9 +265,10 @@ test.describe('AI card — header', () => {
   test('"Suppressed" badge replaces state-label when content type unsuitable', async ({ page }) => {
     const r = baseResult();
     r.contentTypeResult = {
-      contentType: 'screenshot',
+      category: 'screenshot',
       confidence: 0.95,
       aiDetectionSuitable: false,
+      signals: {},
       reasoning: 'Screenshot — AI detection unreliable',
     };
     r.deepfakeResult = gbmFixture({ score: 0.5, suspicious: false });
@@ -360,9 +361,10 @@ test.describe('AI card — verdict sentence', () => {
   test('NO verdict sentence when aiDetectionSuppressed', async ({ page }) => {
     const r = baseResult();
     r.contentTypeResult = {
-      contentType: 'screenshot',
+      category: 'screenshot',
       confidence: 0.95,
       aiDetectionSuitable: false,
+      signals: {},
       reasoning: 'Screenshot',
     };
     r.deepfakeResult = gbmFixture();
@@ -421,7 +423,7 @@ test.describe('AI card — GBM Deepfake row', () => {
     const cardBody = page.locator('#card-ai-body');
     await expect(
       cardBody.getByText(
-        /Score reflects statistical patterns across the model's 84-feature vector/,
+        /Score reflects statistical patterns across the model's whole feature vector/,
       ),
     ).toBeVisible();
     await expect(
@@ -748,9 +750,10 @@ test.describe('AI card — visual regression', () => {
   test('visual: AI card when suppressed', async ({ page }) => {
     const r = baseResult();
     r.contentTypeResult = {
-      contentType: 'screenshot',
+      category: 'screenshot',
       confidence: 0.95,
       aiDetectionSuitable: false,
+      signals: {},
       reasoning: 'Screenshot — AI detection unreliable',
     };
     r.deepfakeResult = gbmFixture();
@@ -761,5 +764,58 @@ test.describe('AI card — visual regression', () => {
     await expect(card).toHaveScreenshot('ai-card-suppressed.png', {
       maxDiffPixelRatio: 0.02,
     });
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────
+// Headline verdict when AI detection is suppressed
+// ──────────────────────────────────────────────────────────────────
+
+test.describe('Headline verdict — AI detection suppressed', () => {
+  test.use({ viewport: { width: 1280, height: 900 } });
+
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('jura-onboarded', 'true');
+      localStorage.setItem('jura-setup-complete', 'true');
+    });
+  });
+
+  // A screenshot scored 0.59 by the backend, with the deepfake model's own
+  // verdict "synthetic" ignored because AI detection was suppressed. Found in
+  // the installed v1.2.0 build: the headline read "Low Trust" over an amber
+  // ring, because the label followed the suppressed deepfake verdict.
+  function suppressedScreenshot(suitable: boolean): MockVerificationResult {
+    const r = baseResult();
+    r.overallTrust = 0.59;
+    r.verdict = {
+      band: 'uncertain',
+      score: 0.59,
+      ceilingApplied: null,
+      bandBoundaries: { trusted: 0.7, uncertain: 0.4 },
+    };
+    r.detectorsRun = ['ela', 'deepfake', 'exif_anomaly'];
+    r.contentTypeResult = {
+      category: 'screenshot',
+      confidence: 0.55,
+      aiDetectionSuitable: suitable,
+      signals: {},
+      reasoning: 'Screenshot — AI detection unreliable',
+    };
+    r.deepfakeResult = gbmFixture({ score: 0.9, suspicious: true, verdictLevel: 'synthetic' });
+    return r;
+  }
+
+  const headline = (page: Page) =>
+    page.locator('[role="img"][aria-label^="Trust score"]');
+
+  test('follows the band, not the suppressed deepfake verdict', async ({ page }) => {
+    await injectAndOpenAiCard(page, suppressedScreenshot(false));
+    await expect(headline(page)).toHaveAttribute('aria-label', /Verdict: Moderate Trust\./);
+  });
+
+  test('a synthetic deepfake verdict still reads Low Trust when not suppressed', async ({ page }) => {
+    await injectAndOpenAiCard(page, suppressedScreenshot(true));
+    await expect(headline(page)).toHaveAttribute('aria-label', /Verdict: Low Trust\./);
   });
 });

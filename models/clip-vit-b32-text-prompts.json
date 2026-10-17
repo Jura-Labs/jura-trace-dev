@@ -1,0 +1,24 @@
+{
+  "what": "L2-normalised CLIP ViT-B/32 text embeddings of the sidecar's _TEXT_PROMPTS, computed at build time so the text encoder need not ship (BL-SIZE-001).",
+  "prompts": [
+    "a photograph taken by a camera",
+    "a real photograph of a real scene",
+    "an AI-generated image",
+    "a synthetic image created by artificial intelligence",
+    "a digitally manipulated photograph"
+  ],
+  "shape": [
+    5,
+    512
+  ],
+  "dtype": "float32",
+  "npy_sha256": "813fdbd459eae5da6de624398ae391d8e7cd07d18161e0705ab84438971a5ed9",
+  "text_encoder_sha256": {
+    "clip-vit-b32-text.onnx": "8fc6da1c31984308b121752ad6f7af3331e84a2d03c8252a4d0d6d8bebc0b784",
+    "clip-vit-b32-text.onnx.data": "375209eed56b432e9d1219287e31b07478cfd1278e6ba2120c11a43e34c80d2d"
+  },
+  "onnxruntime": "1.24.4",
+  "platform": "Darwin arm64",
+  "generated": "2026-10-05",
+  "regenerate_with": "scripts/clip_text_embeddings.py generate --models-dir models"
+}

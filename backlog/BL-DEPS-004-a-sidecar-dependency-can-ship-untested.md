@@ -1,6 +1,6 @@
 # BL-DEPS-004: a sidecar dependency can ship without CI having tested it
 
-**Status**: Open, guard in place. Option (b) shipped in #36 the same day this was filed and passes on `main`. Options (a), (c) and (d) are not done, and the macOS build script still pins nothing. See "Update, 8 September 2026" at the foot of this file. Found 8 September 2026, reading the pip half of the
+**Status**: Open, guard in place. Option (b) shipped in #36 on 8 September; the floor and release-versus-CI gaps closed, (a) declined, (c) costed and deferred, and (d) written into `AGENTS.md` on 15 October (v1.2.0 C2). The macOS channel is BL-REL-005. Found 8 September 2026, reading the pip half of the
 Dependabot queue against `ci.yml`.
 **Severity**: High. Not because any bump is known to have moved a detector
 score, but because the check that would tell us is wired so that it cannot.
@@ -337,3 +337,99 @@ than added to `ignore`, so their security updates stay live
 - **The tests still assert bounds.** The conditional assertions at
   `sidecar/tests/test_deepfake.py:243-254` and `:266-272` are as described;
   the golden-value work stays out of this item by its own rule.
+
+## Update, 11 September 2026: the macOS channel now has a measured consequence
+
+"A third channel, pinned by nothing" above, and "The macOS channel" in the
+update of 8 September, both say that `scripts/build-local-mac.sh` freezes
+the sidecar against the developer's ambient Python and that nothing proves
+the macOS build used any of the three manifests. Both are still true, at
+`scripts/build-local-mac.sh:190`, which is the same line renumbered.
+
+What is new is that the consequence has been measured in a shipped
+artefact. `sidecar/jura-sidecar.spec:112-119` runs `collect_all` over
+`chromadb` and `sentence_transformers` inside a `try/except`, so the
+contents of the bundle depend on what the build machine happens to have
+installed. It has them, from a miniconda base, and the chain through
+`datasets` pulled `pyarrow` and its Arrow dylibs, `pandas`, `grpc`,
+`tokenizers` and `hf_xet`. **258.4 MiB of packages that appear in none of
+the three manifests shipped to macOS users in v1.1.0**, and
+`/Applications/Jura Trace.app/Contents/Resources/sidecar-bundle/_internal/pyarrow`
+on the build machine is 114 MiB of it. Windows and Linux carry none of it,
+because `release.yml:541-544` installs `requirements-ci.txt` on a clean
+runner.
+
+So the version guard that option (b) landed is working and is looking at
+the wrong layer for this: it proves the three manifests agree with each
+other, and these packages are in none of them, so it stays green.
+
+Written up as **BL-REL-005**, with the argument for a separate item stated
+in that file: different failure, different fix, different schedule, and
+evidence of a different kind. This entry is the cross-reference so the two
+do not drift apart. The macOS pinning work listed under "What remains"
+above is now step 4 of BL-REL-005 and should be tracked there.
+
+## Update, 15 October 2026: options (a), (c) and (d) settled (v1.2.0 C2)
+
+### Two more gaps in the guard, closed
+
+`scripts/check_requirements_sync.py` gains two checks, with tests in
+`scripts/test_check_requirements_sync.py` that run in the same Repo hygiene
+step.
+
+- **A floor above the lock now fails.** Specifiers other than `==` in
+  `requirements.txt` and `requirements-ci.txt` are checked against the
+  version the lock pins. Dependabot #12 (`pytest-asyncio>=1.4.0` against a
+  locked 1.3.0) is the test case. Found in
+  `docs/planning/v1.2.0-dependency-debt.md` section 3.5.
+- **A package the release freezes must be one CI installs.** Every package
+  in `requirements-ci.txt` must also be pinned in the lock. The version
+  check could not see this, because it needs a package in two files. It
+  found one on `main`: `sniffio==1.3.1` is in `requirements-ci.txt`, so it
+  ships in the Windows and Linux sidecar, and is absent from the lock, which
+  is a full resolution of `requirements.txt`, so nothing needs it. It is
+  allowed by name in `CI_ONLY_ALLOWED` with that reason, and removing it
+  goes with the C1 step 4 sidecar bump, because removing it changes what
+  `release.yml` freezes.
+
+### (a) is not taken, deliberately
+
+With the version check and the two above, every package `release.yml`
+installs is in the lock at the same version, and `ci.yml` installs the lock
+with hashes. Pointing `ci.yml` at `requirements-ci.txt` would now add
+nothing CI does not already test and would lose the hash pinning. The
+blind spot (a) was meant to close is closed by the guard instead.
+
+### (c) needs more than a rename
+
+Read against `dependabot-core` on 15 October 2026,
+`python/lib/dependabot/python/pip_compile_file_matcher.rb`. Dependabot
+treats a file as a pip-compile output only when the repository has at least
+one `.in` file, and only when the output's name ends in `.txt` and either
+names itself in an `--output-file` argument or shares a basename with a
+`.in` file. This layout fails both conditions: the lock is compiled from
+`requirements.txt`, not from a `.in`, and it is named `.lock`. So the guess
+above, that renaming the lock to `requirements-lock.txt` might be the whole
+fix, is wrong. It would need `requirements.txt` renamed to `requirements.in`
+as well. The lock's recorded `--no-index` would not get in the way:
+Dependabot builds its own `pip-compile` options (`pip_compile_file_updater.rb`,
+`pip_compile_options_from_compiled_file`), taking `--generate-hashes` from
+the presence of hashes and `--no-annotate` from the absence of `# via`
+lines, and does not copy `--no-index`.
+
+That rename reaches `ci.yml`, `release.yml` (install step and cache key),
+the `Makefile`, this guard, `sidecar/main.py`'s error text and
+`scripts/backup/jura-backup.sh`, and it cannot be proved until a Monday
+Dependabot run. It is not taken in v1.2.0. Until it is, (d) is the rule.
+
+### (d) is written down
+
+`AGENTS.md` now says which file each workflow installs, which corrects the
+old line calling `requirements-ci.txt` "the file CI actually uses", and
+states the four-file rule for a sidecar bump.
+
+### Still open
+
+- The macOS channel, tracked as BL-REL-005 step 4.
+- The tests still assert bounds (BL-TEST-002).
+- (c), if the rename is ever worth a release.

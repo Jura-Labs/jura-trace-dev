@@ -19,8 +19,9 @@ something you asked for or something you can turn off:
 - **A URL you paste.** Verify by URL fetches the address you gave it.
 - **Weather lookup.** One detector cross-references historical weather for a
   stated time and place. Enhanced network mode only.
-- **API documentation.** Opening the local REST API's docs page loads Swagger
-  UI from `unpkg.com`.
+- **API documentation.** In v1.1.0 and earlier, opening the local REST API's
+  docs page loads Swagger UI from `unpkg.com`. From v1.2.0 the page is built
+  into the app and makes no network call.
 
 Standard network mode, in Settings, turns off the update check and the weather
 lookup. The timestamp request made when you sign is not covered by that switch
@@ -67,7 +68,7 @@ and no service to start.
 
 To develop it:
 
-- [Rust](https://rustup.rs/) 1.88+
+- [Rust](https://rustup.rs/) 1.96+
 - [Node.js](https://nodejs.org/) 20+
 
 Optional, and neither required nor bundled:
@@ -88,8 +89,26 @@ cd ui && npm run dev          # Terminal 1
 cd src-tauri && cargo tauri dev  # Terminal 2
 ```
 
+## Command line and scripts
+
+From v1.2.0 the installers include `jura`, a command-line client, and
+`jura-trace-api`, the analysis server without the window. Analysis still
+runs on your machine.
+
+```bash
+jura-trace-api keys add --name my-laptop   # once
+jura auth set-key -                        # paste the key
+jura verify photo.jpg --wait-ready
+```
+
+See [docs/CLI_QUICKSTART.md](docs/CLI_QUICKSTART.md) for where each installer
+puts them and how to script with them. In the app, Help, Settings, "API keys
+and the command line" covers the same ground.
+
 ## Documentation
 
+- [Command line quickstart](docs/CLI_QUICKSTART.md) — `jura` and `jura-trace-api`
+- [Local REST API](docs/API_WRAPPER.md) — endpoints, the verification result, errors, exit codes
 - [Architecture](docs/ARCHITECTURE.md) — system design, data flow, four-layer stack
 - [Technical Architecture](docs/ARCHITECTURE.md) — system design
 - [Brand Guidelines](docs/BRAND_GUIDELINES.md) — visual identity

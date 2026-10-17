@@ -133,3 +133,87 @@ about one release, the release notes are the place for it.
 
 Promise 2, the per-generator recall metadata JSON referenced by the model
 cards but never attached to a release, is untouched and still open.
+
+## Update, 11 September 2026: a thirteenth, and why the sweep could not see it
+
+The sweep above found twelve frozen version strings and fixed them. There
+is a thirteenth, at `ui/src/routes/settings/+page.svelte:2935`:
+
+> REST API access and key management are planned for the Pro tier in the
+> v1.1 release. v1.0 ships Community-only, so the verification engine is
+> fully usable through the desktop app and the Tauri IPC surface, but there
+> is no programmatic key-authenticated REST endpoint yet.
+
+Three faults in one sentence. It names two versions in prose, which is the
+exact shape the sweep was hunting. It promises a Pro tier in v1.1, and
+v1.1.0 shipped on 10 September 2026 with no Pro tier, because
+`project_v1_community_only_launch.md` deferred it and
+`project_v102_pro_launch.md` moved it again. And the last clause is false
+on its own terms: an authenticated REST API is listening on 127.0.0.1:8300
+as the sentence is read, started unconditionally at
+`src-tauri/src/lib.rs:4675`, and the comment eighteen lines above the
+sentence, at `:2913-2918`, says so.
+
+**Why it was missed, and why that matters more than the string.** The
+paragraph is inside two closed gates. `:2919` is `{#if V1_SHOW_API_KEYS}`
+and `ui/src/lib/featureFlags.ts:53` sets that flag to `false`. `:2932` is
+`{#if !apiKeysAvailable}`, and `:813` derives `apiKeysAvailable` from the
+licence tier. So the sentence does not render in any shipped build, and a
+sweep that checked what users see would not find it.
+
+That is worth recording as a property of the sweep rather than as a
+property of this string. **Copy behind a false feature flag is copy that
+goes stale unobserved and ships the day the flag is flipped.** The comment
+at `:2913-2918` ties that flip to the Pro tier unhide, so the first person
+to enable the API key panel also publishes a paragraph telling Community
+users that the feature they are looking at does not exist.
+
+Left open here rather than corrected, because unlike the twelve it is not
+fixed by deleting a version number. What the true sentence says depends on
+decisions that BL-API-003 sets out: whether the desktop keeps starting the
+API at all, whether a Community user can obtain a key, and whether the tier
+gate is enforced anywhere other than in a hidden Svelte branch. Correct the
+copy when those are answered, and correct it by describing behaviour rather
+than by naming a release.
+
+One process note for the next sweep: grep the whole of `ui/src` rather than
+the rendered surface, and treat `{#if <FLAG>}` blocks as in scope.
+
+**Resolved 8 October 2026**, 8877d8c7 (PR #157, plan item A10). The paragraph was rewritten to describe behaviour, and API keys are available in Settings on every tier.
+
+## Update, 21 September 2026: promise 2 fixed on `main`, ships in v1.2.0
+
+Paul's decision on the generator names: publish recall by **anonymised
+family**, not by name. The June decision stands.
+
+- `scripts/build_model_card_assets.py` writes `model-card-univfd.json` and
+  `model-card-gbm.json`. Generator keys are replaced by the labels in
+  `models/generator_family_labels.json`, which lives in `models/` because
+  the public snapshot excludes that directory. A key with no label, or a
+  UnivFD metadata hash that does not match the shipped joblib, stops the
+  build. The training corpus paths (`/Volumes/...`) are dropped, and the
+  counts are kept.
+- `release.yml` `publish-release` builds and attaches both files before the
+  SHA256SUMS step, and the release notes link them. `ci.yml` repo hygiene
+  runs the builder on every PR.
+- **GBM v4 has no per-generator recall.** The metadata never recorded it.
+  Its model card now says so and points at the file for what it does
+  contain. The promise of recall by family is made only on the UnivFD card.
+- **Step 4 was partly mistaken.** `deepfake_classifier_meta.json` is
+  byte-identical to `deepfake_classifier_v4_meta.json`, so it is kept.
+  "84 features" was the error: the shipped GBM v4 has `n_features_in_ ==
+  80`, and the sidecar extracts 84 and trims them. The count is corrected
+  on the model-card, glossary and forensic-detectors pages, on the verify
+  page's GBM note, in the PDF and ZIP export text, and in
+  `docs/ARCHITECTURE.md`. The methodology page now says which four
+  extracted features no shipped model uses. `univfd_probe_meta.json` (v9)
+  is deleted.
+
+**Still open, and not fixed here:** the model-card page's GBM feature-class
+list (`ui/src/routes/help/model-cards/+page.svelte`, "80 features grouped
+into the following classes") names ELA, copy-move, JPEG ghost, segmented
+ELA, shadow consistency, colour temperature, splice boundary, MakerNote
+authenticity and inter-channel coherence. None of these is among the 80
+`feature_names` in the metadata now published beside it. The real classes
+are spectral, noise, colour, saturation, LBP, GLCM, DCT, edge, Laplacian,
+LSB and demosaic. That is copy for Paul to approve, not a mechanical fix.

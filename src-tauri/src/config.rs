@@ -91,6 +91,13 @@ pub(crate) fn resolve_db_path(app: &tauri::App) -> PathBuf {
 
     std::fs::create_dir_all(&data_dir).expect("failed to create app data directory");
 
+    resolve_db_path_in(&data_dir)
+}
+
+/// The same three-source resolution as [`resolve_db_path`], for a data
+/// directory found without Tauri (the headless API). The directory must
+/// already exist.
+pub(crate) fn resolve_db_path_in(data_dir: &Path) -> PathBuf {
     // Priority 1: environment variable
     if let Ok(env_val) = std::env::var("JURA_DB_PATH") {
         let env_path = PathBuf::from(&env_val);
@@ -111,7 +118,7 @@ pub(crate) fn resolve_db_path(app: &tauri::App) -> PathBuf {
     }
 
     // Priority 2: config.json db_path key
-    let config = read_app_config(&data_dir);
+    let config = read_app_config(data_dir);
     if let Some(ref cfg_val) = config.db_path {
         let cfg_path = PathBuf::from(cfg_val);
         if let Some(parent) = cfg_path.parent() {

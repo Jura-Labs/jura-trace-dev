@@ -109,14 +109,12 @@ for package in ["uvicorn", "fastapi", "pydantic", "pydantic_settings", "starlett
 datas += collect_data_files("skimage")
 datas += collect_data_files("sklearn")
 
-# chromadb and sentence-transformers are optional heavy dependencies.
-# collect_all is wrapped in try/except so CI builds without them don't abort.
-for _optional_pkg in ["chromadb", "sentence_transformers"]:
-    try:
-        d, b, h = collect_all(_optional_pkg)
-        datas += d; binaries += b; hiddenimports += h
-    except Exception:
-        pass
+# chromadb and sentence-transformers used to be collected here "if
+# installed", which made the bundle depend on the build machine: on a clean CI
+# runner they are absent, while the macOS release machine's Python had them,
+# so the macOS app shipped 258 MiB (pyarrow, chromadb, sentence-transformers)
+# that no manifest names and CI never tested. Nothing in sidecar/app imports
+# them. Removed for v1.2.0 (A2); the bundle now follows requirements-ci.txt.
 
 # ── JTV-143 (3 May 2026): CLIP via ONNX runtime ──────────────────────────────
 # The CLIP detector now loads ViT-B/32 vision + text encoders through

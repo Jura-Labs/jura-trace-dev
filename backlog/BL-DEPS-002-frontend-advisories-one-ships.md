@@ -149,3 +149,32 @@ from a shipped artefact; the correction of 4 September stands.
    `ignore` (`.github/dependabot.yml:97-104`) with a comment that the
    vitest entry is "the entry most worth removing soon". BL-DEPS-001 step 6
    holds the decision.
+
+## Update, 15 October 2026: vitest 4 taken (v1.2.0 C4)
+
+The C4 decision was expected to be keeping the old version with a dated
+reason. Checking it changed the answer. The installed version was vitest
+2.1.9, not 3, and `npm audit` showed two criticals, vitest and tinypool,
+both fixed only by vitest 4.1.12. The `ignore` comment's claim that vitest 4
+must move with vite 8 and vite-plugin-svelte 7 was wrong: vitest 4.1.12
+declares `vite: ^6.0.0 || ^7.0.0 || ^8.0.0`, so it runs on the vite 6.4.3
+already installed.
+
+Taken alone, with `npm install -D vitest@^4.1.12` and no config change.
+On the same tree, before and after: 215 of 215 vitest tests pass under both,
+`svelte-check` reports 0 errors and 0 warnings, and `npm run build`
+succeeds. The lock drops vitest's nested vite and esbuild, and vite-node and
+tinypool with them.
+
+`npm audit` in `ui/`: 19 (2 critical, 7 high, 7 moderate, 3 low) before,
+13 (0 critical, 6 high, 4 moderate, 3 low) after. Gone: vitest, tinypool,
+@vitest/mocker, vite, vite-node and esbuild. None of them ever shipped.
+
+What remains is tailwindcss 3 and its file-watching chain (braces,
+chokidar, fast-glob, micromatch), `@tailwindcss/typography` and
+postcss-selector-parser, `@sveltejs/kit` and adapter-static via cookie,
+source-map-js, postcss-nested and smol-toml. Most of the high count is the
+tailwindcss 4 migration, which `.github/dependabot.yml` still holds, and
+whose comment there ("a UI migration with no advisory behind it") is no
+longer accurate. That is a v1.3 decision, not C4. The vitest entry is
+removed from `ignore`.

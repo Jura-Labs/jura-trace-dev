@@ -7,7 +7,7 @@
 
 import JSZip from 'jszip';
 import type { VerificationResult } from './types';
-import { getTrustLevel } from './types';
+import { trustLevelLabel } from './types';
 import { DETECTOR_ID_LABELS } from './detectorLabels';
 
 export interface CaseExportMeta {
@@ -25,7 +25,6 @@ export async function exportCaseZip(
   const zip = new JSZip();
   const version = meta.appVersion ?? '1.0.0';
   const trustPercent = Math.round(result.overallTrust * 100);
-  const trustLevel = getTrustLevel(result.overallTrust);
 
   // ── README.txt ──────────────────────────────────────────────
   const readme = [
@@ -35,7 +34,7 @@ export async function exportCaseZip(
     `File: ${meta.fileName}`,
     `File Size: ${formatBytes(meta.fileSize)}`,
     `Exported: ${new Date(meta.exportedAt).toLocaleString('en-GB')}`,
-    `Trust Score: ${trustPercent}% (${trustLevel === 'high' ? 'High Trust' : trustLevel === 'medium' ? 'Moderate Trust' : 'Low Trust'})`,
+    `Trust Score: ${trustPercent}% (${trustLevelLabel(result)})`,
     `Source Type: ${result.sourceType}`,
     `Content Type: ${result.contentType}`,
     '',
@@ -77,7 +76,7 @@ export async function exportCaseZip(
     'matches suggest content has been cloned from one area to another.',
     '',
     'AI Generation Detection',
-    'A two-head ensemble — GBM v4 (84-feature gradient-boosted classifier, AUC 0.9868)',
+    'A two-head ensemble — GBM v4 (80-feature gradient-boosted classifier, AUC 0.9868)',
     'and UnivFD v10onnx (logistic regression on CLIP ViT-B/32 embeddings, AUC 0.9929) — that',
     'analyses frequency, gradient, noise, and embedding-space signals to estimate the',
     'likelihood of AI generation. Both heads run independently and the verdict reflects',

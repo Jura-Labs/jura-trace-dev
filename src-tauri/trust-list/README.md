@@ -14,6 +14,7 @@ rather than `signingCredential.untrusted`.
 | `C2PA-TSA-TRUST-LIST.pem` | `raw.githubusercontent.com/c2pa-org/conformance-public/main/trust-list/C2PA-TSA-TRUST-LIST.pem` | Current timestamp authorities (14 certs) |
 | `ITL-anchors.pem` | `raw.githubusercontent.com/contentauth/verify-site/main/static/trust/anchors.pem` | Interim Trust List anchors — legacy, frozen Jan 2026, required for content signed before then (27 certs) |
 | `ITL-allowed.pem` | `raw.githubusercontent.com/contentauth/verify-site/main/static/trust/allowed.pem` | Interim Trust List end-entity allowlist (115 certs) |
+| `valid_eku_oids.cfg` | c2pa-rs 0.91.3, `src/crypto/cose/valid_eku_oids.cfg` (identical in 0.90.20) | The signing-certificate EKUs c2pa-rs accepts by default. Passed as `trust.trust_config`, because 0.91 drops this default once trust anchors are set (see `trust_settings` in `src/c2pa.rs`) |
 
 ## Refresh Policy
 

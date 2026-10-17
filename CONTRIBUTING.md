@@ -76,7 +76,7 @@ These files affect signing, parsing, IPC, key handling, the auto-updater, or the
 - `src-tauri/src/metadata.rs` (parser surface)
 - `src-tauri/src/api/` (REST surface)
 - `src-tauri/Cargo.toml` (dependency upgrades)
-- `.github/workflows/release.yml` and `.forgejo/workflows/release.yml` (release pipeline + signing)
+- `.github/workflows/release.yml` (release pipeline + signing)
 - `src-tauri/tauri.conf.json` (updater + bundle config)
 - `sidecar/app/services/clip_detector.py` and `sidecar/app/services/deepfake.py` (model loading + scoring)
 - `sidecar/jura-sidecar.spec` (PyInstaller bundling)

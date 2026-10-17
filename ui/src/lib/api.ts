@@ -9,6 +9,7 @@
  */
 
 import type { Annotation, AppErrorResponse, AppStats, Asset, AudioMetadataResult, AuditLogEntry, CatalogueMatch, ConformantCertificateInfo, Fingerprint, LicenceTier, ManifestInfo, MetadataSigningWarning, MonitorEvent, MonitorOverview, MonitorUrl, NetworkMode, NprResult, ShadowConsistencyResult, SidecarHealth, SidecarStartupSnapshot, SidecarStartupStatus, SigningMode, SimilarAsset, SolarPosition, SpliceBoundaryResult, TimeEstimate, VerificationResult, VerificationSummary, VerifyMode, VideoDeepfakeResult, VideoFramesResult, VideoMetadataResult, WatermarkEmbedResult, WatermarkExtractResult } from './types';
+import type { VerificationRecordExport } from './verificationRecord';
 
 // Detect if running inside Tauri
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -1291,7 +1292,8 @@ export async function getSigningMode(): Promise<SigningMode> {
  */
 export interface SigningDisclosure {
   claim_generator: string;
-  tsa_url: string;
+  /** null when Standard mode's remembered answer is "no timestamp" (BL-CLAIM-004). */
+  tsa_url: string | null;
   cert_sha256_fingerprint: string;
 }
 
@@ -1308,6 +1310,22 @@ export async function getSigningDisclosure(): Promise<SigningDisclosure | null> 
   } catch {
     return null;
   }
+}
+
+/**
+ * Builds and signs a Verification Record for a result, in Rust.
+ * The signing key stays on the Rust side; what comes back is the four files'
+ * contents. Throws with the reason when the record cannot be made, for
+ * example when the result carries no SHA-256 of the file.
+ */
+export async function exportVerificationRecord(
+  result: VerificationResult,
+  fileName: string | null,
+): Promise<VerificationRecordExport> {
+  if (!isTauri) {
+    throw new Error('A Verification Record can only be signed in the desktop application.');
+  }
+  return invoke<VerificationRecordExport>('export_verification_record', { result, fileName });
 }
 
 /**
@@ -1408,6 +1426,39 @@ export async function setNetworkMode(mode: NetworkMode): Promise<NetworkMode> {
     }
   }
   return mode;
+}
+
+/**
+ * What signing does about the trusted timestamp (BL-CLAIM-004, option 3).
+ * `effective` is 'ask' when Standard mode is on and the user has not yet
+ * answered; signing is refused in that state, so the UI asks first.
+ */
+export interface SigningTimestampChoice {
+  networkMode: NetworkMode;
+  /** true = timestamp in Standard mode, false = no timestamp, null = not asked yet. */
+  standardModeAnswer: boolean | null;
+  effective: 'use' | 'skip' | 'ask';
+}
+
+export async function getSigningTimestampChoice(): Promise<SigningTimestampChoice> {
+  if (isTauri) {
+    return await invoke<SigningTimestampChoice>('get_signing_timestamp_choice');
+  }
+  return { networkMode: 'enhanced', standardModeAnswer: null, effective: 'use' };
+}
+
+/** Remember the Standard-mode answer; null forgets it so the app asks again. */
+export async function setSigningTimestampChoice(
+  answer: boolean | null,
+): Promise<SigningTimestampChoice> {
+  if (isTauri) {
+    return await invoke<SigningTimestampChoice>('set_signing_timestamp_choice', { answer });
+  }
+  return {
+    networkMode: 'standard',
+    standardModeAnswer: answer,
+    effective: answer === null ? 'ask' : answer ? 'use' : 'skip',
+  };
 }
 
 // ──────────────────────────────────────────────────────────────────

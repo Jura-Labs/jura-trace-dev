@@ -60,6 +60,12 @@
         6. Your Plan
       </a>
     </li>
+    <li>
+      <a href="#api-keys"
+         class="text-lapis dark:text-lapis-light underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis rounded">
+        7. API keys and the command line
+      </a>
+    </li>
   </ol>
 </nav>
 
@@ -179,15 +185,15 @@
       <tbody class="muted-help">
         <tr class="border-b border-border-light/50 dark:border-border-dark/50">
           <td class="py-2 pr-4 font-semibold">macOS</td>
-          <td class="py-2 font-mono text-xs break-all">~/Library/Application Support/com.juralabs.jura-trace/jura_trace.db</td>
+          <td class="py-2 font-mono text-xs break-all">~/Library/Application Support/org.juralabs.trace/jura_trace.db</td>
         </tr>
         <tr class="border-b border-border-light/50 dark:border-border-dark/50">
           <td class="py-2 pr-4 font-semibold">Windows</td>
-          <td class="py-2 font-mono text-xs break-all">%APPDATA%\com.juralabs.jura-trace\jura_trace.db</td>
+          <td class="py-2 font-mono text-xs break-all">%APPDATA%\org.juralabs.trace\jura_trace.db</td>
         </tr>
         <tr>
           <td class="py-2 pr-4 font-semibold">Linux</td>
-          <td class="py-2 font-mono text-xs break-all">~/.local/share/com.juralabs.jura-trace/jura_trace.db</td>
+          <td class="py-2 font-mono text-xs break-all">~/.local/share/org.juralabs.trace/jura_trace.db</td>
         </tr>
       </tbody>
     </table>
@@ -436,7 +442,7 @@
       On macOS and Linux, open the application's data directory and delete the
       <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">localStorage</span>
       store. On Windows, this is located in the Jura Trace application data folder under
-      <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">%APPDATA%\com.juralabs.jura-trace\</span>.
+      <span class="font-mono text-xs bg-graphite/60 dark:bg-graphite-light/20 px-1 py-0.5 rounded">%APPDATA%\org.juralabs.trace\</span>.
       Note: clearing local settings resets display preferences.
       Your database file and all asset records are stored separately and are not affected.
     </p>
@@ -551,5 +557,88 @@
       </p>
     </div>
 
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     7. API keys and the command line (v1.2.0)
+     ══════════════════════════════════════════════════════════════════ -->
+<section id="api-keys" class="mb-12" aria-labelledby="heading-api-keys">
+  <h2 id="heading-api-keys" class="text-xl font-heading text-text-light dark:text-text-dark tracking-heading mb-4">
+    7. API keys and the command line
+  </h2>
+
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
+    While Jura Trace is open, it also answers on <code>http://127.0.0.1:8300</code>, a REST
+    API that runs the same analysis as the app, on this machine. Nothing is sent anywhere else.
+    Other programs on this computer can use it, but only with a key you have made.
+  </p>
+
+  <ul class="space-y-3 mb-6 text-sm text-text-light dark:text-quartz leading-relaxed">
+    <li class="flex gap-2">
+      <span class="text-lapis dark:text-lapis-light flex-none">→</span>
+      <span><strong class="text-text-light dark:text-text-dark">Create a key</strong> in Settings, API Keys. It is shown once; copy it then. Only a fingerprint of it is stored.</span>
+    </li>
+    <li class="flex gap-2">
+      <span class="text-lapis dark:text-lapis-light flex-none">→</span>
+      <span><strong class="text-text-light dark:text-text-dark">Revoke a key</strong> when the program that used it no longer needs it. Requests with a revoked key are refused at once.</span>
+    </li>
+    <li class="flex gap-2">
+      <span class="text-lapis dark:text-lapis-light flex-none">→</span>
+      <span><strong class="text-text-light dark:text-text-dark">The rate limit</strong> is how many requests a minute the key may make. 100 suits most uses.</span>
+    </li>
+  </ul>
+
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
+    Two command-line programs are installed beside the app: <code>jura</code>, which sends files
+    to Jura Trace and prints what it found, and <code>jura-trace-api</code>, which runs the same
+    analysis without this window, for machines nobody sits at.
+  </p>
+
+  <div class="overflow-x-auto mb-4">
+    <table class="w-full text-sm text-left text-text-light dark:text-quartz">
+      <caption class="sr-only">Where the command-line programs are installed</caption>
+      <thead>
+        <tr class="border-b border-border-light dark:border-border-dark">
+          <th scope="col" class="py-2 pr-4 font-semibold">System</th>
+          <th scope="col" class="py-2 font-semibold">Folder</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="border-b border-border-light dark:border-border-dark">
+          <td class="py-2 pr-4">macOS</td>
+          <td class="py-2"><code>/Applications/Jura Trace.app/Contents/MacOS/</code></td>
+        </tr>
+        <tr class="border-b border-border-light dark:border-border-dark">
+          <td class="py-2 pr-4">Windows</td>
+          <td class="py-2"><code>%LOCALAPPDATA%\Jura Trace\</code></td>
+        </tr>
+        <tr>
+          <td class="py-2 pr-4">Linux (.deb)</td>
+          <td class="py-2"><code>/usr/bin/</code>, already on your path</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-2">
+    With the app open and a key from Settings, in a terminal:
+  </p>
+  <pre class="text-xs bg-white dark:bg-graphite rounded border border-border-light dark:border-border-dark p-3 mb-4 overflow-x-auto"><code>jura auth set-key -        (paste the key, then press Enter)
+jura verify photo.jpg      (prints the verdict and what each detector found)
+jura --help                (everything else)</code></pre>
+
+  <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-6">
+    <code>jura verify</code> exits 0 whenever an analysis was produced, even a low-trust one, so
+    a script can tell a finished analysis from a failure. <code>jura verify --help</code> lists
+    the options for acting on the verdict.
+  </p>
+
+  <div class="bg-white dark:bg-graphite rounded-lg border border-border-light dark:border-border-dark p-4">
+    <p class="text-sm text-text-light dark:text-quartz leading-relaxed">
+      <strong class="text-text-light dark:text-text-dark">A key is a password.</strong>
+      Anyone with it can run analyses and sign files as this installation, from this computer.
+      Keep it out of shared scripts and screenshots, and revoke it if it is exposed.
+    </p>
   </div>
 </section>
