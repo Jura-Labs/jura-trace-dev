@@ -39,6 +39,11 @@ export async function packVerificationRecord(ex: VerificationRecordExport): Prom
 }
 
 export function verificationRecordFileName(fileName: string | null | undefined, unixSeconds: number): string {
-  const safe = (fileName ?? 'file').replace(/[^a-zA-Z0-9._-]/g, '_');
+  // Drop the image's extension, so the ZIP is not named "photo.jpg-…zip".
+  // A leading dot is part of the name, not an extension.
+  const name = fileName ?? 'file';
+  const dot = name.lastIndexOf('.');
+  const stem = dot > 0 ? name.slice(0, dot) : name;
+  const safe = stem.replace(/[^a-zA-Z0-9._-]/g, '_');
   return `jura-verification-record-${safe}-${unixSeconds}.zip`;
 }
