@@ -11,3 +11,7 @@
 *.AppImage binary
 *.woff binary
 *.woff2 binary
+
+# The macOS sidecar launcher is a compiled Mach-O binary built from
+# src-tauri/sidecar-launcher/; diff it as binary.
+src-tauri/binaries/jura-sidecar-aarch64-apple-darwin binary

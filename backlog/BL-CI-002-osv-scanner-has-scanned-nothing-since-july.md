@@ -1,6 +1,6 @@
 # BL-CI-002: the weekly supply-chain scan has scanned nothing since July
 
-**Status**: Open. Found 3 September 2026.
+**Status**: Closed 8 September 2026. All four fix items are on `main` and the scanner has produced a SARIF file on every push since. What remains (a package-count assertion, and `continue-on-error` on the scan step) is the release plan's gate item 5, not this item. See "Update, 8 September 2026" at the foot of this file. Found 3 September 2026.
 **Raised**: 3 September 2026
 **Severity**: High. The scan appears in the Actions list every Monday and
 has found nothing for two months, because it never ran. An absent finding
@@ -95,3 +95,62 @@ found nothing.
 
 Do not silence the weekly failure notification without fixing the cause.
 The notification is the only thing that was still working.
+
+## Update, 8 September 2026
+
+Reconciled against `origin/main` at `d0ca411d` and the `OSV-Scanner`
+workflow runs on `Jura-Labs/jura-trace-dev`.
+
+### The fix items, checked
+
+1. **Remove `--skip-git`.** Done. `.github/workflows/osv-scanner.yml:54-58`
+   passes `--recursive`, `--format=sarif`, `--output=osv-results.sarif`,
+   `./` and nothing else. Landed in `d605acd6` (jura-archive PR #27,
+   5 September). The SARIF exists on every push run since: run
+   `34284960681` on `d0ca411d` (22:15 UTC) logged "SARIF written: 773035
+   bytes" and scanned seven lockfiles for 1,451 packages in total
+   (`agents/requirements.txt` 5, the worker's `package-lock.json` 91,
+   `sidecar/requirements-build.txt` 23, `requirements-ci.txt` 23,
+   `requirements.txt` 20, `src-tauri/Cargo.lock` 921,
+   `ui/package-lock.json` 368).
+2. **Fail the job if the SARIF is missing.** Done. `osv-scanner.yml:64-72`
+   exits 1 on an absent or empty `osv-results.sarif`.
+3. **Confirm the upload target exists.** Done both ways. The "Upload SARIF
+   to code-scanning" step concluded `success` on run 34284960681, and the
+   SARIF is also kept as a build artefact (`osv-scanner.yml:86-92`) so the
+   result survives if the upload ever stops working.
+4. **Node 20 actions.** Every action in both workflows is now pinned to a
+   commit SHA (`d4097532`, 6 September) and the Repo hygiene job fails on
+   an unpinned `uses:` (`ci.yml:382-395`). `github/codeql-action/upload-sarif`
+   still logs the Node 20 deprecation on each run; its bump is one of the
+   five in Dependabot #13, which is open.
+
+### Also changed by #34 (`bd534866`)
+
+The `pull_request: branches: [main]` filter is gone (`osv-scanner.yml:19-23`),
+for the reason given in the comment there: a pull request against any other
+base got no scan, and a missing scan reads as a clean one.
+
+### What remains, and where it lives
+
+The plan's automated gate item 5 in `docs/release/v1.1.0-plan.md` asks for
+OSV "verified by a nonzero package count in the run log rather than by the
+job being green". That is **not implemented**. The scanner prints
+"Scanned ... found N packages" per lockfile, and nothing asserts on those
+lines; the only assertion is the SARIF size at `osv-scanner.yml:64-72`.
+Related, BL-SILENT-001's plan item 3 asks for `continue-on-error` to come
+off the scan step and stay only on the upload. It is still on the scan step
+at `osv-scanner.yml:59`. On run 34284960681 the scanner exited 1 (findings
+present) and the job was green because of that line. Both belong to the
+plan and to BL-SILENT-001, not to this item, whose own fix section is met.
+
+No scheduled run has fired in `jura-trace-dev` yet. The repository was
+created at 11:57 UTC on 8 September, a Tuesday; the first cron is Monday
+14 September at 03:17 UTC. Fix item 1 said to confirm the SARIF exists
+before trusting the next scheduled run: it has existed on every one of the
+ten push runs on `main` since the repository was created.
+
+Resolved: 2026-09-08 `bd534866` (#34), on top of `643c4dd3` (jura-archive
+PR #27, 2026-09-05). `--skip-git` removed, SARIF-present assertion, upload
+confirmed working, artefact kept, actions SHA-pinned, `branches` filter
+removed.

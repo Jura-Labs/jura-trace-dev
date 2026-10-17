@@ -32,6 +32,13 @@ impl Database {
 
         // Enable WAL mode for better concurrent read performance
         conn.execute_batch("PRAGMA journal_mode=WAL;")?;
+        // Wait up to 5 s for a competing writer instead of failing with
+        // SQLITE_BUSY. WAL still allows only one writer, and with the headless
+        // API (v1.2.0) two processes can open this file. rusqlite 0.31 already
+        // sets 5000 ms at open (inner_connection.rs), so this changes nothing
+        // today; it is explicit so the behaviour does not rest on a library
+        // default across the pending rusqlite upgrade.
+        conn.busy_timeout(std::time::Duration::from_secs(5))?;
 
         let db = Self {
             conn: Mutex::new(conn),
@@ -2192,6 +2199,37 @@ mod tests {
         // Keep dir alive by leaking — tests are short-lived
         std::mem::forget(dir);
         db
+    }
+
+    /// Two handles on one file, as the desktop app and the headless API will
+    /// be. While one holds the write lock, the other's write must wait for
+    /// it rather than fail with SQLITE_BUSY. This tests the behaviour, not the
+    /// line: it fails if no busy timeout is in force from either this code or
+    /// rusqlite's own default.
+    #[test]
+    fn second_writer_waits_for_the_first() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("shared.db");
+        let first = Database::open(&db_path).unwrap();
+        let second = Database::open(&db_path).unwrap();
+
+        let (locked_tx, locked_rx) = std::sync::mpsc::channel();
+        let holder = std::thread::spawn(move || {
+            let conn = first.conn.lock().unwrap();
+            conn.execute_batch("BEGIN IMMEDIATE;").unwrap();
+            locked_tx.send(()).unwrap();
+            std::thread::sleep(std::time::Duration::from_millis(500));
+            conn.execute_batch("COMMIT;").unwrap();
+        });
+
+        locked_rx.recv().unwrap();
+        let started = std::time::Instant::now();
+        second
+            .create_api_key("k1", "waits", "hash-waits", 100)
+            .expect("second writer should wait for the lock, not fail with SQLITE_BUSY");
+        // It really did wait for the holder, rather than finding no contention.
+        assert!(started.elapsed() >= std::time::Duration::from_millis(300));
+        holder.join().unwrap();
     }
 
     fn make_asset(id: &str, name: &str, created_at: &str) -> AssetRow {

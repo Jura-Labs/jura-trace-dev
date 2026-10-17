@@ -32,9 +32,8 @@ class Settings(BaseSettings):
     llm_model: str = "qwen2.5:7b-instruct"
     llm_fallback_model: str = "llama3.1:8b-instruct-q4_K_M"
     # Shared-secret API key for sidecar authentication.
-    # Set JURA_SIDECAR_KEY in the environment to enforce authentication.
-    # If empty (default), the sidecar accepts all requests — suitable for
-    # development but not recommended for shared workstations.
+    # Set JURA_SIDECAR_KEY in the environment. If empty (default), every
+    # /forensics request is refused with 503; see verify_api_key in main.py.
     sidecar_key: str = ""
 
     model_config = {"env_prefix": "JURA_"}

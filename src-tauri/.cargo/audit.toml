@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# cargo-audit configuration. Read by `cargo audit` when run from
+# `src-tauri/`, which is how `.github/workflows/ci.yml` invokes it, and
+# also when a developer runs it by hand from the same directory. Both
+# therefore give the same answer, which is the point of putting it here
+# rather than passing --ignore on the CI command line.
+#
+# An entry in this file suppresses a security gate. Adding one is a
+# decision, not a cleanup: it needs a named advisory, a reason the
+# exposure does not apply to this product, and the condition under which
+# it comes back out. Never add one to make a build pass.
+
+[advisories]
+# RUSTSEC-2023-0071 (Marvin Attack in `rsa`) was ignored here from
+# 8 September 2026 until v1.2.0, because every c2pa release required `rsa`.
+# c2pa-rs 0.91 moved its crypto into `c2pa_raw_crypto` and `rsa` left the
+# tree, which was the entry's own exit condition, so it was deleted.
+ignore = []

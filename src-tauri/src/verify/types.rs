@@ -154,6 +154,11 @@ pub struct VerificationResult {
     pub metadata_flags: Vec<String>,
     pub claim_verdict: Option<String>,
     pub overall_trust: f64,
+    /// The trust band for `overall_trust`, with any cap applied (v1.2.0).
+    /// Every consumer reads the band from here; nothing re-derives it.
+    /// `None` only on a result deserialised from before v1.2.0.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verdict: Option<super::verdict::Verdict>,
     pub exif_analysis: Option<exif_anomaly::ExifAnalysis>,
     /// Raw EXIF/image metadata fields (Make, Model, DateTime, GPS, etc.).
     /// Exposed for the v2 verify page EXIF detail panel.
@@ -321,6 +326,7 @@ mod tests {
             metadata_flags: vec![],
             claim_verdict: None,
             overall_trust: 0.0,
+            verdict: None,
             exif_analysis: None,
             image_metadata: None,
             c2pa_manifest: None,

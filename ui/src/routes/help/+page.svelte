@@ -42,7 +42,7 @@
     {
       href: '/help/format-support',
       title: 'Format Support',
-      description: 'Which file formats Jura Trace v1.0 can verify and protect, what each format gets in the pipeline, and what is explicitly out of scope.',
+      description: 'Which file formats Jura Trace can verify and protect, what each format gets in the pipeline, and what is explicitly out of scope.',
     },
     {
       href: '/help/glossary',

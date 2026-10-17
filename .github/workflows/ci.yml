@@ -1,8 +1,12 @@
 name: CI
 
 on:
+  # Deliberately NOT filtered to `branches: [main]`. That filter meant a pull
+  # request opened against any other base got no CI at all, and an absent run
+  # reads as "not yet verified" rather than as a failure, which is the more
+  # dangerous of the two. Found 8 September 2026 when a stacked PR (#29, based
+  # on #28) sat with no checks until one was dispatched by hand.
   pull_request:
-    branches: [main]
   # Work that lands directly on main must be tested too. Without this, the
   # gate only watches the path nobody used for the June v1.0.0 release: all
   # eleven of those commits went straight to main and CI never saw them.
@@ -10,10 +14,44 @@ on:
     branches: [main]
   workflow_dispatch:  # manual trigger from Actions tab when needed
 
-# Cancel redundant workflow runs on the same branch/PR to save CI minutes.
+# Cancel redundant runs on the same branch or PR to save CI minutes, but never
+# on main, where every push gets its own concurrency group and therefore its
+# own verdict.
+#
+# Cancelling is right for a branch someone is still pushing to, where only the
+# newest commit matters. It is wrong for main, where every commit is a state
+# the project was actually in. On 8 September 2026 four merges landed within
+# fourteen minutes and each new run cancelled the one before it, so main went
+# from the repository cutover to that evening without a single successful CI
+# run (one run had completed, and failed on the audit gate; an earlier version
+# of this comment said "completed", which overstated it). Three of the
+# cancellations showed a red X against `cargo test`, which was the
+# cancellation rather than a failure, so the setting also manufactured false
+# evidence of breakage.
+#
+# The first fix, later the same day, set cancel-in-progress to false on main.
+# That was not enough, and the reason is in GitHub's own documentation: "By
+# default, only one job or workflow run can be pending in a concurrency group
+# at a time", and "any existing pending job or workflow in the same group is
+# canceled and replaced." cancel-in-progress protects the RUNNING run only.
+# When four merges landed within eight seconds at 21:44 UTC, the first ran,
+# the last queued, and the two in between (runs 34282224860 for 9a177fd5 and
+# 34282231338 for 3ca2896f) were cancelled before starting a single job. Two
+# commits on main have no CI verdict as a result.
+#
+# So on main the group is keyed on the commit SHA instead of the ref. No two
+# pushes share a group, nothing is ever pending behind anything, and every
+# commit runs to a verdict. Public-repo minutes are free, so the parallelism
+# costs nothing. GitHub also offers `queue: max` for this, but the docs say it
+# cannot be combined with cancel-in-progress: true, and this block sets that
+# key by expression, so the per-SHA group is the unambiguous choice.
+#
+# The push trigger above exists precisely so main is never unverified. Both
+# earlier settings quietly reopened that hole whenever merges arrived in a
+# burst, which is what a release day looks like.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   # ── Rust: check, clippy, fmt, test ──────────────────────────────────────────
@@ -38,12 +76,12 @@ jobs:
             libjavascriptcoregtk-4.1-dev \
             libsoup-3.0-dev
 
-      # Pin to the exact minimum Rust version declared in Cargo.toml (rust-version = "1.88").
+      # Pin to the exact minimum Rust version declared in Cargo.toml (rust-version = "1.96").
       # Using dtolnay/rust-toolchain rather than actions-rs because it is actively maintained.
-      - name: Install Rust 1.88
+      - name: Install Rust 1.96
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable @ 2026-09
         with:
-          toolchain: "1.88"
+          toolchain: "1.96"
           components: clippy, rustfmt
 
       # Cache Cargo registry and build artefacts keyed on Cargo.lock.
@@ -109,11 +147,29 @@ jobs:
       - name: cargo clippy
         run: cd src-tauri && cargo clippy -- -D warnings
 
+      # The feature set release.yml builds with (--features api,cli), which
+      # adds the jura-trace-api and jura binaries. Without this the shipped
+      # jura target, built from cli/src with this crate's dependency
+      # versions, would first compile in a release run.
+      - name: cargo clippy (release feature set)
+        run: cd src-tauri && cargo clippy --features api,cli --bins -- -D warnings
+
       - name: cargo fmt
         run: cd src-tauri && cargo fmt --check
 
       - name: cargo test
         run: cd src-tauri && cargo test
+
+      # Design section 11, assertions A4 and A5 against a real server: the
+      # built `jura` against jura-trace-api with no sidecar (exit codes from
+      # real responses), then against a sidecar that answers its health
+      # checks and analyses nothing, where scripts/assert_sidecar_ran.py
+      # must fail. The script fails unless every one of its cases ran.
+      - name: jura against a real jura-trace-api, and the A4 guard self-test
+        run: |
+          (cd src-tauri && cargo build --bin jura-trace-api)
+          (cd cli && cargo build --locked)
+          scripts/ci/cli-against-server.sh src-tauri/target/debug/jura-trace-api cli/target/debug/jura
 
       # Audit Rust dependencies against the RustSec advisory database.
       # Companion to pip-audit in the python job and the cross-ecosystem
@@ -125,17 +181,146 @@ jobs:
       # the next line failed anyway with an unhelpful "no such command".
       # A failure here should say what actually failed.
       #
-      # Note the cost: `cargo install` builds cargo-audit from source on
-      # every run, which is minutes of billable time for a tool that does
-      # not change. If build minutes get tight, install a prebuilt binary
-      # instead. Left as-is for now to avoid adding a third-party action to
-      # the supply chain this workflow exists to watch.
+      # The install is skipped when the Cache Cargo step above has already
+      # restored a cargo-audit binary into ~/.cargo/bin. That is not only a
+      # cost saving (building it from source is about fifteen minutes of
+      # billable time for a tool that does not change), it is a correctness
+      # fix. `cargo install` refuses to overwrite an existing binary and
+      # exits 101 with "binary `cargo-audit` already exists in destination".
+      # On 8 September 2026 that put a red X on the cargo-audit step of
+      # every open pull request and on main, with no advisory involved at
+      # all, and it read exactly like a new vulnerability landing. The
+      # mechanism: the cache key hashes Cargo.lock, so any lockfile change
+      # misses the key, the restore-keys prefix falls back to the previous
+      # cache, and that cache carries the binary the previous run built.
+      # It would have recurred on every lockfile change after any green run.
+      #
+      # The version is printed so the log says which cargo-audit produced
+      # the verdict. The advisory database is fetched fresh on every run
+      # regardless of the binary's age, so a cached tool does not mean a
+      # stale scan. Still no third-party install action: the supply chain
+      # this workflow exists to watch stays as short as it was.
       - name: cargo-audit
         run: |
-          cargo install --locked cargo-audit
+          if command -v cargo-audit >/dev/null 2>&1; then
+            echo "cargo-audit restored from cache: $(cargo audit --version)"
+          else
+            cargo install --locked cargo-audit
+            echo "cargo-audit built from source: $(cargo audit --version)"
+          fi
           cd src-tauri && cargo audit
 
   # ── Frontend: svelte-check + vitest ─────────────────────────────────────────
+  # ── jura-trace-api on Windows ──────────────────────────────────────────────
+  # The headless binary (v1.2.0 B2a) has Windows-only code: the orphan sweep
+  # after shutdown, because ending the launcher does not end the onedir
+  # bootloader. The Rust job above runs on Linux, and the release build does
+  # not compile this binary at all (see the [[bin]] comment in Cargo.toml),
+  # so without this job that code would first compile on a user's machine.
+  headless-windows:
+    name: Windows headless check
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install Rust 1.96
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable @ 2026-09
+        with:
+          toolchain: "1.96"
+          components: clippy
+
+      - name: Cache Cargo
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            src-tauri/target/
+          key: cargo-headless-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: cargo-headless-${{ runner.os }}-
+
+      - name: Setup Node 20
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Build frontend (required by tauri::generate_context!)
+        shell: bash
+        run: cd ui && npm ci && npm run build
+
+      - name: Placeholder for the sidecar bundle resource glob
+        shell: bash
+        run: |
+          mkdir -p src-tauri/sidecar-bundle
+          echo "CI placeholder; see the Rust job in ci.yml." > src-tauri/sidecar-bundle/.ci-placeholder
+
+      # PowerShell, not bash, for the cargo steps: a dependency builds vendored
+      # OpenSSL, whose Configure needs a full Perl. Under bash, Git's minimal
+      # /usr/bin/perl comes first on PATH and fails (Locale::Maketext::Simple
+      # missing); under PowerShell it is the runner's Strawberry Perl, which
+      # is what release.yml's Windows build uses.
+      - name: cargo clippy (jura-trace-api)
+        shell: pwsh
+        run: |
+          cd src-tauri
+          cargo clippy --bin jura-trace-api --tests -- -D warnings
+
+      - name: cargo test (headless binary, as a subprocess)
+        shell: pwsh
+        run: |
+          cd src-tauri
+          cargo test --test headless_api
+
+  # ── The `jura` CLI (cli/) ──────────────────────────────────────────────────
+  # A crate of its own, with its own Cargo.lock (see cli/Cargo.toml for why it
+  # is not in a workspace with src-tauri). Its tests run the built binary
+  # against a stub API and assert every exit code, so the contract in
+  # docs/API_WRAPPER.md is checked on each platform it will ship for. No Tauri
+  # dependencies, so neither the frontend build nor the sidecar placeholder.
+  cli:
+    name: CLI (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install Rust 1.96
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable @ 2026-09
+        with:
+          toolchain: "1.96"
+          components: clippy, rustfmt
+
+      - name: Cache Cargo
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            cli/target/
+          key: cargo-cli-${{ runner.os }}-${{ hashFiles('cli/Cargo.lock') }}
+          restore-keys: cargo-cli-${{ runner.os }}-
+
+      - name: cargo fmt
+        if: runner.os == 'Linux'
+        run: cd cli && cargo fmt --check
+
+      - name: cargo clippy
+        run: cd cli && cargo clippy --all-targets --locked -- -D warnings
+
+      # JURA_NO_KEYRING keeps the tests off any OS keyring on the runner; the
+      # tests set it themselves too, this is belt and braces.
+      - name: cargo test
+        env:
+          JURA_NO_KEYRING: "1"
+        run: cd cli && cargo test --locked
+
   frontend:
     name: Frontend
     runs-on: ubuntu-latest
@@ -179,24 +364,20 @@ jobs:
       - name: Install Playwright browser
         run: cd ui && npx playwright install --with-deps chromium
 
-      # The nine visual-regression tests (eighteen across the two projects)
-      # are deselected rather than ignored, so they show as not-run instead
-      # of silently passing.
-      #
-      # Every committed baseline is a *-darwin.png, because they were all
-      # generated on a Mac. Playwright puts the platform in the snapshot
-      # filename, so on an Ubuntu runner it looks for *-linux.png, finds
-      # nothing, and fails. Deselecting is honest about that; passing
-      # --ignore-snapshots would make the assertions succeed without
-      # comparing anything, which is the failure mode this workflow exists to
-      # prevent. Generating and committing Linux baselines is the fix and is
-      # tracked in BL-TEST-003.
-      - name: Run e2e tests (296 of 314; visual baselines are macOS-only)
-        run: cd ui && npx playwright test --grep-invert "visual:"
+      # All 318 tests, including the nine visual-regression tests (eighteen
+      # across the two projects). Playwright puts the platform in the snapshot
+      # name, so this Ubuntu runner compares against the committed
+      # *-linux.png set, generated on this runner image on 15 October 2026
+      # (v1.2.0 C3). The *-darwin.png set serves macOS developers. They are
+      # independent on purpose: font rendering differs, and one tolerance wide
+      # enough for both would hide real regressions. Regenerate the Linux set
+      # with `--update-snapshots` on a runner, never on a Mac. BL-TEST-003.
+      - name: Run e2e tests
+        run: cd ui && npx playwright test
 
       - name: Upload Playwright report on failure
         if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: playwright-report
           path: ui/playwright-report/
@@ -342,6 +523,13 @@ jobs:
       # `actions/upload-artifact@v4` in osv-scanner.yml. One drift in a single
       # pull request is enough to show the discipline needs a check rather
       # than an intention.
+      # The release attaches model-card metadata built by this script (A4,
+      # BL-CLAIM-002). It fails on a generator key with no public label or on
+      # metadata that describes a model other than the shipped one. Running it
+      # here finds that on the pull request that caused it, not on release day.
+      - name: Model-card metadata builds
+        run: python3 scripts/build_model_card_assets.py "$RUNNER_TEMP/model-cards"
+
       - name: Every GitHub Action is pinned to a commit SHA
         run: |
           set -euo pipefail
@@ -362,6 +550,11 @@ jobs:
       # sidecar/requirements-ci.txt. Catches the class of drift that caused
       # onnxruntime (and regex) to be missing from CI sidecar builds (JTV-143,
       # 3 May 2026), making clip_detect silently false on Windows/Linux installs.
-      # The guard runs without installing any extra packages (stdlib only).
+      # Since BL-DEPS-004 it also fails when the three manifests pin different
+      # versions, when a `>=` floor is above the locked version, or when a
+      # package release.yml freezes is missing from the lock ci.yml installs.
+      # The guard and its tests run without installing anything (stdlib only).
       - name: Check requirements-ci.txt is in sync with requirements.txt
-        run: python3 scripts/check_requirements_sync.py
+        run: |
+          python3 -m unittest scripts/test_check_requirements_sync.py
+          python3 scripts/check_requirements_sync.py

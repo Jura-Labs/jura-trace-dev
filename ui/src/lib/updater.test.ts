@@ -47,6 +47,7 @@ function makeDeps(overrides: Partial<UpdaterDeps> = {}): UpdaterDeps {
     isTauri: () => true,
     checkPlugin: vi.fn(async () => null),
     backup: vi.fn(async () => ({ snapshotPath: '/tmp/backup.db', sha256: 'abc123def456' })),
+    relaunch: vi.fn(async () => undefined),
     ...overrides,
   };
 }
@@ -169,6 +170,61 @@ describe('checkForUpdate — successful install', () => {
   });
 });
 
+// BL-REL-004: "Installing, restarting shortly..." was shown while nothing
+// restarted the app. The first update ever applied to a real install
+// (9 September 2026) sat on that spinner until the user quit by hand.
+describe('checkForUpdate — relaunch after install', () => {
+  it('calls relaunch exactly once, after downloadAndInstall has resolved', async () => {
+    const order: string[] = [];
+    const update = {
+      version: '1.1.0',
+      downloadAndInstall: vi.fn(async () => {
+        order.push('install');
+      }),
+    };
+    const relaunch = vi.fn(async () => {
+      order.push('relaunch');
+    });
+    const deps = makeDeps({ checkPlugin: vi.fn(async () => update), relaunch });
+    const transitions = await run(deps);
+
+    expect(relaunch).toHaveBeenCalledTimes(1);
+    expect(order).toEqual(['install', 'relaunch']);
+    expect(transitions[transitions.length - 1]).toEqual({ state: 'installing' });
+  });
+
+  it('does not relaunch when the install throws', async () => {
+    const update = makeFakeUpdate('0.9.1', 'throw');
+    const relaunch = vi.fn(async () => undefined);
+    const deps = makeDeps({ checkPlugin: vi.fn(async () => update), relaunch });
+    await run(deps);
+
+    expect(relaunch).not.toHaveBeenCalled();
+  });
+
+  it('does not relaunch when there is nothing to install', async () => {
+    const relaunch = vi.fn(async () => undefined);
+    const deps = makeDeps({ checkPlugin: vi.fn(async () => null), relaunch });
+    await run(deps);
+
+    expect(relaunch).not.toHaveBeenCalled();
+  });
+
+  it('tells the user to quit and reopen when relaunch fails', async () => {
+    const update = makeFakeUpdate('0.9.1');
+    const relaunch = vi.fn(async () => {
+      throw new Error('plugin:process|restart not allowed');
+    });
+    const deps = makeDeps({ checkPlugin: vi.fn(async () => update), relaunch });
+    const transitions = await run(deps);
+
+    expect(transitions[transitions.length - 1]).toEqual({
+      state: 'error',
+      message: 'The update is installed. Quit Jura Trace and open it again to finish.',
+    });
+  });
+});
+
 describe('checkForUpdate — backup failure is non-blocking', () => {
   it('still reaches installing when backup throws', async () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -281,6 +337,45 @@ describe('classifyError — channel-unavailable normalisation', () => {
     // first is evidence that the user is current.
     expect(classifyError('No updates available from endpoint').state).toBe('up-to-date');
     expect(classifyError('Request failed with status 404').state).toBe('error');
+  });
+
+  it('maps a cross-device rename failure to the move-it-to-Applications message', () => {
+    // Verbatim from the 9 September staging run with the app on an external SSD.
+    const result = classifyError('Cross-device link (os error 18)');
+    expect(result.state).toBe('error');
+    if (result.state === 'error') {
+      expect(result.message).toContain('Applications folder on your startup disk');
+      expect(result.message).toContain('has not been changed');
+      expect(result.message).not.toContain('os error');
+      expect(result.message).not.toContain('—');
+      expect(result.message).not.toMatch(/[^\x00-\x7F]/);
+    }
+  });
+
+  it('reaches the user when the install itself fails cross-device, without relaunching', async () => {
+    const update = {
+      version: '1.2.0',
+      downloadAndInstall: vi.fn(async () => {
+        throw new Error('Cross-device link (os error 18)');
+      }),
+    };
+    const relaunch = vi.fn(async () => undefined);
+    const deps = makeDeps({ checkPlugin: vi.fn(async () => update), relaunch });
+    const transitions = await run(deps);
+
+    expect(relaunch).not.toHaveBeenCalled();
+    const last = transitions[transitions.length - 1];
+    expect(last.state).toBe('error');
+    if (last.state === 'error') {
+      expect(last.message).toContain('Applications folder on your startup disk');
+    }
+  });
+
+  it('does not treat os error 180 as a cross-device failure', () => {
+    expect(classifyError('something (os error 180)')).toEqual({
+      state: 'error',
+      message: 'something (os error 180)',
+    });
   });
 
   it('falls through to raw error for unknown messages', () => {

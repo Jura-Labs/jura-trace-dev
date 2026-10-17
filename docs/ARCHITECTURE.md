@@ -105,7 +105,7 @@ These contribute to the numeric trust score. Together with the two Rust-side det
 | `copy_move` | OpenCV, NumPy | Copy-move forgery detection via SIFT keypoint matching (migrated from ORB, April 2026) |
 | `jpeg_ghost` | Pillow, NumPy | Double-compression ghost detection for splice/composite forgeries; contributes at 0.5x weight |
 | `colour_temperature` | OpenCV, NumPy | Per-region white-balance analysis in CIELAB space; flags discontinuous colour casts that suggest compositing |
-| `deepfake` | NumPy, SciPy, scikit-image, scikit-learn | AI-generated image detection: GBM v4 classifier (84-feature vector, AUC 0.9868) ensembled with the UnivFD probe |
+| `deepfake` | NumPy, SciPy, scikit-image, scikit-learn | AI-generated image detection: GBM v4 classifier (80-feature vector, AUC 0.9868) ensembled with the UnivFD probe |
 | `clip_detector` | ONNX Runtime, NumPy | CLIP ViT-B/32 embeddings with zero-shot classification plus the trained UnivFD v10 logistic-regression probe (AUC 0.9933); lazy-loaded, optional, graceful degradation |
 
 ### On-demand investigation tools

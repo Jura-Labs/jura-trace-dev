@@ -6,6 +6,316 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## Unreleased: v1.2.0
+
+Verification Record:
+
+- New **Verification Record** export on the verify page: a signed,
+  tamper-evident record of the checks that were run on a file, saved as a
+  ZIP. Someone else can confirm it has not been altered with OpenSSL, without
+  Jura Trace. It is signed in Sovereign mode, with a key made on your
+  computer, so it shows the record is unchanged and does not prove who made
+  it or when. It does not determine, certify, or guarantee compliance with
+  anything. See `docs/VERIFICATION_RECORD.md`.
+
+Command-line client:
+
+- New `jura` CLI: `jura verify` (files or `--url`), `jura version` and
+  `jura auth` (`set-key`, `show-key`, `status`, `clear-key`), with the
+  exit-code contract in `docs/API_WRAPPER.md`. `--fail-on` exits 20 on a
+  band and 8 on an inconclusive one; `--require-complete` exits 8 on a
+  degraded result; `--wait-ready` waits for the analysis engine.
+- Every installer now includes `jura` and `jura-trace-api` (the analysis
+  server without the window) beside the app. See `docs/CLI_QUICKSTART.md`.
+- `jura sign` adds Content Credentials from the command line.
+- `jura verify --format ndjson`: one line per file with its own exit code.
+- `jura-trace-api --ephemeral`: a session whose database is deleted when it
+  stops.
+- A Linux server tarball (`JuraTrace-<version>-Linux-x86_64-server.tar.gz`)
+  with `jura-trace-api`, `jura`, the analysis engine and models, for
+  servers without a desktop.
+- `[schema]` `POST /api/v1/protect/sign` takes an optional `timestamp`
+  field (`yes`/`no`) that answers the Standard-mode timestamp question for
+  one request when nobody has.
+
+Installers:
+
+- Windows: the app's own executables are now signed. In v1.1.0 the
+  installers were signed and the sidecar was signed, but `jura-trace.exe`
+  inside them was not, which Smart App Control can block.
+- `gen-detectors`, a build tool, is no longer installed.
+- Smaller downloads on every platform: the CLIP text encoder (243 MiB) is
+  no longer shipped. It only ever encoded five fixed prompts, whose
+  embeddings now ship precomputed (10 KB). This change leaves verdicts and
+  scores unchanged: the embeddings are checked bit for bit at build time on
+  each platform, and a 217-image golden set gives identical results with
+  and without the encoder.
+- macOS: the analysis engine is built from the same pinned dependency list
+  as Windows and Linux, not from the build machine's Python. The macOS app
+  loses about 258 MiB of libraries nothing used (pyarrow, chromadb,
+  sentence-transformers), and its onnxruntime moves from 1.23.2 to the
+  pinned 1.24.4. On macOS only, the AI-detection score can differ slightly
+  from v1.1.0 as a result: on the 217-image golden set it moved on 68
+  images (median 0.003, largest 0.056) and one verdict changed, from
+  Uncertain to Low Trust.
+- Screenshots and documents: AI-detection scores are now left out of the
+  trust score, as intended since April and never in effect until now. A
+  parsing fault meant every image was scored as a photograph. Verdicts
+  change on screenshots and documents only: on the 217-image golden set,
+  18 authentic screenshots move from Low Trust to Uncertain and 4 more
+  change score within Uncertain; no photograph changes. The verification
+  page shows the notice explaining why, and `[schema]`
+  `contentTypeResult` is now filled in, where it was always `null`.
+- The analysis engine's numerical libraries are updated: numpy 2.5.4,
+  scipy 1.18.1, OpenCV 5.0 and pillow-avif-plugin 1.6.0. Scores and
+  verdicts are unchanged on the 84-image drift set
+  (`docs/calibration/numerical-stack-drift-oct2026.md`). One detector
+  changes: GAN fingerprint analysis now runs on AVIF images, where it
+  reported an error before.
+
+Content Credentials (C2PA):
+
+- Signing in **Published** mode now writes a manifest that meets the C2PA
+  2.x rule that the first action is `c2pa.created` or `c2pa.opened`. It
+  records `c2pa.opened`, pointing at the file being published, then
+  `c2pa.published`. Since 22 May 2026 Published mode wrote
+  `c2pa.published` alone. **Files signed that way now show as not valid**,
+  in Jura Trace and in other validators that apply the rule, with
+  `assertion.action.malformed`. Re-signing such a file in Published mode
+  gives it a valid manifest that keeps the earlier one as its parent.
+  Created mode is unchanged.
+- The C2PA library moves from c2pa-rs 0.90 to 0.91.3, which brings
+  hardening against malformed files (path traversal in manifest references,
+  integer underflow in TIFF, BMFF, XMP and ID3 parsing), and the `zip`
+  security fixes in RUSTSEC-2026-0367, -0368 and -0369. It now checks every
+  manifest after signing it, which is what found the Published-mode fault.
+- Content Credentials results can include `signingCredential.ocsp.skipped`
+  as information. Jura Trace does not contact certificate authorities to
+  check for revocation, and the result now says so. A revocation response
+  embedded in a file is now only reported (`signingCredential.ocsp.notRevoked`)
+  when its responder chains to a trusted root; OpenAI's, for example, no
+  longer is. Whether credentials are valid is unchanged on every C2PA test
+  file in `docs/c2pa-conformance/test-vectors`, and verdicts and scores are
+  unchanged on the 217-image golden set.
+- Building from source needs Rust 1.96 (was 1.90).
+
+Local REST API (`docs/API_WRAPPER.md`):
+
+- `[schema]` Every verification result has a new `verdict` object: `band`
+  (`trusted`, `uncertain`, `untrusted`, `inconclusive`), `score`,
+  `ceilingApplied` and `bandBoundaries`. It is the band the app shows, now
+  computed once in the backend. Additive.
+- `[schema]` New endpoint `GET /api/v1/ready`: the analysis engine's state
+  (`starting`, `ready`, `absent`, `failed`) without a call to it. No key.
+- `[schema]` Error codes. A missing multipart field is `MissingField` and an
+  empty upload is `EmptyFile`, where both were `BadRequest`. An oversized
+  body is `413 PayloadTooLarge` with a JSON body, where it had none. New:
+  `InvalidParameter`, `UnsupportedParameter`. HTTP statuses are unchanged.
+- `[schema]` `POST /api/v1/verify` and `/verify/batch` refuse content the
+  pipeline does not analyse with `422 UnsupportedFormat` (per item in a
+  batch). They used to answer `200` with a score no detector stood behind.
+- `mode` is read from the query string on the three verify routes. It was
+  ignored there. Query and body must agree if both are sent.
+- An unknown or wrong-case `mode` (`Deep`, `fast2`) is refused with
+  `400 InvalidParameter`. It ran `standard` without saying so.
+- `mime_type` and `concurrency` as query parameters are refused with `400`.
+  They were ignored.
+- `[schema]` The two watermark routes, which could only answer `503`, are
+  no longer served or listed in the OpenAPI document.
+- Trust band: valid Content Credentials that declare a camera capture
+  (`digitalCapture` or `computationalCapture`) now count as positive
+  evidence of authenticity, as credentials declaring no source type
+  already did. A high-scoring image
+  with such credentials reads "High Trust", where it was capped at
+  "Moderate Trust".
+- URL verification, in the app and on `POST /api/v1/verify/url`, refuses a
+  URL whose host is, or resolves to, this machine or a private address. The
+  old check compared text, so it missed every IPv6 form (`[::1]`) and never
+  looked a hostname up.
+- The PDF report and case export print the same trust band as the screen.
+  They banded the raw score, so a capped result read "High Trust" on paper
+  and "Moderate Trust" in the app.
+
+## 11 September 2026: v1.1.0, auto-update works
+
+Jura Trace v1.0.0 was published in June 2026, and until now no update has
+ever reached anyone who installed it. The update path looked as though it
+worked and did not. The manifest the app fetched carried a link where a
+signature belonged, Windows update packages were signed before they were
+countersigned and so failed verification, Linux was dropped from the
+manifest without any error, and nothing inside the app ever asked whether an
+update existed. This release repairs that path, proves it against a real
+v1.0.0 installation, and carries the security and dependency work that had
+been waiting on the main branch since June.
+
+The forensic detectors and the models behind them are unchanged from
+v1.0.0. Content Credentials verification is stricter in one respect, which
+is described under Security and dependencies below.
+
+### Action for anyone already running v1.0.0
+
+**When the update finishes installing, quit Jura Trace and open it again.**
+Your copy will download and install v1.1.0 correctly, but v1.0.0's own code
+does not restart the app afterwards, so the button stays on "Installing,
+restarting shortly..." with nothing happening behind it. The new version is
+already on disk at that point, and reopening the app is the only step left.
+From v1.1.0 onwards the app restarts itself, so this is the last release
+that asks for it.
+
+If the update fails rather than stalls, download the installer again from
+juralabs.org/downloads/ and install it over the existing copy. Your
+settings and your saved work are kept.
+
+### Auto-update
+
+- Jura Trace checks for a new version when it starts, at most once a day.
+  It does not download or install anything on its own: it tells you a
+  version is available and waits for you. In Standard network mode, which
+  keeps the app entirely offline, no check is made at all.
+- Check for Updates in the menu used to begin an install immediately, with
+  the progress reported into nothing. It now opens Settings, where the
+  check runs with its status visible.
+- The update manifest carries the signature itself, for each platform,
+  rather than a link pointing at one. No update could pass signature
+  verification before this.
+- Windows update packages are signed after Azure Trusted Signing has
+  countersigned the installer rather than before, so the signature covers
+  the bytes that are actually shipped. Every Windows automatic update since
+  May 2026 failed verification for this reason.
+- A manifest that is missing a platform, or that carries something other
+  than a signature in the signature field, now stops the release rather
+  than being published. A missing platform used to tell everyone on it that
+  they were up to date, indefinitely and with no error anywhere. That is
+  how Linux received nothing for eleven weeks.
+- The fallback update address that the app has always declared, on the
+  GitHub release itself, now exists. It previously returned 404.
+- Once an update has installed, the app restarts itself. If the restart
+  fails, it says so and tells you to quit and reopen, rather than showing a
+  spinner that never ends.
+- Update checks are counted at the server as a daily total per route. No
+  address, no request header, no identifier and nothing from your device is
+  recorded, and one installation cannot be told apart from another. The
+  count answers whether anyone is running the software, and nothing finer.
+
+### Linux
+
+- The AppImage is built and published again, alongside the .deb. It had
+  been listed on the release page since June without ever having been
+  built, so the link returned 404 for every Linux visitor who took it.
+- The release page is now built from what was actually uploaded, and a
+  check before publication fails the release if any file it links is
+  missing.
+- Linux automatic updates need a release containing an AppImage to update
+  from, so v1.1.0 is the starting point rather than the first update. The
+  first Linux update that can be taken automatically is v1.1.0 to the
+  release after it.
+
+### Security and dependencies
+
+- Every advisory that was reachable in the shipped v1.0.0 binary is
+  resolved. `cargo audit` and `pip-audit` both report no known
+  vulnerabilities on this release. Among the packages moved: openssl,
+  Pillow to 12.3.0, lopdf to 0.42, pillow-heif, quick-xml, Tauri, and the
+  c2pa crate to 0.90.
+- One advisory is accepted rather than fixed, and the reasons are recorded
+  in the repository at `src-tauri/.cargo/audit.toml`. It concerns the `rsa`
+  crate, which every current release of c2pa depends on and for which no
+  fixed version exists.
+- Content Credentials verification runs on c2pa 0.90. That version enforces
+  a C2PA 2.x rule the previous one did not, that a recorded creation action
+  must state the type of its source, so a small number of older manifests
+  that used to validate will now report a malformed action. The C2PA
+  conformance test vectors were run on both versions, and two internal test
+  fixtures signed in April 2026 by a pre-audit build were regenerated. The
+  conformance evidence bundle submitted for the Validator listing is
+  unchanged.
+- Files dragged onto the Verify page are now limited to the formats the
+  file picker accepts. Dropping a PDF used to run the full analysis
+  pipeline through a route the help page said did not exist, and reached a
+  PDF parser with a known crash on deeply nested documents.
+- If the saved network-mode setting cannot be read or understood, Jura
+  Trace falls back to Standard, which makes no network calls, rather than
+  to Enhanced. A damaged settings file could previously reverse a
+  deliberate choice to stay offline without saying anything, and the app
+  now tells you when the setting is unreadable.
+
+### What the product says about itself
+
+- The exported PDF report no longer states that certificate revocation was
+  checked. It now records two things separately: which provenance checks
+  were performed (the signing certificate chain is validated against the
+  C2PA trust list held on the device, and revocation status is not checked)
+  and which network mode was selected at the time. Every report exported in
+  Enhanced mode since April asserted a check that does not run.
+- Enhanced mode is described by what it actually controls, the optional
+  historical weather lookup and the Watched Locations scheduler. It does
+  not change how Content Credentials are verified. The banner that asked
+  users to enable Enhanced mode for revocation checking is gone, and the
+  Standard mode description no longer implies that the other mode performs
+  them.
+
+### Source and licence
+
+- The source is published at github.com/Jura-Labs/jura-trace-dev, and the
+  Open Source page inside the app links there. The Codeberg mirror is
+  retired. Only a release can change that link inside copies that are
+  already installed, which is why it is in this one.
+- LICENSE now holds the AGPL-3.0 text and nothing else, so licence
+  detectors recognise the project as AGPL instead of reporting no licence
+  at all. The copyright notice, the commercial-licensing route and the AI
+  training statement move to NOTICE, unchanged in substance. The request
+  that this code is not used as training data without written permission
+  stands, and is now stated as a request rather than as a term added to the
+  licence.
+
+### Testing and release process
+
+- The test suite runs on every push to the main branch, not only on pull
+  requests. It had not run since April.
+- The end-to-end browser tests, which previously ran in no workflow at all,
+  now run in continuous integration.
+- The weekly supply-chain scan produces a report again, and fails when it
+  produces none. An invalid option had left it scanning nothing since July.
+- A new workflow installs the built Windows and Linux packages on a clean
+  machine, launches them, and confirms the installed product asks the
+  update service for a manifest. Until now nothing tested the installed
+  product, only the source it was built from.
+- Every GitHub Action used by the build is pinned to a specific commit, and
+  the build fails if one is not.
+- Dependency update pull requests are no longer capped at five per
+  ecosystem, a cap that had been hiding newly published advisories.
+
+### Known limitations
+
+- **An installation kept off the startup disk cannot update itself.** On
+  macOS, a copy of Jura Trace on an external drive, a second volume or a
+  network share reports "Cross-device link (os error 18)" and the update
+  stops there. Move the app to the Applications folder on the startup disk,
+  or install the new version by hand.
+- **The first Linux automatic update is the one after this release**, for
+  the reason given under Linux above.
+- **The Content Credentials panel can show "Tool: [object Object]"** where
+  a manifest records its software agent as a structured value rather than
+  as plain text. The manifests most likely to do this are those written by
+  other conformant C2PA tools. Only that line of the display is affected,
+  not the verification behind it.
+- **The documentation page for the local REST API loads its interface from
+  a third-party CDN.** Your files and everything Jura Trace does with them
+  stay on your device. This one developer-facing page, opened in a browser
+  against localhost, is the exception, and the assets are being brought
+  into the app.
+- The Verification Record Export, and read-only Content Credentials for PDF
+  documents, are not in this release.
+
+### Platforms
+
+- **macOS**: Apple Silicon, macOS 13.0 or later. Signed with an Apple
+  Developer ID certificate and notarised by Apple.
+- **Windows**: 64-bit. MSI and NSIS installers, both signed with Azure
+  Trusted Signing.
+- **Linux**: x86_64. A .deb package and an AppImage, both self-signed from
+  the AGPL source build.
+
 ## 8 June 2026 — rc.30 cut: pre-launch documentation hardening, copyright sweep, build-script verification gate, Tauri updater URL fix
 
 Six commits across three calendar days (6–8 June) preparing rc.30 for the v1.0 launch on Monday 22 June 2026. Closes the post-rc.29 punch list: build-script architecture bug that caused rc.29's first notarisation to be rejected, Tauri updater URL typo that broke the auto-updater fallback, copyright-sensitive training-data attribution in user-facing documentation, the v10 retrain decision, and 31 of 46 findings from the 8 June documentation deep review.

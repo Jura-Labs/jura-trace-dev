@@ -8,14 +8,14 @@
   import { onMount, onDestroy } from 'svelte';
   import { writable } from 'svelte/store';
   import {
-    verifyFile, verifyUrl, checkSidecarHealth, markFalsePositive,
+    verifyFile, verifyUrl, checkSidecarHealth, markFalsePositive, exportVerificationRecord,
     parseAppError, getLicenceTier, getVersion,
     openBatchFileDialog, extractTextFromImage,
     getNetworkMode, getPowerSaverMode,
     runNprOnDemand, runShadowConsistencyOnDemand, runSpliceBoundaryOnDemand,
     findCatalogueMatches,
   } from '$lib/api';
-  import { getTrustLevel, formatFileSize, formatDuration } from '$lib/types';
+  import { getTrustLevel, verdictTrustLevel, formatFileSize, formatDuration } from '$lib/types';
   import type {
     VerificationResult, SidecarHealth, VerifyMode, LicenceTier,
     AnomalyFinding, InputQualityAssessment, ManifestInfo,
@@ -37,6 +37,7 @@
     C2PA_MSG_VALID_AT_SIGNING_DETAIL,
     C2PA_TRAINING_MINING_REASONS,
     c2paTrainingMiningPolicyLabel,
+    formatSoftwareAgent,
     parseTrainingMiningEntries,
   } from '$lib/c2pa-labels';
   import LimitationBanner from '$lib/components/LimitationBanner.svelte';
@@ -53,6 +54,7 @@
   import { generateTrustReport } from '$lib/pdf';
   import type { ReportContext, ReportFormat } from '$lib/pdf';
   import { exportCaseZip } from '$lib/zip';
+  import { packVerificationRecord, verificationRecordFileName } from '$lib/verificationRecord';
   import { saveVerifySession, restoreVerifySession, clearVerifySession, saveBatchSession, restoreBatchSession, clearBatchSession } from '$lib/stores/verifySession';
   import { consumeVerifyHandoff } from '$lib/stores/verifyHandoff';
   import { focusTrap } from '$lib/actions/focusTrap';
@@ -80,6 +82,10 @@
   let licenceTier = $state<LicenceTier>('community');
   let exportingReport = $state(false);
   let exportingCase = $state(false);
+  let exportingRecord = $state(false);
+  // What the last Verification Record export did, said in the page: the
+  // download itself is silent, and a refusal has to give its reason.
+  let recordExportNote = $state<{ ok: boolean; text: string } | null>(null);
   let showReportModal = $state(false);
   let analystName = $state('');
   let analystOrg = $state('');
@@ -103,9 +109,6 @@
 
   // Raw scores toggle (persisted to localStorage)
   let showRawScores = $state(false);
-
-  // First-run intro card (shown once, dismissed to localStorage)
-  let introDismissed = $state(true); // default true to avoid flash; set false in onMount if key absent
 
   // Batch state
   let batchItems = $state<BatchItem[]>([]);
@@ -309,9 +312,14 @@
 
   const rawTrustLevel = $derived(result ? getTrustLevel(result.overallTrust) : null);
 
+  // A deepfake verdict only counts when AI detection was not suppressed for
+  // the content type. On a screenshot or document the backend already leaves
+  // the score out of the trust band (BL-SILENT-002); letting its verdictLevel
+  // through here put "Low Trust" over an amber, uncertain-band ring.
   const hasUncertainDeepfake = $derived(
-    result?.deepfakeResult?.verdictLevel === 'inconclusive' ||
-    result?.deepfakeResult?.verdictLevel === 'synthetic'
+    result?.contentTypeResult?.aiDetectionSuitable !== false &&
+    (result?.deepfakeResult?.verdictLevel === 'inconclusive' ||
+      result?.deepfakeResult?.verdictLevel === 'synthetic')
   );
 
   // A verdict is "insufficient signal" when the core image forensic detectors
@@ -336,6 +344,9 @@
   //     maintain back-compat with old DB records opened in newer builds.
   const insufficientSignal = $derived(() => {
     if (!result) return false;
+    // v1.2.0: the backend decides this once (verify/verdict.rs). What
+    // follows is kept only for results saved before the verdict block.
+    if (result.verdict) return result.verdict.ceilingApplied === 'insufficientSignal';
     const ran: string[] | undefined = result.detectorsRun;
     if (ran && ran.length > 0) {
       // Authoritative path: use the backend list.
@@ -399,7 +410,12 @@
   });
 
   const trustLevel = $derived(() => {
-    if (!rawTrustLevel) return null;
+    if (!rawTrustLevel || !result) return null;
+    // v1.2.0: read the band the backend computed (verify/verdict.rs), the
+    // same one the REST API and the reports give. The rule below is the one
+    // that was ported, kept only for results saved before the verdict block.
+    const fromVerdict = verdictTrustLevel(result);
+    if (fromVerdict) return fromVerdict;
     if (insufficientSignal()) return 'inconclusive' as const;
     // Safety cap (added 2026-05-11 after a re-encoded AI PNG passed as High
     // Trust): cannot claim "Authentic" without positive provenance evidence.
@@ -630,13 +646,15 @@
     if (!actionsAssertion) return [];
     try {
       const parsed = JSON.parse(actionsAssertion.value);
-      const actions: { action: string; description?: string; digitalSourceType?: string; softwareAgent?: string }[] = parsed?.actions ?? parsed ?? [];
+      // Field types are not trusted: a manifest is external input, and
+      // softwareAgent changed from a string (1.x) to an object (2.x).
+      const actions: { action: string; description?: unknown; digitalSourceType?: unknown; softwareAgent?: unknown }[] = parsed?.actions ?? parsed ?? [];
       return actions.map((a) => ({
         raw: a.action,
         label: C2PA_ACTION_LABELS[a.action] ?? a.action,
-        description: a.description ?? null,
-        sourceType: a.digitalSourceType ? humaniseDigitalSourceType(a.digitalSourceType) : null,
-        softwareAgent: a.softwareAgent ?? null,
+        description: typeof a.description === 'string' ? a.description : null,
+        sourceType: typeof a.digitalSourceType === 'string' ? humaniseDigitalSourceType(a.digitalSourceType) : null,
+        softwareAgent: formatSoftwareAgent(a.softwareAgent),
       }));
     } catch {
       return [];
@@ -1191,7 +1209,7 @@
     const lower = message.toLowerCase();
     if (lower.includes('unsupported') || lower.includes('format') || lower.includes('mime')) {
       errorType = 'format';
-      error = 'Unsupported file format. Jura Trace v1.0 supports JPEG, PNG, TIFF, WebP, HEIC and AVIF. Video and PDF return in a later release.';
+      error = 'Unsupported file format. Jura Trace supports JPEG, PNG, TIFF, WebP, HEIC and AVIF. Video and PDF are not supported yet.';
     } else if (lower.includes('sidecar') || lower.includes('connection refused')) {
       errorType = 'sidecar';
       error = 'The Analysis Engine is not running. Core checks are still available.';
@@ -1330,9 +1348,6 @@
 
   // ── Lifecycle ─────────────────────────────────────────────────────
   onMount(() => {
-    // Intro card: show unless the user has already dismissed it.
-    introDismissed = localStorage.getItem('jura-verify-intro-dismissed') === 'true';
-
     const savedMode = localStorage.getItem('jura-verify-mode');
     // Migrate 'archival' -> 'deep' — archival was removed 2026-04-22 because
     // it ran the identical pipeline to Deep.  Existing pilot users had
@@ -1423,9 +1438,9 @@
   function rejectUnsupported(name: string) {
     errorType = 'format';
     error =
-      `"${name}" is not a format Jura Trace v1.0 can verify. ` +
+      `"${name}" is not a format Jura Trace can verify. ` +
       `Supported formats are ${SUPPORTED_FORMATS_LABEL}. ` +
-      'Video, audio and PDF return in a later release.';
+      'Video, audio and PDF are not supported yet.';
   }
 
   // ── Drag and drop ─────────────────────────────────────────────────
@@ -1512,6 +1527,7 @@
     filePath = path;
     fileName = name;
     result = null;
+    recordExportNote = null;
     checked = false;
     error = null;
     errorType = null;
@@ -1536,6 +1552,7 @@
     fileName = url.split('/').pop()?.split('?')[0] || url;
     filePath = null;
     result = null;
+    recordExportNote = null;
     checked = false;
     error = null;
     errorType = null;
@@ -1553,7 +1570,7 @@
 
   function reset() {
     filePath = null; fileName = null; urlInput = '';
-    result = null; checked = false; error = null;
+    result = null; checked = false; error = null; recordExportNote = null;
     loading = false; cancelled = false;
     openCard = null; showImageOverlay = false;
     previewUrl = null;
@@ -1561,17 +1578,19 @@
   }
 
   // ── Export helpers ────────────────────────────────────────────────
-  async function triggerDownload(blob: Blob, filename: string) {
+  // Returns false when the user cancels the save dialog, so callers do not
+  // report a file as saved when none was written. The browser fallback
+  // cannot tell, and returns true once the download has been started.
+  async function triggerDownload(blob: Blob, filename: string): Promise<boolean> {
     if (inTauri) {
       try {
         const { save } = await import('@tauri-apps/plugin-dialog');
         const { writeFile } = await import('@tauri-apps/plugin-fs');
         const chosen = await save({ defaultPath: filename });
-        if (chosen) {
-          await writeFile(chosen, new Uint8Array(await blob.arrayBuffer()));
-          console.log(`Saved to: ${chosen}`);
-        }
-        return;
+        if (!chosen) return false;
+        await writeFile(chosen, new Uint8Array(await blob.arrayBuffer()));
+        console.log(`Saved to: ${chosen}`);
+        return true;
       } catch (e) {
         console.warn('Tauri save dialog failed, falling back to browser download:', e);
       }
@@ -1580,6 +1599,7 @@
     const a = document.createElement('a');
     a.href = url; a.download = filename; a.click();
     URL.revokeObjectURL(url);
+    return true;
   }
 
   async function handleExportReport() {
@@ -1626,6 +1646,26 @@
       triggerDownload(blob, `jura-case-${safe}-${ts}.zip`);
     } finally {
       exportingCase = false;
+    }
+  }
+
+  async function handleExportRecord() {
+    if (!result || exportingRecord) return;
+    exportingRecord = true;
+    recordExportNote = null;
+    try {
+      const ex = await exportVerificationRecord(result, fileName ?? null);
+      const blob = await packVerificationRecord(ex);
+      const saved = await triggerDownload(blob, verificationRecordFileName(fileName, Math.floor(Date.now() / 1000)));
+      if (!saved) return;
+      recordExportNote = {
+        ok: true,
+        text: `Verification Record saved. It is signed in Sovereign mode, with a key made on this computer. HOW-TO-CHECK.txt inside tells the person you send it to how to check it. Signing certificate SHA-256: ${ex.certificateSha256}`,
+      };
+    } catch (e) {
+      recordExportNote = { ok: false, text: `The Verification Record was not made. ${parseAppError(e).message}` };
+    } finally {
+      exportingRecord = false;
     }
   }
 
@@ -1835,6 +1875,7 @@
   function backToBatchList() {
     batchDrilldownActive = false;
     result = null;
+    recordExportNote = null;
     checked = false;
     error = null;
     errorType = null;
@@ -2203,37 +2244,6 @@
           class="ml-1 underline underline-offset-2 hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-dark dark:focus-visible:ring-amber-light rounded"
         >Go to Settings to check service status.</a>
       {/if}
-    </div>
-  {/if}
-
-  <!-- ── First-run intro card ──────────────────────────────────── -->
-  <!-- Shown once, until the user dismisses it. Dismissal is persisted to
-       localStorage so it never reappears. Does not block interaction. -->
-  {#if !introDismissed}
-    <div
-      class="mb-5 flex items-start gap-3 px-4 py-3 rounded-xl border border-lapis/25 bg-lapis/5"
-      role="note"
-      aria-label="How to use Jura Trace verification"
-    >
-      <p class="flex-1 text-sm text-text-light dark:text-quartz leading-relaxed">
-        Jura Trace gives you a second opinion, not a verdict. Use it alongside your other verification steps.
-      </p>
-      <button
-        type="button"
-        class="flex-shrink-0 text-xs text-flint-dark dark:text-flint-light hover:text-obsidian dark:hover:text-quartz min-h-[32px] min-w-[32px] flex items-center justify-center rounded
-               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-obsidian
-               transition-colors duration-150"
-        aria-label="Dismiss this note"
-        onclick={() => {
-          introDismissed = true;
-          localStorage.setItem('jura-verify-intro-dismissed', 'true');
-        }}
-      >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-        </svg>
-        <span class="sr-only">Dismiss</span>
-      </button>
     </div>
   {/if}
 
@@ -2760,6 +2770,14 @@
           >
             How this score is calculated
           </a>
+
+          <!-- Reliance note (JTV-208). Always shown with the verdict and never
+               dismissible: it used to be a first-run card above the input panel
+               with a dismiss button, so most people read it once, before they had
+               a result to apply it to. -->
+          <p class="text-xs text-text-light dark:text-quartz mb-2" role="note">
+            Jura Trace gives you a second opinion, not a verdict. Use it alongside your other verification steps.
+          </p>
 
           <p class="text-sm muted-help mb-3">
             {fileName}{#if imageDimensions()} · {imageDimensions()}{/if}
@@ -3495,7 +3513,7 @@
                         {#if c2paSignerName && c2paSignedDate()}
                           Issued by {c2paSignerName} on {c2paSignedDate()}
                         {:else if c2paSignerName}
-                          Issued by {c2paSignerName}
+                          Issued by {c2paSignerName}, with no trusted timestamp
                         {:else if c2paSignedDate()}
                           Signed on {c2paSignedDate()}
                         {:else}
@@ -3578,13 +3596,18 @@
                             {/if}
                           </div>
 
-                          <!-- Signed date -->
-                          {#if c2paSignedDate()}
-                            <div>
-                              <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider mb-0.5">Date</p>
+                          <!-- Signed date. signedAt comes from the RFC 3161 timestamp
+                               (signature_info.time), so its absence means the seal
+                               carries no trusted time, which a Standard-mode user can
+                               now choose (BL-CLAIM-004). Say so rather than omit it. -->
+                          <div>
+                            <p class="text-[10px] text-flint-dark dark:text-flint-light uppercase tracking-wider mb-0.5">Date</p>
+                            {#if c2paSignedDate()}
                               <p class="text-xs text-obsidian dark:text-quartz">{c2paSignedDate()}</p>
-                            </div>
-                          {/if}
+                            {:else}
+                              <p class="text-xs text-obsidian dark:text-quartz">No trusted timestamp. This seal does not show when it was signed.</p>
+                            {/if}
+                          </div>
 
                           <!-- Edits and activity — per C2PA UX Rec v1.4 §4.3 -->
                           {#if c2paActions().length > 0}
@@ -4886,7 +4909,7 @@
                          the accordion below does not read as a contradiction. -->
                     {#if gbmHighScoreNoSignals && gbmSignals.length > 0}
                       <p class="text-[11px] text-flint-dark dark:text-flint-light italic mt-1.5 leading-snug">
-                        Score reflects statistical patterns across the model's 84-feature vector. None of the {gbmSignals.length} named indicators triggered individually.
+                        Score reflects statistical patterns across the model's whole feature vector. None of the {gbmSignals.length} named indicators triggered individually.
                       </p>
                     {/if}
                     {#if gbmSignals.length > 0}
@@ -5051,14 +5074,14 @@
                   <span
                     class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-lapis/10 text-lapis dark:text-lapis-light border border-lapis/20"
                   >
-                    Planned: v1.0.1
+                    Not yet available
                   </span>
                 </div>
                 <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed mb-2">
-                  Video deepfake analysis is in active development for v1.0.1. It will ship with calibration data covering Global Majority devices and current-generation generators (Sora, Runway Gen-3, HeyGen, Synthesia). v1.0 verifies what we can stand behind: provenance and metadata.
+                  Video deepfake analysis is not part of this release. It will ship only with calibration data covering Global Majority devices and current-generation generators (Sora, Runway Gen-3, HeyGen, Synthesia). For video, Jura Trace reports what it can stand behind: provenance and metadata.
                 </p>
                 <p class="text-xs text-flint-dark dark:text-flint-light leading-relaxed">
-                  <strong>Available now for video files:</strong> C2PA content credentials, EXIF metadata extraction, and native video preview above. <strong>Coming in v1.0.1:</strong> per-frame deepfake detection, audio-visual sync analysis, transcription, and claim verification.
+                  <strong>Available now for video files:</strong> C2PA content credentials, EXIF metadata extraction, and native video preview above. <strong>Not yet available:</strong> per-frame deepfake detection, audio-visual sync analysis, transcription, and claim verification.
                 </p>
               </section>
             {/if}
@@ -5377,6 +5400,20 @@
       </button>
 
       <button
+        class="flex items-center gap-2 px-4 py-2.5 min-h-[44px] border border-border-light dark:border-border-dark text-obsidian dark:text-quartz text-sm font-medium rounded-lg hover:bg-white/5 transition-colors disabled:opacity-50
+               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
+        disabled={exportingRecord}
+        onclick={handleExportRecord}
+        aria-label="Export a signed Verification Record as ZIP"
+        title="A signed, tamper-evident record of the checks that were run, which someone else can check without Jura Trace."
+      >
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/>
+        </svg>
+        {exportingRecord ? 'Signing…' : 'Verification Record'}
+      </button>
+
+      <button
         class="flex items-center gap-2 px-4 py-2.5 min-h-[44px] border border-border-light dark:border-border-dark text-flint-dark dark:text-flint-light text-sm rounded-lg hover:text-obsidian dark:hover:text-quartz hover:bg-white/5 transition-colors
                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lapis-light"
         onclick={() => showFalsePositiveModal = true}
@@ -5384,6 +5421,13 @@
       >
         Report False Positive
       </button>
+
+      {#if recordExportNote}
+        <p
+          class="basis-full text-xs break-words {recordExportNote.ok ? 'text-flint-dark dark:text-flint-light' : 'text-red-700 dark:text-red-300'}"
+          role={recordExportNote.ok ? 'status' : 'alert'}
+        >{recordExportNote.text}</p>
+      {/if}
 
     </div>
 

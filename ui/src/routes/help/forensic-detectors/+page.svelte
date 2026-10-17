@@ -196,7 +196,7 @@
       <strong class="text-text-light dark:text-quartz">Where it surfaces:</strong>
       The "PRNU sensor pattern symmetry" named indicator inside the AI
       Generation panel's detector list. Contributes to the GBM v4 classifier's
-      84-feature vector alongside noise, frequency, LBP/GLCM texture, and
+      80-feature vector alongside noise, frequency, LBP/GLCM texture, and
       demosaic features. Not displayed as a standalone score. The signal
       feeds into the ensemble.
     </p>

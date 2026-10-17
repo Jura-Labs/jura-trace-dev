@@ -1,6 +1,6 @@
 # BL-DEPS-003: five reachable advisories in the shipped product, found the first time anyone looked
 
-**Status**: Open, 3 of 5 resolved. Found 4 September 2026, by the first full supply-chain
+**Status**: Open, largely resolved. All five advisories, both of the "November" items and every step in "Order of work" are fixed on `main`; `cargo audit` and `pip-audit` both report zero. Nothing reaches a user until v1.1.0 ships on 13 November 2026, and the item is about the shipped product, so it closes when that release is live. See "Update, 8 September 2026" at the foot of this file. Found 4 September 2026, by the first full supply-chain
 audit since July.
 **Raised**: 4 September 2026
 **Severity**: High. These are in the shipped binary and the shipped sidecar,
@@ -331,3 +331,85 @@ worker has no runtime dependencies at all.
    starlette and python-multipart are the substantial half.
 8. lopdf to 0.42, with time budgeted for the API break.
 9. November: c2pa, quick-xml, python-multipart, starlette.
+
+## Update, 8 September 2026
+
+Reconciled against `origin/main` at `d0ca411d`, `src-tauri/Cargo.lock`,
+the three sidecar manifests, and CI run `34284960670` on that commit.
+
+A note on numbering first. "PR #28" and "PR #29" in the resolutions above
+are `Jura-Labs/jura-archive` numbers (openssl and tauri; Pillow). The
+`jura-trace-dev` repository created on 8 September has its own #28 and #29,
+which are the two pull requests below. Same numbers, different changes.
+
+### Fixed in tree versus fixed for users
+
+Everything in this section is **fixed on `main`**. None of it is in any
+installer a user can download. v1.0.0, built on 18 to 20 June, still
+carries openssl 0.10.75, Pillow 11.2.1, lopdf 0.34.0, tauri 2.10.2,
+pillow-heif 1.2.0, quick-xml 0.38.4 and c2pa 0.79.3, and will until v1.1.0
+ships on 13 November 2026 and the updater path in BL-REL-002 delivers it.
+The item's title describes the shipped binary, and the shipped binary is
+unchanged.
+
+### The five, and the two for November
+
+| Item | State on `main` | Where |
+|---|---|---|
+| 1 openssl | Fixed 4 September (recorded above) | `Cargo.lock`: openssl 0.10.81 |
+| 2 Pillow | Fixed 4 September (recorded above) | `requirements*.txt`, `requirements.lock`: Pillow 12.3.0 |
+| 3 lopdf | **Fixed 8 September**, `jura-trace-dev` #28 (`cc0cbc8a`) | `Cargo.toml:92` `lopdf = "0.42"`; `Cargo.lock` 0.42.0. The API break the item budgeted for did not bite: `Document::load` and `Object` compiled without source changes |
+| 4 tauri | Fixed 5 September (recorded above) | |
+| 5 pillow-heif | **Fixed** | 1.6.0 in `requirements.txt:38`, `requirements-ci.txt:44`, `requirements.lock:368` |
+| quick-xml | **Fixed 8 September**, #28 and #29 | `Cargo.lock`: 0.41.0 only. #28 moved the `plist` copy; #29 moved the `c2pa` copy |
+| c2pa 0.79.3 | **Fixed 8 September**, #29 (`c1718c6d`) | `Cargo.toml:63` `c2pa = "0.90"`; `Cargo.lock` 0.90.20. Not a version bump: 0.90 deprecates the thread-local settings API, so `src-tauri/src/c2pa.rs` now parses the trust bundle once into `trust_settings()` (`c2pa.rs:1447`) and builds an explicit `c2pa::Context` per reader and builder through `trust_context()` (`c2pa.rs:1468`). The per-thread initialiser that had to be remembered is gone. The conformance vectors in `docs/c2pa-conformance/test-vectors/` were diffed between 0.79 and 0.90 in the PR; two stale fixtures were regenerated and the evidence bundle README given an accuracy note in #32 (`3ac697c7`) |
+
+### What the two auditors say now
+
+`cargo audit` on `main`, run 34284960670: **0 vulnerabilities** over 921
+crates, "16 allowed warnings found". The 16 are 10 unmaintained (core2,
+fxhash, paste, proc-macro-error, ttf-parser, five `unic-*` crates), 4
+unsound (anyhow RUSTSEC-2026-0190, glib RUSTSEC-2024-0429, rand
+RUSTSEC-2026-0097 twice) and 2 yanked (core2, spin). It was 14
+vulnerabilities and 26 warnings when this section was written; #28 took it
+to 2 and #29 to 0. Of the 14, twelve were fixed by lockfile bumps
+(crossbeam-epoch, h2, quinn-proto, rustls-webpki, plist's quick-xml) and by
+lopdf, so the "pending review" set above (quinn-proto, h2, crossbeam-epoch)
+and rustls-webpki were fixed rather than accepted.
+
+The one suppression is `src-tauri/.cargo/audit.toml`, ignoring
+RUSTSEC-2023-0071 (rsa, Marvin) only. No fixed version exists, `rsa` is a
+required dependency of every c2pa release 0.79 through 0.90.20, and the
+file records why the exposure does not apply and when the entry comes back
+out. Approved by Paul at the terminal, 8 September. This is the same
+acceptance recorded under "Accepted, with reasons" above, now enforced in
+one place that CI and a developer's terminal both read.
+
+`pip-audit` on `main`, same run: **"No known vulnerabilities found"**. The
+23 findings that stayed red after Pillow (starlette, python-multipart,
+pillow-heif, click, idna, pydantic-settings, pygments, pytest,
+python-dotenv) are cleared; starlette is 1.6.0 and python-multipart 0.0.32
+in all three manifests. Paul's 5 September decision to fix them rather than
+narrow the gate is done.
+
+The caveat in "cargo-audit cannot see the advisories this item was written
+about" still holds and is unchanged by any of this: `cargo audit` reads
+RustSec only, the openssl and tauri advisories are GHSA-only, and OSV is the
+check that covers them. OSV is scanning again (BL-CI-002, closed).
+
+### Order of work, checked
+
+1 to 4 done as recorded. 5, SHA-pin `tauri-apps/tauri-action`: **done**,
+`release.yml:824` and `:841` pin `84b9d35b5fc46c1e45415bdb6144030364f7ebc5`
+(v0.6.2), and the Repo hygiene job fails on any unpinned action
+(`ci.yml:382-395`). 6, pillow-heif: **done**. 7, the 23 pip-audit
+findings: **done**. 8, lopdf: **done**, #28. 9, the November four:
+**done early**, c2pa and quick-xml in #29, python-multipart and starlette
+in the pip-audit clearance.
+
+### What remains
+
+Ship it. The advisories reach users when v1.1.0 does, and BL-REL-002's
+live-update leg is what decides whether v1.0.0 installs receive it or need
+the re-download notice. Until then every "fixed" in this file means fixed
+for whoever builds from `main`.

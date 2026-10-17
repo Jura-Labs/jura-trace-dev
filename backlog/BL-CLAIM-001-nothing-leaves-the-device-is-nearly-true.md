@@ -99,7 +99,13 @@ The first half is not.
    The exact words are Paul's call. The list is the part that has to be
    there.
 
-2. **Bundle the Swagger assets locally.** This is JTV-209 in Plane and
+2. **Done on `main`, 21 September 2026, ships in v1.2.0.** `/swagger-ui/`
+   now serves the assets `utoipa-swagger-ui` compiles into the binary with
+   its `vendored` feature (Swagger UI 5.17.14), and
+   `test_swagger_ui_served_locally` fails if the page references any remote
+   URL. The README bullet says which versions still make the call.
+
+   **Bundle the Swagger assets locally.** This is JTV-209 in Plane and
    SR-24 in the register. It removes the one call that is not user-initiated
    and the one unpinned remote script, and it shortens the sentence above.
    Legal review flags the unpinned `unpkg` load specifically: pin or vendor
@@ -127,3 +133,37 @@ has to be stated accurately.
 
 Do not fix the README and leave the articles and services page. Rows 6 and 7
 name three published pages. The correction is not done until they match.
+
+## Update, 11 September 2026: row 5 is cheaper to close than the plan assumes
+
+Row 5 of the table above is the Swagger page's unpinned fetch of
+`https://unpkg.com/swagger-ui-dist/...` from
+`src-tauri/src/api/mod.rs:278` and `:282`. "What would fix it" step 2 says
+to bundle the assets locally, and `docs/release/v1.2.0-plan.md:105` prices
+that at half a day as item A2.
+
+Reading the API surface on 11 September found something that changes the
+shape of the fix rather than the priority. **The crate whose entire purpose
+is to serve those assets from inside the binary is already compiled into
+every build and is never referenced.** `src-tauri/Cargo.toml:104` declares
+`utoipa-swagger-ui`, `:116` puts it in the `api` feature and `:114` puts
+`api` in `default`, and `grep -rn "utoipa_swagger_ui\|SwaggerUi" src-tauri/src/`
+returns nothing. The page at `src-tauri/src/api/mod.rs:271-302` is a hand
+written string literal that reaches the CDN instead.
+
+So there are three options where the plan assumed one, and the third is the
+smallest. Delete `swagger_ui_html`, `swagger_ui_redirect` and their two
+routes, and the outbound call goes away entirely rather than being pinned,
+an unauthenticated route disappears from a port that is always listening,
+and a dependency that pulls `zip`, `rust-embed` and a second major version
+of axum (`Cargo.lock:385`, `axum 0.7.9`, whose only dependent is that
+crate) comes out of the build with it. `GET /openapi.json` is unaffected,
+because it is produced by the other utoipa crate, which is genuinely used.
+
+Written up as **BL-API-004**, which holds the dependency evidence. The
+decision belongs to this item, because it is this item's row 5 that the
+fix closes. Whoever takes A2 should read both.
+
+## Update, 13 October 2026: reconciled against `main` at `a7b58e65`
+
+No change to the finding. For the record against the v1.2.0 plan: the README text (A4), the vendored Swagger assets (A12, PR #99) and the public download README (`Jura-Labs/jura-trace` PR #2, merged 8 October) are all done. Everything here is fixed on `main` and reaches users with v1.2.0. Close it when v1.2.0 is published.

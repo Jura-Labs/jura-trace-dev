@@ -30,7 +30,9 @@ set -euo pipefail
 : "${AUTHENTIC:?set AUTHENTIC to the source camera photo}"
 : "${AI_IMAGE:?set AI_IMAGE to the AI-generated source image}"
 : "${JURA_API_KEY:?set JURA_API_KEY to a jt_... bearer for the local REST API}"
-API="${JURA_API:-http://127.0.0.1:8300}"
+# JURA_API_URL is the name jura and scripts/agents use; JURA_API, this
+# script's old name, still works.
+API="${JURA_API_URL:-${JURA_API:-http://127.0.0.1:8300}}"
 
 OUT="docs/sample-media/jura-trace-sample-images"
 rm -rf "$OUT" "$OUT.zip"; mkdir -p "$OUT" build/sample-media

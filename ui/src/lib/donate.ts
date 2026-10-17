@@ -1,4 +1,4 @@
-// Donation surface constants for Jura Trace v1.0.
+// Donation surface constants for Jura Trace.
 //
 // Decision document:
 //   jura-labs-docs/jura-trace-strategy/donation-surface-design-2026-06-02.md

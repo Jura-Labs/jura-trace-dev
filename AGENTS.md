@@ -201,7 +201,7 @@ Top-level layout (browse directories directly for file listings):
 - `models/` — trained model artefacts (on external USB during development).
 - `docs/` — public-facing documentation only (install guides, user guides, methodology, calibration, decisions, C2PA conformance, branding, compliance, ARCHITECTURE.md, BRAND_GUIDELINES.md, backlog.md). **Internal-consultation docs (strategy, funding drafts, sprint plans, internal architecture / corpus / deployment notes, project spec) live in `../jura-labs-docs/` per the doc-hygiene pattern (memory `project_repo_doc_hygiene`).**
 - `.github/workflows/` — CI, Release (4-platform matrix), Dependabot.
-- `.github/PULL_REQUEST_TEMPLATE.md` + `.github/ISSUE_TEMPLATE/` (and `.forgejo/` mirrors) — contributor-facing forms with mandatory `AI-Disclosure` field per `CONTRIBUTING.md` "AI-tool use" section.
+- `.github/PULL_REQUEST_TEMPLATE.md` + `.github/ISSUE_TEMPLATE/` — contributor-facing forms with mandatory `AI-Disclosure` field per `CONTRIBUTING.md` "AI-tool use" section.
 - Root: `CHANGELOG.md`, `CLAUDE.md`, `LICENSE`, `COMMERCIAL.md`, `TRAINING.md`, `CONTRIBUTING.md`, `README.md`, `Makefile`.
 
 ## Two-Repo Release Architecture
@@ -259,35 +259,9 @@ If none of the three resolves, the build script warns and still completes — DM
 
 **Post-build check**: `spctl --assess --verbose=2 --type install "<path-to-dmg>"` should report `source=Notarized Developer ID`. If it says `source=Developer ID` (no "Notarized" prefix), the DMG was signed but not notarised — do not publish.
 
-## Codeberg Public Source Push (clean-snapshot ruleset)
+## Codeberg (retired)
 
-The public AGPL source lives at `codeberg.org/jura-labs/jura-trace` (the Codeberg mirror), separate from the private GitHub dev repo `Jura-Labs/jura-archive` (`origin`). Remote: `codeberg` = `git@codeberg.org:jura-labs/jura-trace.git`.
-
-**CRITICAL SAFETY RULE.** `codeberg/main` is a scrubbed public history with NO common ancestor to local `main`. NEVER `git push codeberg main`, and NEVER `--force` to it. A force-push overwrites the clean public history with the full private dev history (639+ commits), exposing everything the scrub avoided and wiping the public release commits + tags. This is destructive and unrecoverable. The public repo is updated by a curated catch-up sync, not a raw push.
-
-**Safe method (curated sync of a release onto the clean history):**
-1. `git worktree add <dir> codeberg/main` (check out the clean public history).
-2. Lay the included source tree (from the release tag) over the worktree, applying the exclusions below. Do NOT copy the dev `.git`.
-3. Secret-scan the result (no hardcoded keys/tokens; `.env` absent; `src-tauri/binaries/*` are tiny stubs, not real binaries).
-4. Single clean commit ("Jura Trace vX.Y.Z public source release (AGPL-3.0-or-later)"). Create the tag ON the snapshot commit only: `git push codeberg HEAD:refs/tags/vX.Y.Z`. NEVER `git push codeberg vX.Y.Z` using the existing LOCAL release tag: that tag points into the private dev history, so pushing it uploads dev commit objects to Codeberg (reachable via the tag until deleted). If it happens, `git push codeberg :refs/tags/vX.Y.Z` then re-create on the snapshot commit, and request a Codeberg GC.
-5. Fast-forward push to `codeberg` (builds on the existing clean history, no force).
-6. Push the wiki separately to `git@codeberg.org:jura-labs/jura-trace.wiki.git` (pages from `../jura-labs-docs/codeberg-wiki-draft/`).
-7. Make the repo public in Codeberg settings if still private.
-
-**INCLUDE** (AGPL Corresponding Source must be buildable):
-- `src-tauri/`, `ui/`, `sidecar/`, `scripts/` (build + training scripts)
-- Dependency/lock manifests: `Cargo.toml`+`Cargo.lock`, `ui/package.json`+`ui/package-lock.json`, `sidecar/requirements*.txt`+`requirements.lock`+`jura-sidecar.spec`, `Makefile`, root `package.json`
-- `src-tauri/binaries/` stubs (needed for `cargo check`; verify they ARE stubs), `src-tauri/trust-list/*.pem` (public C2PA anchors), `sidecar/app/services/bpe_simple_vocab_16e6.txt.gz` (CLIP tokenizer)
-- `.forgejo/` (Codeberg CI)
-- Root docs: LICENSE, README.md, COMMERCIAL.md, CONTRIBUTING.md, SECURITY.md, CODE_OF_CONDUCT.md, GENAI_USE_POLICY.md, TRAINING.md, NOTICE, THIRD-PARTY-LICENSES.txt, CHANGELOG.md
-- From `docs/`, ONLY `docs/ARCHITECTURE.md` and `docs/BRAND_GUIDELINES.md`
-
-**EXCLUDE** (never publish):
-- `docs/` (everything except the two files above)
-- `data/`, `infrastructure/`, `test-results/`, `corpus/`, `models/` (trained weights, treated as data/IP), `agents/` (corpus crawl pipeline)
-- `CLAUDE.md`, `.claude/`, `.github/` (GitHub-specific; exposes the private two-repo model + `RELEASE_PAT`), `.env`
-
-**MUST FIX before any push** (or stale/wrong copy goes public): source README staleness, and any PolyForm / "noncommercial" / "not open source" licence claims in INCLUDED files (licence is AGPL-3.0-or-later since 6 May 2026). Note: the corpus-dataset "non-commercial" notes in `scripts/*.py` are accurate dataset-licence statements and stay; the CC-BY-NC option in the Protect UI is a user content-licence choice and stays. See memories `project_codeberg_fresh_release_snapshot` + `project_repo_doc_hygiene`.
+Codeberg was retired on 29 September 2026 (W40-19). The public source is `https://github.com/Jura-Labs/jura-trace-dev`, which the in-app Open Source page and the AGPL notice in `THIRD-PARTY-LICENSES.txt` both point to. `codeberg.org/jura-labs/jura-trace` is archived and read-only. Do not push to it, and do not add Codeberg links. Older docs that mention Codeberg are kept as the historical record.
 
 ## Key Files
 
@@ -301,13 +275,14 @@ Top-level entry points and non-obvious files. Sidecar services live under `sidec
 - **Error module**: `src-tauri/src/error.rs` — `AppError` enum with structured IPC serialisation `{ code, message }`
 - **Tauri config**: `src-tauri/tauri.conf.json` — app name, window, permissions, auto-updater endpoint
 - **Sidecar entry**: `sidecar/main.py` — FastAPI application
-- **CI requirements** (non-obvious): `sidecar/requirements-ci.txt` — the file CI actually uses for PyInstaller builds (excludes torch/whisper/chromadb). Separate from `requirements.txt`.
+- **Sidecar manifests** (non-obvious): three files, three consumers. `sidecar/requirements-ci.txt` is what `release.yml` installs before the Windows and Linux PyInstaller builds (excludes torch/whisper/chromadb). `sidecar/requirements.lock` is what `ci.yml` installs to run the sidecar tests. `sidecar/requirements.txt` is the source the lock is compiled from. `scripts/check_requirements_sync.py` fails CI when they disagree.
+- **A sidecar dependency bump is a four-file change** (BL-DEPS-004 option (d)): `requirements.txt`, `requirements-ci.txt`, the lock regenerated with the `pip-compile` command in its header, and, for anything under the detector arithmetic (numpy, scipy, opencv, Pillow and its plugins, scikit-learn, onnxruntime), a before-and-after drift run written up in `docs/calibration/`. Dependabot pip pull requests change only the first two and stay red until the lock is regenerated; that is the guard working.
 - **PyInstaller spec**: `sidecar/jura-sidecar.spec` — parameterised for macOS/Windows/Linux
 - **Frontend contract**: `ui/src/lib/types.ts` (mirrors Rust structs) and `ui/src/lib/api.ts` (Tauri IPC wrapper with browser mock fallback)
 - **Main UI**: `ui/src/routes/verify/+page.svelte`, `ui/src/routes/protect/+page.svelte`, `ui/src/routes/+layout.svelte`
 - **Models** (on external USB; paths are where sidecar loads them from):
-  - `models/deepfake_classifier.joblib` — GBM v4, 84 features, AUC 0.9868, FP 4.54%
-  - `models/univfd_probe.joblib` — UnivFD v9, LogReg on CLIP ViT-B/32, AUC 0.9933, FP 4.12%
+  - `models/deepfake_classifier.joblib` — GBM v4, 80 features, AUC 0.9868, FP 4.54%
+  - `models/univfd_probe.joblib` — UnivFD v10onnx, LogReg on CLIP ViT-B/32, AUC 0.9929, FP 3.87% (held-out test set; figures in `models/univfd_probe_v10onnx_meta.json`)
 - **Training scripts**: `scripts/train_classifier.py`, `scripts/train_univfd_probe.py` (`--C` for regularisation), `scripts/agents/` (corpus crawl/protect/verify/validate pipeline)
 - **CI/CD**: `.github/workflows/` — CI (Rust + Python + Frontend with pip-audit), Release (4-platform matrix, workflow_dispatch enabled, Linux paused), Dependabot
 - **macOS entitlements**: `src-tauri/Entitlements.plist`
@@ -316,7 +291,7 @@ Top-level entry points and non-obvious files. Sidecar services live under `sidec
 
 ## Design Principles
 
-1. **Local-first**: All processing on-device. No cloud calls. No telemetry.
+1. **Local-first**: All analysis of user content on-device. No telemetry. Five outbound calls exist and none carries a user's file: the update check and the weather lookup (both Enhanced mode only), a URL the user pastes, the Swagger UI assets on the local API docs page, and the RFC3161 timestamp on signing, which sends a hash derived from the file and is NOT gated by network mode. Never write "no cloud calls" or "nothing leaves the device"; see BL-CLAIM-001.
 2. **Rust for core**: C2PA, hashing, EXIF analysis, file I/O in Rust for performance.
 3. **Python for ML**: Image forensics, deepfake detection, RAG in Python sidecar.
 4. **Graceful degradation**: Sidecar offline = forensics skipped, app still works.
@@ -337,9 +312,10 @@ Top-level entry points and non-obvious files. Sidecar services live under `sidec
 * **Help copy sweep** (commit `44ff5d6`). 10 P0 items across help/verify, help/ollama, help/bedrock-signing, help/glossary, help/compliance, help/settings, help/protect, and the protect drop-zone subtitle. Trust-score formula text aligned across every surface; v1.0 gate notice added to Conformant section of help/bedrock-signing; deferred-feature mentions (watermark, audio, video, PDF, Ollama, profiles) all corrected.
 * **Tauri updater key rotation** (commits `c8d4f12` + `aea8063`). May-10 keypair `98980FC45EF9FD71` was effectively lost (in GitHub Secrets but unusable); rotated to fresh empty-password keypair `1AED7E4A127C6230` at `~/.tauri/jura-trace-v10.key`. `bundle.createUpdaterArtifacts: true` added to tauri.conf.json — without it the updater bundle silently produced nothing. `scripts/build-local-mac.sh` auto-loads the key from disk so local builds produce signed `.app.tar.gz` + `.sig` without manual env-var plumbing. rc.25 installers carry the old (lost) pubkey and cannot auto-update; rc.26+ installers carry the new pubkey. See memory `project_tauri_updater_key_rotation.md`.
 
-**Models in production** (as of 7 April 2026):
-- **GBM Deepfake Classifier v4** — 10,709 images (5,724 authentic + 4,985 AI), 84-feature vector, AUC-ROC 0.9868, authentic FP 4.54%, AI recall 92.52%, threshold 0.49. SHA-256 `512def7ec62cbeb023c5343859a15606a02742d48b1fca31df11667c0b9ba14a` (re-pickled under sklearn 1.8.0; numerically identical to the original 1.7.2 pickle, max |Δ predict_proba| = 0, and the value pinned in `sidecar/app/services/deepfake.py`).
-- **UnivFD probe v9** — LogisticRegression on CLIP ViT-B/32 embeddings, 39,016 training samples (10,712 original + 32,142 platform-forwarded augmentation via Q=75/85/2× re-saves), AUC-ROC 0.9933, FP 4.12%, recall 95.70%. Platform-forwarded-specific AUC: plt75 0.9947, plt85 0.9949, plt2x 0.9937. DiffusionDB recall 67.6% → 97.3%, Civitai SFW 75.8% → 98.7%. Known trade-off: flux_dev 88.9% (−11.1 pp), sdxl_turbo 91.1% (−8.9 pp). SHA-256 `ed691b45cbe2903a7e0530fd0ec78ab91eef9f15133af4c1a5c8cf172086dacd`. Promoted 2026-04-12 from candidate trained 2026-04-11. Full validation in `docs/calibration/univfd-v9-platform-augmentation.md`.
+**Models in production** (as of 15 October 2026; UnivFD v10onnx since 11 May 2026):
+- **GBM Deepfake Classifier v4** — 10,712 images (5,727 authentic + 4,985 AI), 80-feature vector, AUC-ROC 0.9868, authentic FP 4.54%, AI recall 92.52%, threshold 0.49. SHA-256 `512def7ec62cbeb023c5343859a15606a02742d48b1fca31df11667c0b9ba14a` (re-pickled under sklearn 1.8.0; numerically identical to the original 1.7.2 pickle, max |Δ predict_proba| = 0, and the value pinned in `sidecar/app/services/deepfake.py`).
+- **UnivFD probe v10onnx** — LogisticRegression on CLIP ViT-B/32 embeddings, 50,710 training samples with platform-forwarded and multi-format (PNG, TIFF, WebP, HEIC) augmentation, AUC-ROC 0.9929, FP 3.87%, recall 95.77% on a 5,633-image held-out set. SHA-256 `0534a9e8…`, pinned in `sidecar/app/services/clip_detector.py`. The June v11 retrain was archived (`docs/calibration/gbm-v5-v11-archive-jun2026.md`).
+- **UnivFD probe v9** (replaced 11 May 2026, kept for its history) — LogisticRegression on CLIP ViT-B/32 embeddings, 39,016 training samples (10,712 original + 32,142 platform-forwarded augmentation via Q=75/85/2× re-saves), AUC-ROC 0.9933, FP 4.12%, recall 95.70%. Platform-forwarded-specific AUC: plt75 0.9947, plt85 0.9949, plt2x 0.9937. DiffusionDB recall 67.6% → 97.3%, Civitai SFW 75.8% → 98.7%. Known trade-off: flux_dev 88.9% (−11.1 pp), sdxl_turbo 91.1% (−8.9 pp). SHA-256 `ed691b45cbe2903a7e0530fd0ec78ab91eef9f15133af4c1a5c8cf172086dacd`. Promoted 2026-04-12 from candidate trained 2026-04-11. Full validation in `docs/calibration/univfd-v9-platform-augmentation.md`.
 - Training corpus: 6,571 authentic + 5,005 AI = 11,576 images total (stored on external USB).
 - Camera FP after MakerNote authenticity bonus + `KNOWN_CAMERA_VENDORS` (36 vendors, 11 Global Majority brands): consumer (Pixel/iPhone) 8.81%, high-end (DJI/DSC) 10.32%. All AI generator families pass 100% recall except DALL-E 3 (91.4%), Civitai SFW (75.8%), DiffusionDB (67.6% — weakest, older SD).
 

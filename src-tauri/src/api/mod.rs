@@ -7,7 +7,7 @@
 //! other machines.
 //!
 //! # Authentication
-//! Every endpoint except `GET /api/v1/health` requires a valid API key
+//! Every endpoint except `GET /api/v1/health` and `GET /api/v1/ready` requires a valid API key
 //! supplied via `Authorization: Bearer jt_<key>`.  Keys are created via
 //! `POST /api/v1/auth/keys` or auto-generated on first launch.
 //!
@@ -37,6 +37,7 @@ use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use tower_http::{cors::CorsLayer, limit::RequestBodyLimitLayer, trace::TraceLayer};
 use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
 
 use crate::AppState;
 use rate_limit::RateLimiter;
@@ -67,6 +68,7 @@ use rate_limit::RateLimiter;
     components(
         schemas(
             types::HealthResponse,
+            types::ReadyResponse,
             types::VerifyUrlRequest,
             types::ClaimCheckRequest,
             types::CreateKeyRequest,
@@ -81,12 +83,11 @@ use rate_limit::RateLimiter;
     modifiers(&BearerSecurityAddon),
     paths(
         routes::health,
+        routes::ready,
         routes::verify_file,
         routes::verify_url,
         routes::protect_sign,
         routes::protect_fingerprint,
-        routes::protect_watermark_embed,
-        routes::protect_watermark_extract,
         routes::claims_check,
         routes::get_stats,
         routes::create_api_key,
@@ -103,6 +104,21 @@ use rate_limit::RateLimiter;
     )
 )]
 pub struct ApiDoc;
+
+/// The watermark routes, documented only when they are compiled in.
+#[cfg(feature = "watermark")]
+#[derive(OpenApi)]
+#[openapi(paths(routes::protect_watermark_embed, routes::protect_watermark_extract,))]
+struct WatermarkDoc;
+
+/// The OpenAPI document for the routes this build serves.
+pub fn openapi() -> utoipa::openapi::OpenApi {
+    #[allow(unused_mut)]
+    let mut doc = ApiDoc::openapi();
+    #[cfg(feature = "watermark")]
+    doc.merge(WatermarkDoc::openapi());
+    doc
+}
 
 /// Modifier that injects the `bearerAuth` security scheme into the OpenAPI
 /// `components/securitySchemes` map. Using a modifier avoids the deprecated
@@ -147,9 +163,10 @@ pub async fn start_server(
     // Bind to loopback only — never expose to external interfaces.
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
 
-    log::info!("API server listening on http://{addr}");
-
-    let listener = match tokio::net::TcpListener::bind(addr).await {
+    // The desktop app carries on without the API when the port is taken (a
+    // second copy of the app, say). The headless binary treats the same
+    // failure as fatal; see `bind`.
+    let listener = match bind(addr).await {
         Ok(l) => l,
         Err(e) => {
             log::warn!(
@@ -163,6 +180,28 @@ pub async fn start_server(
     axum::serve(listener, app).await?;
 
     Ok(())
+}
+
+/// Bind the API listener. Logs "listening" only after the bind has
+/// succeeded: until v1.2.0 the line was written before the attempt, so a
+/// failed bind still left "API server listening" in the log.
+pub async fn bind(addr: SocketAddr) -> std::io::Result<tokio::net::TcpListener> {
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    log::info!("API server listening on http://{}", listener.local_addr()?);
+    Ok(listener)
+}
+
+/// Serve the API on an already-bound listener until `shutdown` completes,
+/// then finish in-flight requests and return. Used by the headless binary.
+pub async fn serve(
+    listener: tokio::net::TcpListener,
+    state: Arc<Mutex<AppState>>,
+    shutdown: impl std::future::Future<Output = ()> + Send + 'static,
+) -> std::io::Result<()> {
+    routes::init_start_time();
+    axum::serve(listener, build_router(state))
+        .with_graceful_shutdown(shutdown)
+        .await
 }
 
 /// Assemble the full Axum router with middleware.
@@ -203,11 +242,19 @@ pub fn build_router(state: Arc<Mutex<AppState>>) -> Router {
     // Rate limiter runs after auth (needs AuthenticatedKey extension).
     let api_routes = Router::new()
         .route("/v1/health", get(routes::health))
+        .route("/v1/ready", get(routes::ready))
         .route("/v1/verify", post(routes::verify_file))
         .route("/v1/verify/url", post(routes::verify_url))
         .route("/v1/verify/batch", post(routes::verify_batch))
         .route("/v1/protect/sign", post(routes::protect_sign))
         .route("/v1/protect/fingerprint", post(routes::protect_fingerprint))
+        .route("/v1/claims/check", post(routes::claims_check))
+        .route("/v1/stats", get(routes::get_stats))
+        .route("/v1/auth/keys", post(routes::create_api_key))
+        .route("/v1/auth/keys", get(routes::list_api_keys_handler))
+        .route("/v1/auth/keys/{key_id}", delete(routes::revoke_api_key));
+    #[cfg(feature = "watermark")]
+    let api_routes = api_routes
         .route(
             "/v1/protect/watermark/embed",
             post(routes::protect_watermark_embed),
@@ -215,12 +262,8 @@ pub fn build_router(state: Arc<Mutex<AppState>>) -> Router {
         .route(
             "/v1/protect/watermark/extract",
             post(routes::protect_watermark_extract),
-        )
-        .route("/v1/claims/check", post(routes::claims_check))
-        .route("/v1/stats", get(routes::get_stats))
-        .route("/v1/auth/keys", post(routes::create_api_key))
-        .route("/v1/auth/keys", get(routes::list_api_keys_handler))
-        .route("/v1/auth/keys/{key_id}", delete(routes::revoke_api_key))
+        );
+    let api_routes = api_routes
         .layer(middleware::from_fn_with_state(
             (state.clone(), limiter),
             rate_limit::rate_limit_middleware,
@@ -231,72 +274,36 @@ pub fn build_router(state: Arc<Mutex<AppState>>) -> Router {
         ))
         .with_state(state.clone());
 
-    // OpenAPI spec and Swagger UI (no auth).
-    let openapi_routes = Router::new()
-        .route("/openapi.json", get(openapi_spec))
-        .route("/swagger-ui", get(swagger_ui_redirect))
-        .route("/swagger-ui/", get(swagger_ui_html));
+    // OpenAPI spec and Swagger UI (no auth). The Swagger assets are compiled
+    // into the binary by utoipa-swagger-ui's `vendored` feature, so this page
+    // makes no request off the machine (SR-24, JTV-209).
+    let openapi_routes: Router<Arc<Mutex<AppState>>> = SwaggerUi::new("/swagger-ui")
+        .url("/openapi.json", openapi())
+        .into();
 
     Router::new()
         .nest("/api", api_routes)
         .merge(openapi_routes)
         .layer(cors)
         .layer(body_limit)
+        .layer(middleware::map_response(json_payload_too_large))
         .layer(multipart_limit)
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }
 
-// ── OpenAPI spec endpoint ────────────────────────────────────────────────────
-
-/// `GET /openapi.json` — return the utoipa-generated OpenAPI 3.1 specification.
-async fn openapi_spec() -> impl axum::response::IntoResponse {
-    let spec = ApiDoc::openapi()
-        .to_json()
-        .unwrap_or_else(|_| "{}".to_string());
-
-    (
-        axum::http::StatusCode::OK,
-        [(axum::http::header::CONTENT_TYPE, "application/json")],
-        spec,
-    )
-}
-
-/// Redirect `/swagger-ui` → `/swagger-ui/`.
-async fn swagger_ui_redirect() -> impl axum::response::IntoResponse {
-    axum::response::Redirect::permanent("/swagger-ui/")
-}
-
-/// Serve a simple Swagger UI HTML page pointing at the local OpenAPI spec.
-async fn swagger_ui_html() -> impl axum::response::IntoResponse {
-    let html = r#"<!DOCTYPE html>
-<html>
-<head>
-  <title>Jura Trace API</title>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist/swagger-ui.css" >
-</head>
-<body>
-<div id="swagger-ui"></div>
-<script src="https://unpkg.com/swagger-ui-dist/swagger-ui-bundle.js"> </script>
-<script>
-  window.onload = function() {
-    const ui = SwaggerUIBundle({
-      url: "/openapi.json",
-      dom_id: '#swagger-ui',
-      presets: [SwaggerUIBundle.presets.apis, SwaggerUIBundle.SwaggerUIStandalonePreset],
-      layout: "BaseLayout"
-    })
-    window.ui = ui
-  }
-</script>
-</body>
-</html>"#;
-
-    (
-        axum::http::StatusCode::OK,
-        [(axum::http::header::CONTENT_TYPE, "text/html; charset=utf-8")],
-        html,
-    )
+/// `RequestBodyLimitLayer` answers an oversized body with a bare 413 and a
+/// plain-text body, before any handler runs. Give it the same JSON error
+/// envelope as every other failure, so a client reads one `code` field.
+async fn json_payload_too_large(response: axum::response::Response) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    let is_json = response
+        .headers()
+        .get(axum::http::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| v.starts_with("application/json"));
+    if response.status() == axum::http::StatusCode::PAYLOAD_TOO_LARGE && !is_json {
+        return error::ApiError::payload_too_large().into_response();
+    }
+    response
 }

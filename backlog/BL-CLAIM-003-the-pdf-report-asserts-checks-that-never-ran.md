@@ -1,6 +1,6 @@
 # BL-CLAIM-003: the exported forensic report asserts checks that never ran
 
-**Status**: Open. Found 4 September 2026.
+**Status**: Resolved 29 September 2026. Found 4 September 2026.
 **Severity**: High, and the highest legal exposure found this week. This is
 a false forensic claim inside the artefact a user hands to somebody else.
 **Recommend a legal-compliance-advisor pass before it is corrected**, so
@@ -101,3 +101,5 @@ the reader to assume. Replace it with an accurate statement.
 
 Do not fix the label and leave the fallback. A correct label on a mode the
 user did not choose is still wrong.
+
+Resolved: 2026-09-29 cc8e9994 — PR #35 merged 6 Sep. The PDF row, `api.ts` and the settings toast no longer claim OCSP/CRL or remote manifest checks; C2PA verification is stated as identical in both modes. The two Rust doc comments that still claimed it (`c2pa.rs`, `network_mode.rs`) were corrected in the resolving PR. Not recorded: a legal-compliance pass on the replacement wording (recommended above), and step 5, the `claims.md` row for the exported report.

@@ -276,6 +276,23 @@ def _load_classifier():
                 return None
             _classifier = joblib.load(model_path)
     except Exception:
+        # A classifier that fails to load is not an error the request path
+        # ever sees: the caller checks for None and falls back to the
+        # heuristic score, so every verdict is still produced and nothing
+        # downstream fails. That is the right degradation and the wrong
+        # silence. On 8 September 2026 the numerical-stack drift test showed
+        # scikit-learn 1.9.0 cannot unpickle the shipped GBM (No module
+        # named '_loss'), and with the previous bare except the only
+        # evidence in production would have been a shift in the verdict
+        # distribution. Log the traceback once, at startup, so a disabled
+        # classifier is a line in the log rather than a statistical
+        # anomaly. See docs/calibration/numerical-stack-drift-sep2026.md.
+        logger.exception(
+            "deepfake_classifier.joblib failed to load; the GBM classifier is "
+            "disabled for this process and verdicts fall back to the heuristic "
+            "score. Check the scikit-learn version against the one the model "
+            "was serialised with."
+        )
         _classifier = None
     return _classifier
 
@@ -1178,8 +1195,8 @@ def _perform_deepfake_detection_impl(
     else:
         confidence = "low"
 
-    # Summary.  The score comes from the GBM classifier on the 84-feature
-    # vector; the per-signal flags are explanatory thresholded checks on
+    # Summary.  The score comes from the GBM classifier on the feature
+    # vector (80 wide for v4, which trims the 84 extracted); the per-signal flags are explanatory thresholded checks on
     # individual features.  The classifier can output a high probability
     # without any single signal crossing its own threshold (multivariate
     # evidence).  Phrase the summary honestly so we do not claim "Strong
@@ -1195,7 +1212,7 @@ def _perform_deepfake_detection_impl(
             summary = (
                 f"Classifier flags as synthetic via multivariate evidence "
                 f"(0 of {len(signals)} per-feature signals individually triggered; "
-                f"the GBM uses the full 84-feature vector)"
+                f"the GBM uses the whole feature vector)"
             )
     elif score > 0.35:
         summary = (

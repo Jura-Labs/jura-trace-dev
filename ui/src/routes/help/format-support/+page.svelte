@@ -3,7 +3,7 @@
   //
   // Source: 2026-04-28 four-agent format-support audit (JTV-105 truth-grid).
   // The truth-grid is the single source of truth for which file formats
-  // Jura Trace v1.0 can meaningfully analyse, and what each format gets
+  // Jura Trace can meaningfully analyse, and what each format gets
   // in the pipeline. This page surfaces the same content to pilots so
   // they can decide before dropping a file rather than after.
 
@@ -67,7 +67,7 @@
       family: 'Documents',
       formats: 'PDF',
       protect: '—',
-      verify: 'Not supported in this release. PDF files are excluded from the Verify file picker. Jura Trace v1.0 analyses still images only.',
+      verify: 'Not supported in this release. PDF files are excluded from the Verify file picker. Jura Trace analyses still images only.',
       coverage: 'none',
     },
     {
@@ -133,7 +133,7 @@
       Format Support
     </h1>
     <p class="text-base text-text-light dark:text-quartz leading-relaxed max-w-2xl">
-      Jura Trace v1.0 is honest about what it can and cannot meaningfully
+      Jura Trace is honest about what it can and cannot meaningfully
       analyse. The grid below is the single source of truth, drawn from
       the 28 April 2026 four-agent audit that compared marketed format
       support against what the pipeline actually does. If your file type

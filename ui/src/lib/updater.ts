@@ -31,6 +31,17 @@ export interface UpdaterDeps {
     ) => Promise<void>;
   } | null>;
   backup: () => Promise<{ snapshotPath: string; sha256: string }>;
+  /**
+   * Restart the application so the freshly installed bundle runs.
+   *
+   * The updater plugin installs and returns; on macOS it renames the new
+   * bundle into place and touches it, nothing more. Until 9 September 2026
+   * nothing called this, so the button read "Installing, restarting
+   * shortly..." while the old binary kept running from a temp directory
+   * the plugin had already deleted (BL-REL-004). The promise the copy makes
+   * is kept here.
+   */
+  relaunch: () => Promise<void>;
 }
 
 /**
@@ -39,11 +50,13 @@ export interface UpdaterDeps {
  */
 export async function makeTauriDeps(): Promise<UpdaterDeps> {
   const { check } = await import('@tauri-apps/plugin-updater');
+  const { relaunch } = await import('@tauri-apps/plugin-process');
   const { autoBackupBeforeUpdate } = await import('$lib/api');
   return {
     isTauri: () => typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window,
     checkPlugin: check,
     backup: autoBackupBeforeUpdate,
+    relaunch,
   };
 }
 
@@ -97,6 +110,20 @@ export async function checkForUpdate(
     });
 
     onStatus({ state: 'installing' });
+
+    // The install is on disk; the running process is still the old one.
+    // relaunch() exits this process and starts the new bundle. If it fails,
+    // the user is told what to do rather than left with a spinner.
+    try {
+      await deps.relaunch();
+    } catch (relaunchErr) {
+      const detail = relaunchErr instanceof Error ? relaunchErr.message : String(relaunchErr);
+      console.warn('[updater] relaunch after install failed:', detail);
+      onStatus({
+        state: 'error',
+        message: 'The update is installed. Quit Jura Trace and open it again to finish.',
+      });
+    }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     onStatus(classifyError(message));
@@ -297,6 +324,20 @@ export function classifyError(message: string): UpdateStatus {
       state: 'error',
       message:
         'Could not reach the update service, so we cannot tell whether an update is available. Please try again later. If the problem persists, download the latest installer from juralabs.org/download.',
+    };
+  }
+  // BL-REL-004 fault 2. On macOS tauri-plugin-updater backs up the running
+  // bundle with rename(2) into $TMPDIR, which is on the startup disk, and
+  // treats anything but PermissionDenied as fatal. An app kept on another
+  // volume therefore fails with "Cross-device link (os error 18)". That
+  // rename is the first step to touch the bundle, so nothing has changed.
+  // Linux does not reach this: the AppImage path picks a temp directory on
+  // the same device before renaming.
+  if (/cross-device link|os error 18\b/i.test(message)) {
+    return {
+      state: 'error',
+      message:
+        'Jura Trace can only update itself when it is in the Applications folder on your startup disk. Move it there and try again. Your current version has not been changed.',
     };
   }
   return { state: 'error', message };

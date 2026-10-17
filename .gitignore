@@ -52,6 +52,9 @@ src-tauri/models/clip-vit-b32-vision.onnx
 src-tauri/models/clip-vit-b32-vision.onnx.data
 src-tauri/models/clip-vit-b32-text.onnx
 src-tauri/models/clip-vit-b32-text.onnx.data
+# Staged copies of the committed models/clip-vit-b32-text-prompts.* (B4).
+src-tauri/models/clip-vit-b32-text-prompts.npy
+src-tauri/models/clip-vit-b32-text-prompts.json
 
 
 # ===== Data (local only, never commit) =====
@@ -97,10 +100,10 @@ htmlcov/
 test-results/
 playwright-report/
 ui/test-results/
-# Playwright visual-regression baselines are regenerated locally per
-# platform and not committed (the suite passes only the structural
-# assertions in CI; snapshot comparison runs on developer machines).
-ui/tests/*-snapshots/
+# Playwright visual-regression baselines ARE committed, one set per platform
+# (*-darwin.png and *-linux.png), since v1.2.0 C3 on 15 October 2026. CI runs
+# the visual specs against the Linux set. Until then this directory was
+# ignored and only 9 of the 18 macOS baselines had been force-added.
 
 # ===== Build artifacts =====
 *.dmg
@@ -209,7 +212,10 @@ models/univfd_v11_split.json
 # JTV-184 Phase 5 — onedir bundle for the PyInstaller sidecar.
 # Populated at build time (manually for local cargo tauri build, by CI for
 # release) from sidecar/dist/jura-sidecar/. ~520 MB; CI rebuilds per platform.
-src-tauri/sidecar-bundle/
+# No trailing slash: since 9 September 2026 this is a symlink to the SSD
+# (see scripts/build-local-mac.sh), and a slash-suffixed rule ignores only
+# real directories.
+src-tauri/sidecar-bundle
 
 # JTV-186 (18 May 2026): internal-consultation docs that drifted into the
 # AGPL repo and were moved out to ../jura-labs-docs/ on 2026-05-18 (see
@@ -236,3 +242,6 @@ docs/testing/real-world-test-plan.md
 docs/sample-media/jura-trace-sample-images.zip
 docs/sample-media/jura-trace-sample-images/
 docs/sample-media/source/
+
+# Written by scripts/updater-staging/stage.sh prepare; records where the stage root is.
+scripts/updater-staging/.stage-root

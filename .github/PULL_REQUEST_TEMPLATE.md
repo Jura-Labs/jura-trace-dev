@@ -1,8 +1,5 @@
 <!--
   Jura Trace pull-request template.
-  Active on GitHub. The Codeberg equivalent at .forgejo/pull_request_template.md
-  carries the same fields; both will exist during the AGPL launch's source-host
-  migration window.
 -->
 
 ## Summary
@@ -40,7 +37,7 @@
 - [ ] `cargo clippy --all-targets -- -D warnings` passes
 - [ ] `svelte-check` passes (no new errors)
 - [ ] `npm test` (vitest) passes
-- [ ] Existing Playwright e2e tests pass on the affected surfaces
+- [ ] If this changes how a card looks on purpose, the affected visual baselines are regenerated: `*-darwin.png` on a Mac, `*-linux.png` on a CI runner (CI runs the whole Playwright suite; see backlog/BL-TEST-003)
 - [ ] New tests added for new functionality
 - [ ] Manually verified on: <!-- macOS aarch64 / macOS x86_64 / Windows x86_64 / Linux x86_64 -->
 

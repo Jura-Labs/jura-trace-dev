@@ -1,6 +1,9 @@
 # BL-CLAIM-002: the shipped app makes two promises the release did not keep
 
-**Status**: Open. Found 3 September 2026.
+**Status**: Promise 1 corrected 10 September 2026, before v1.1.0. Promise 2
+(the model-card metadata file) is still open. See "Update, 10 September
+2026" at the foot of this file.
+Found 3 September 2026.
 **Raised**: 3 September 2026
 **Severity**: Medium, and rising with time. Both statements are inside the
 application on 145 machines, both were true as intentions when written, and
@@ -99,3 +102,118 @@ Do not attach the metadata without reading it first. The June sweep moved
 four documents out of this repository for naming corpora and generators.
 Publishing a JSON that re-exposes what that sweep removed would undo a
 deliberate decision by accident.
+
+
+## Update, 10 September 2026: promise 1 corrected, and eleven more like it
+
+The v1.1.0 checkpoint review flagged the Article 50 sentence as copy that
+would ship inside v1.1.0 still promising a release that does not exist.
+Corrected in `ui/src/routes/help/compliance/+page.svelte:370`, following
+step 3 above: since the export does not ship in v1.1.0, the sentence stops
+naming a version and a month. It now reads that the export is under
+evaluation for a future release, that Article 50 began to bind on 2 August
+2026, and that Jura Trace does not provide the export today. That is the
+same softening the 8 June sweep applied to every other forward commitment,
+and the reason this one was exempt, a real date in the future, expired five
+weeks ago.
+
+Hunting for the same shape found eleven more instances of a version number
+frozen into copy that outlives it: five on the Verify page and the format
+support page (flagged by the checkpoint), and six more in the settings
+page, the help index, the settings, verify and methodology help pages, and
+two source comments. Each said "Jura Trace v1.0" where it meant the
+product, so each would have shipped inside v1.1.0 telling the user they
+were running v1.0.
+
+All twelve are fixed by removing the version, not by bumping it. A version
+number in prose has to be maintained on every release by someone who
+remembers, which is the mechanism that produced this defect; prose that
+does not name a version cannot go stale. Where a statement is genuinely
+about one release, the release notes are the place for it.
+
+Promise 2, the per-generator recall metadata JSON referenced by the model
+cards but never attached to a release, is untouched and still open.
+
+## Update, 11 September 2026: a thirteenth, and why the sweep could not see it
+
+The sweep above found twelve frozen version strings and fixed them. There
+is a thirteenth, at `ui/src/routes/settings/+page.svelte:2935`:
+
+> REST API access and key management are planned for the Pro tier in the
+> v1.1 release. v1.0 ships Community-only, so the verification engine is
+> fully usable through the desktop app and the Tauri IPC surface, but there
+> is no programmatic key-authenticated REST endpoint yet.
+
+Three faults in one sentence. It names two versions in prose, which is the
+exact shape the sweep was hunting. It promises a Pro tier in v1.1, and
+v1.1.0 shipped on 10 September 2026 with no Pro tier, because
+`project_v1_community_only_launch.md` deferred it and
+`project_v102_pro_launch.md` moved it again. And the last clause is false
+on its own terms: an authenticated REST API is listening on 127.0.0.1:8300
+as the sentence is read, started unconditionally at
+`src-tauri/src/lib.rs:4675`, and the comment eighteen lines above the
+sentence, at `:2913-2918`, says so.
+
+**Why it was missed, and why that matters more than the string.** The
+paragraph is inside two closed gates. `:2919` is `{#if V1_SHOW_API_KEYS}`
+and `ui/src/lib/featureFlags.ts:53` sets that flag to `false`. `:2932` is
+`{#if !apiKeysAvailable}`, and `:813` derives `apiKeysAvailable` from the
+licence tier. So the sentence does not render in any shipped build, and a
+sweep that checked what users see would not find it.
+
+That is worth recording as a property of the sweep rather than as a
+property of this string. **Copy behind a false feature flag is copy that
+goes stale unobserved and ships the day the flag is flipped.** The comment
+at `:2913-2918` ties that flip to the Pro tier unhide, so the first person
+to enable the API key panel also publishes a paragraph telling Community
+users that the feature they are looking at does not exist.
+
+Left open here rather than corrected, because unlike the twelve it is not
+fixed by deleting a version number. What the true sentence says depends on
+decisions that BL-API-003 sets out: whether the desktop keeps starting the
+API at all, whether a Community user can obtain a key, and whether the tier
+gate is enforced anywhere other than in a hidden Svelte branch. Correct the
+copy when those are answered, and correct it by describing behaviour rather
+than by naming a release.
+
+One process note for the next sweep: grep the whole of `ui/src` rather than
+the rendered surface, and treat `{#if <FLAG>}` blocks as in scope.
+
+**Resolved 8 October 2026**, 8877d8c7 (PR #157, plan item A10). The paragraph was rewritten to describe behaviour, and API keys are available in Settings on every tier.
+
+## Update, 21 September 2026: promise 2 fixed on `main`, ships in v1.2.0
+
+Paul's decision on the generator names: publish recall by **anonymised
+family**, not by name. The June decision stands.
+
+- `scripts/build_model_card_assets.py` writes `model-card-univfd.json` and
+  `model-card-gbm.json`. Generator keys are replaced by the labels in
+  `models/generator_family_labels.json`, which lives in `models/` because
+  the public snapshot excludes that directory. A key with no label, or a
+  UnivFD metadata hash that does not match the shipped joblib, stops the
+  build. The training corpus paths (`/Volumes/...`) are dropped, and the
+  counts are kept.
+- `release.yml` `publish-release` builds and attaches both files before the
+  SHA256SUMS step, and the release notes link them. `ci.yml` repo hygiene
+  runs the builder on every PR.
+- **GBM v4 has no per-generator recall.** The metadata never recorded it.
+  Its model card now says so and points at the file for what it does
+  contain. The promise of recall by family is made only on the UnivFD card.
+- **Step 4 was partly mistaken.** `deepfake_classifier_meta.json` is
+  byte-identical to `deepfake_classifier_v4_meta.json`, so it is kept.
+  "84 features" was the error: the shipped GBM v4 has `n_features_in_ ==
+  80`, and the sidecar extracts 84 and trims them. The count is corrected
+  on the model-card, glossary and forensic-detectors pages, on the verify
+  page's GBM note, in the PDF and ZIP export text, and in
+  `docs/ARCHITECTURE.md`. The methodology page now says which four
+  extracted features no shipped model uses. `univfd_probe_meta.json` (v9)
+  is deleted.
+
+**Still open, and not fixed here:** the model-card page's GBM feature-class
+list (`ui/src/routes/help/model-cards/+page.svelte`, "80 features grouped
+into the following classes") names ELA, copy-move, JPEG ghost, segmented
+ELA, shadow consistency, colour temperature, splice boundary, MakerNote
+authenticity and inter-channel coherence. None of these is among the 80
+`feature_names` in the metadata now published beside it. The real classes
+are spectral, noise, colour, saturation, LBP, GLCM, DCT, edge, Laplacian,
+LSB and demosaic. That is copy for Paul to approve, not a mechanical fix.

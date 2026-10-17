@@ -1,6 +1,6 @@
 # BL-SIZE-001: 242 MB of every download exists to compute 10 KB of constants
 
-**Status**: Open. Found 3 September 2026, assessing adoption barriers.
+**Status**: Resolved 8 October 2026 (PR #158). Found 3 September 2026, assessing adoption barriers.
 **Raised**: 3 September 2026
 **Severity**: High for adoption, low for risk. This is the cheapest large
 reduction available in the download, and download size is the barrier
@@ -128,3 +128,5 @@ full recalibration, not a size optimisation.
 Do not quantise the vision encoder to save space. That changes inference
 numerically, and the detector thresholds were calibrated against the
 current weights. It is a recalibration, not a size optimisation.
+
+Resolved: 2026-10-08 4f1ddbb1 — PR #158, plan item B4. The CLIP text encoder is no longer shipped; its outputs are precomputed constants. 243.3 MiB off every platform's payload.

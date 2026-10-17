@@ -1,7 +1,7 @@
 # BL-TEST-003: 314 end-to-end tests, and nothing runs them
 
-**Status**: Partly fixed 5 September 2026 — 296 of 314 now run in CI. The
-18 visual-regression tests remain unrun on any machine but a Mac.
+**Status**: Fixed 15 October 2026 (v1.2.0 C3). All 318 tests run in CI,
+including the 18 visual tests, against committed Linux baselines. See the update at the foot of this file.
 **Severity**: Medium. No defect is known to have escaped through this gap,
 but the gap is total: the largest test suite in the repository has been
 providing zero assurance since it was written.
@@ -138,3 +138,36 @@ worse than asking for nothing.
 Corrected in the same commit. The file is the first thing every session
 reads, so wrong numbers there are not a documentation nicety: they set the
 baseline against which somebody decides whether a suite looks healthy.
+
+## Update, 15 October 2026: Linux baselines committed (v1.2.0 C3)
+
+The 18 Linux baselines were generated on the `ubuntu-latest` runner itself,
+by a temporary CI step running `--update-snapshots=missing` on this branch,
+then downloaded and committed. That step is gone. The Frontend job now runs
+all 318 tests with no `--grep-invert`.
+
+Two things were not as this file said.
+
+- **Only 9 of the 18 macOS baselines were in the repository.** `.gitignore`
+  ignored `ui/tests/*-snapshots/` with a comment saying baselines were
+  regenerated locally and not committed. The 9 desktop `*-darwin.png` files
+  had been force-added on 28 April; the 9 mobile ones existed only on the
+  maintainer's Mac. The rule is replaced with a note saying baselines are
+  committed, and the 9 mobile files are committed too.
+- **The macOS baselines show older copy than the current UI**, for example
+  "Tap to enlarge" and "Analysis Engine unavailable" in the integrity card,
+  where the page now says "Click to enlarge" and "Analysis Engine offline".
+  They still pass, because `maxDiffPixelRatio: 0.02` admits a few changed
+  lines of text on a tall card. So a 2% tolerance does not catch a copy
+  change. Worth knowing before relying on these tests for wording; the
+  macOS set can be regenerated at any time with `--update-snapshots` on a
+  Mac.
+
+One more thing seen in the images: on the tall integrity card the app's
+fixed header is painted across the card, at a different height on each
+platform. It is consistent run to run on the same platform, so it does not
+make the test flaky, but it is part of what each baseline compares.
+
+The pull-request template no longer asks contributors to attest that the
+suite passes, since CI runs it. It asks them to regenerate the affected
+baselines when they change how a card looks on purpose.

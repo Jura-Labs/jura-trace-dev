@@ -568,7 +568,7 @@
   </h2>
 
   <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
-    Jura Trace v1.0 analyses still images: JPEG, PNG, TIFF, WebP, HEIC, and AVIF.
+    Jura Trace analyses still images: JPEG, PNG, TIFF, WebP, HEIC, and AVIF.
     The full forensic pipeline (ELA, noise, copy-move, deepfake detection, JPEG Ghost,
     segmented ELA, colour temperature, CLIP) applies to these formats.
   </p>

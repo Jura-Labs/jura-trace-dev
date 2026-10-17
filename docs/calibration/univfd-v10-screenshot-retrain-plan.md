@@ -13,6 +13,8 @@ Root cause: the training corpus contained no authentic screenshot class. Screens
 
 **Current mitigation (shipped v1.0)**: content-type classifier at `/forensics/content-type` heuristically detects screenshots pre-detection; the Rust verify pipeline suppresses deepfake + CLIP contributions to the trust score when `ai_detection_suitable=false`. UI banner informs the user.
 
+**Correction, 15 October 2026**: the mitigation above did not take effect in v1.0 or v1.1. The Rust side never parsed the classifier's reply, so suppression never ran (BL-SILENT-002). It first takes effect in v1.2.0. Any field data gathered before then about how often it fires reflects zero firings.
+
 The heuristic classifier is a patch, not a fix. A proper retrain is the long-term solution.
 
 ## Goal

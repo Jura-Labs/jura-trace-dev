@@ -18,7 +18,6 @@ Authentication:
 """
 
 import logging
-import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
@@ -165,12 +164,10 @@ async def verify_api_key(request: Request, call_next: object) -> Response:
     """
     if request.url.path.startswith("/forensics"):
         if not settings.sidecar_key:
-            # pytest sets PYTEST_CURRENT_TEST per-test so a missing key under
-            # the test runner is unambiguous and safe to bypass. Outside the
-            # test runner an empty key now refuses requests (was the silent
-            # auth-bypass vulnerability fixed on 2026-05-21).
-            if "PYTEST_CURRENT_TEST" in os.environ:
-                return await call_next(request)
+            # No exception for the test runner. There used to be one, keyed on
+            # PYTEST_CURRENT_TEST, which made the shipped binary's auth depend
+            # on an environment variable anyone can set (JTV-205). Tests
+            # configure a real key in tests/conftest.py instead.
             return Response(
                 content="Sidecar key not configured. Set JURA_SIDECAR_KEY.",
                 status_code=503,

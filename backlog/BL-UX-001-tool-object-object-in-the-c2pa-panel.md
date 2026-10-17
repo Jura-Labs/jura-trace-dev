@@ -1,6 +1,6 @@
 # BL-UX-001: the C2PA panel shows "Tool: [object Object]"
 
-**Status**: Open. Found in the shipped v1.0.0 on 21 June 2026 (Plane
+**Status**: Resolved 17 September 2026 (PR #95). Found in the shipped v1.0.0 on 21 June 2026 (Plane
 JTV-248); confirmed still present in the code on 3 September 2026.
 **Raised**: 3 September 2026
 **Severity**: Low to fix, high to be seen. It appears in the one panel that
@@ -60,3 +60,28 @@ anywhere else in the application.
 Do not fix it with `String(action.softwareAgent)` or a `typeof` check that
 prints JSON. Showing `{"name":"Adobe Photoshop","version":"25.0"}` to a
 user is the same failure with more characters.
+
+## Update, 16 September 2026
+
+Fixed on branch `fix/bl-ux-001-software-agent-object`, v1.2.0 item A5.
+Two corrections to this file, found while fixing it:
+
+- **Jura Trace triggers it on its own files.** `src-tauri/src/c2pa.rs:500`
+  signs every action with `softwareAgent` as an object (`name`, `version`,
+  `operating_system`), so every file sealed in Protect showed
+  "Tool: [object Object]", not only files from other 2.x tools. The live
+  getting-started page publishes a screenshot of it (`jt-signed-credentials.png`).
+- **`types.ts:954` is the wrong type to widen.** It is `XmpHistoryEvent`,
+  the XMP edit history, where `stEvt:softwareAgent` really is a string. The
+  C2PA action type is inline in `verify/+page.svelte`, and that is what
+  changed.
+
+Sibling fields (step 2): `description` and `digitalSourceType` are strings
+in the specification, but a manifest is external input. A non-string
+`digitalSourceType` reached `humaniseDigitalSourceType`, whose `.replace`
+threw, and the surrounding `catch` returned an empty list, hiding every
+action in the panel without a word. Both are now read only when they are
+strings. The fix lives in `formatSoftwareAgent` in `ui/src/lib/c2pa-labels.ts`,
+pinned by `c2pa-labels.test.ts` using the exact shape Trace signs with.
+
+Resolved: 2026-09-17 7db07c54 — PR #95. The C2PA panel shows the generator's name when `softwareAgent` is a `GeneratorInfo` object, and still accepts the bare string.
