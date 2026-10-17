@@ -278,12 +278,12 @@ Wall time ~3 h on Apple Silicon (8 multi-process workers). Outputs `models/deepf
 # v10onnx (production UnivFD) — expect 0.6750
 python3 scripts/score_image_v11.py \
   --probe models/univfd_probe.joblib \
-  /Users/paulgriffiths/Downloads/fakethai.avif
+  ~/Downloads/fakethai.avif
 
 # v11 candidate — expect 0.6132
 python3 scripts/score_image_v11.py \
   --probe models/univfd_probe_v11.joblib \
-  /Users/paulgriffiths/Downloads/fakethai.avif
+  ~/Downloads/fakethai.avif
 
 # v5 candidate cross-carrier — embedded in the trainer; see /tmp/gbm_v5_train.log § "Thai-photo cross-carrier acceptance test"
 ```

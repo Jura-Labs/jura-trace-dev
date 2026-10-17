@@ -1303,7 +1303,10 @@ Examples:
     )
     parser.add_argument(
         "--local-ai-dir", type=str,
-        default="/Users/paulgriffiths/Desktop/Fake Images AI",
+        default=os.environ.get(
+            "JURA_AI_CORPUS",
+            os.path.join(os.path.dirname(__file__), "..", "corpus", "ai-generated"),
+        ),
         help="Directory containing local AI-generated images",
     )
     parser.add_argument(

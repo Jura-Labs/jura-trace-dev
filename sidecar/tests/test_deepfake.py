@@ -549,20 +549,37 @@ class TestRealPhotoRegression:
     against synthetic test images rather than real camera output.
     """
 
-    REAL_PHOTOS = [
-        "REDACTED-LOCAL-PHOTO-PATH",
-        "REDACTED-LOCAL-PHOTO-PATH",
-        "REDACTED-LOCAL-PHOTO-PATH",
-        "REDACTED-LOCAL-PHOTO-PATH",
-    ]
+    # Point JURA_REAL_PHOTOS_DIR at a directory of real camera JPEGs to run
+    # these. They were previously four absolute paths into one developer's
+    # Apple Photos library, which meant the tests could only ever run on one
+    # machine, and it published that person's photo-library UUIDs to anyone
+    # reading the repository. Any directory of genuine camera output works;
+    # the assertion is about calibration against real sensors, not about
+    # these specific images.
+    REAL_PHOTOS_ENV = "JURA_REAL_PHOTOS_DIR"
+
+    @property
+    def REAL_PHOTOS(self):
+        import glob
+        import os
+
+        root = os.environ.get(self.REAL_PHOTOS_ENV)
+        if not root:
+            return []
+        return sorted(
+            p
+            for ext in ("jpg", "jpeg", "JPG", "JPEG")
+            for p in glob.glob(os.path.join(root, "**", f"*.{ext}"), recursive=True)
+        )
 
     @pytest.fixture(autouse=True)
     def _skip_if_photos_missing(self):
-        """Skip these tests if the Photos Library is not available."""
-        import os
-
-        if not all(os.path.exists(p) for p in self.REAL_PHOTOS):
-            pytest.skip("Apple Photos Library not available on this machine")
+        """Skip unless a real-camera corpus has been pointed at explicitly."""
+        if not self.REAL_PHOTOS:
+            pytest.skip(
+                f"set {self.REAL_PHOTOS_ENV} to a directory of real camera "
+                "photos to run these regression tests"
+            )
 
     def test_real_photos_not_synthetic(self):
         """All real camera photos should score below the synthetic threshold."""

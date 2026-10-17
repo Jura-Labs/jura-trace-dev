@@ -225,7 +225,12 @@ def main():
     base = Path(__file__).parent.parent
     ai_dir = base / "corpus" / "ai_generated"
     authentic_dir = base / "corpus" / "authentic"
-    local_ai = Path("/Users/paulgriffiths/Desktop/Fake Images AI")
+    local_ai = Path(
+        os.environ.get(
+            "JURA_AI_CORPUS",
+            os.path.join(os.path.dirname(__file__), "..", "corpus", "ai-generated"),
+        )
+    )
 
     print("Jura Trace — Corpus Expansion")
     print()
