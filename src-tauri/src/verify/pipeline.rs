@@ -634,7 +634,7 @@ pub fn verify_content_inner(
                 // Re-sort: Critical first
                 analysis
                     .findings
-                    .sort_by(|a, b| b.severity.cmp(&a.severity));
+                    .sort_by_key(|f| std::cmp::Reverse(f.severity));
             }
         }
 
@@ -780,7 +780,7 @@ pub fn verify_content_inner(
     if let (Some(tc), Some(ref mut ea)) = (thumbnail_check.as_ref(), exif_analysis.as_mut()) {
         if let Some(finding) = thumbnail_mismatch_finding(tc) {
             ea.findings.push(finding);
-            ea.findings.sort_by(|a, b| b.severity.cmp(&a.severity));
+            ea.findings.sort_by_key(|f| std::cmp::Reverse(f.severity));
         }
     }
 

@@ -193,9 +193,12 @@
       content) or <code class="font-mono text-xs">c2pa.published</code> (you are
       re-distributing pre-existing content). The Sign panel asks which applies
       before sealing. When you choose <code class="font-mono text-xs">c2pa.published</code>,
-      any existing manifest on the source file is preserved in the new
-      manifest as a <code class="font-mono text-xs">parentOf</code> ingredient,
-      so the upstream creator's signature stays in the provenance chain.</span>
+      the manifest records <code class="font-mono text-xs">c2pa.opened</code> first,
+      pointing at the source file, then <code class="font-mono text-xs">c2pa.published</code>,
+      because C2PA requires a manifest's first action to be created or opened.
+      Any existing manifest on the source file is preserved as that
+      <code class="font-mono text-xs">parentOf</code> ingredient, so the upstream
+      creator's signature stays in the provenance chain.</span>
     </li>
     <li class="flex gap-2">
       <span class="text-malachite-dark dark:text-malachite-light flex-none">✓</span>
