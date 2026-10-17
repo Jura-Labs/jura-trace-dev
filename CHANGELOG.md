@@ -18,6 +18,13 @@ Verification Record:
   it or when. It does not determine, certify, or guarantee compliance with
   anything. See `docs/VERIFICATION_RECORD.md`.
 
+Release news:
+
+- An optional way to hear when a new version is out: a one-time card on
+  the Dashboard and a permanent row in Settings, About. Either opens the
+  sign-up page on juralabs.org in your browser. The app never collects,
+  stores or sends an email address. "No thanks" hides the card for good.
+
 Command-line client:
 
 - New `jura` CLI: `jura verify` (files or `--url`), `jura version` and
