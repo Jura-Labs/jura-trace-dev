@@ -319,7 +319,7 @@ Top-level entry points and non-obvious files. Sidecar services live under `sidec
 - Training corpus: 6,571 authentic + 5,005 AI = 11,576 images total (stored on external USB).
 - Camera FP after MakerNote authenticity bonus + `KNOWN_CAMERA_VENDORS` (36 vendors, 11 Global Majority brands): consumer (Pixel/iPhone) 8.81%, high-end (DJI/DSC) 10.32%. All AI generator families pass 100% recall except DALL-E 3 (91.4%), Civitai SFW (75.8%), DiffusionDB (67.6% — weakest, older SD).
 
-**Detector lineup**: 13 forensic detectors in v1.0. 10 run automatically (EXIF anomaly, C2PA, ELA, noise, copy-move, deepfake GBM+UnivFD ensemble, JPEG Ghost at 0.5× weight, segmented ELA, colour temperature, CLIP) and 3 are on-demand investigation tools (NPR, shadow consistency, splice boundary). The 3 on-demand tools inform investigator judgement but do not contribute to the numeric trust score. Watermark detection (feature-flagged off in v1.0) and video deepfake (not in v1.0 scope) are not counted in the 13. Chromatic aberration removed entirely (forensic audit 1/5). Diffusion artefact detector removed (superseded by UnivFD v8). Schema v6 `detectors_run` column persists the exact lineup per verification so PDF / ZIP renderers can distinguish "detector ran and returned null" from "detector not run in this build / mode". Full Sprint 28 audit trail in `docs/backlog.md` and project memory.
+**Detector lineup**: 13 forensic detectors in v1.0. 10 run automatically (EXIF anomaly, C2PA, ELA, noise, copy-move, deepfake GBM+UnivFD ensemble, JPEG Ghost at 0.5× weight, segmented ELA, colour temperature, CLIP) and 3 are on-demand investigation tools (NPR, shadow consistency, splice boundary). The 3 on-demand tools inform investigator judgement but do not contribute to the numeric trust score. Watermark detection (feature-flagged off in v1.0) and video deepfake (not in v1.0 scope) are not counted in the 13. Chromatic aberration removed entirely (forensic audit 1/5). Diffusion artefact detector removed (superseded by UnivFD v8). Schema v6 `detectors_run` column persists the exact lineup per verification so PDF / ZIP renderers can distinguish "detector ran and returned null" from "detector not run in this build / mode". Full Sprint 28 audit trail in git history and project memory.
 
 **EXIF anomaly detector (as of Sprint 30)**: the `exif_anomaly` detector now includes both an injection-detection suite (5 sub-checks: programmatic pipeline library in Software field, templated timestamps, integer-degree GPS, MakerNote absent on mandatory-vendor camera, iPhone sRGB mismatch — all landed in commit `d03f338`) and an XMP provenance suite (2 sub-checks: `xmp_ai_digital_source` for `Iptc4xmpExt:DigitalSourceType` values like `trainedAlgorithmicMedia`, and `xmp_ai_creator_tool` for known AI generators in `xmp:CreatorTool` — landed in commit `ce06f7f`). Both are High severity and flow through the existing `exif_anomaly` scoring path with no new detector ID.
 
@@ -334,7 +334,7 @@ Top-level entry points and non-obvious files. Sidecar services live under `sidec
 
 ## Backlog
 
-See `docs/backlog.md` for open items, UI audit deferrals, and resolved-archive. Track in Plane; that file is a lightweight mirror.
+See `backlog/` for open items, one file per item (`BL-<AREA>-<n>-<what is wrong>.md`). Track in Plane; the files are a lightweight mirror.
 
 ## British Spelling
 
