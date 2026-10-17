@@ -4,7 +4,7 @@ version = "1.1.0"
 description = "Local-first content verification and protection. In a world of synthetic media, verification matters."
 authors = ["Paul Griffiths"]
 edition = "2021"
-rust-version = "1.90"
+rust-version = "1.96"
 license = "AGPL-3.0-or-later"
 repository = "https://github.com/Jura-Labs/jura-trace-dev"
 homepage = "https://juralabs.org"
@@ -92,7 +92,7 @@ kamadak-exif = "0.5"
 image = "0.25"
 
 # C2PA provenance manifests (Phase 1, Weeks 7-8)
-c2pa = { version = "0.90", features = ["file_io"] }
+c2pa = { version = "0.91", features = ["file_io"] }
 
 # Certificate generation for C2PA signing.
 # x509-parser feature enables CertificateParams::from_ca_cert_pem, required for

@@ -73,6 +73,32 @@ Installers:
   changes: GAN fingerprint analysis now runs on AVIF images, where it
   reported an error before.
 
+Content Credentials (C2PA):
+
+- Signing in **Published** mode now writes a manifest that meets the C2PA
+  2.x rule that the first action is `c2pa.created` or `c2pa.opened`. It
+  records `c2pa.opened`, pointing at the file being published, then
+  `c2pa.published`. Since 22 May 2026 Published mode wrote
+  `c2pa.published` alone. **Files signed that way now show as not valid**,
+  in Jura Trace and in other validators that apply the rule, with
+  `assertion.action.malformed`. Re-signing such a file in Published mode
+  gives it a valid manifest that keeps the earlier one as its parent.
+  Created mode is unchanged.
+- The C2PA library moves from c2pa-rs 0.90 to 0.91.3, which brings
+  hardening against malformed files (path traversal in manifest references,
+  integer underflow in TIFF, BMFF, XMP and ID3 parsing), and the `zip`
+  security fixes in RUSTSEC-2026-0367, -0368 and -0369. It now checks every
+  manifest after signing it, which is what found the Published-mode fault.
+- Content Credentials results can include `signingCredential.ocsp.skipped`
+  as information. Jura Trace does not contact certificate authorities to
+  check for revocation, and the result now says so. A revocation response
+  embedded in a file is now only reported (`signingCredential.ocsp.notRevoked`)
+  when its responder chains to a trusted root; OpenAI's, for example, no
+  longer is. Whether credentials are valid is unchanged on every C2PA test
+  file in `docs/c2pa-conformance/test-vectors`, and verdicts and scores are
+  unchanged on the 217-image golden set.
+- Building from source needs Rust 1.96 (was 1.90).
+
 Local REST API (`docs/API_WRAPPER.md`):
 
 - `[schema]` Every verification result has a new `verdict` object: `band`

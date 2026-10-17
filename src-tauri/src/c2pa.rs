@@ -437,10 +437,12 @@ fn training_mining_for_license(license: &str) -> serde_json::Value {
 /// Maps to:
 /// * [`SignAction::Created`] → `c2pa.created` (the producer authored the
 ///   content; default).
-/// * [`SignAction::Published`] → `c2pa.published` (the producer is
-///   re-distributing pre-existing content; combined with the `parentOf`
-///   ingredient added in audit item #8, this preserves the upstream
-///   creator's manifest while declaring our publication event).
+/// * [`SignAction::Published`] → `c2pa.opened` then `c2pa.published` (the
+///   producer is re-distributing pre-existing content; combined with the
+///   `parentOf` ingredient added in audit item #8, this preserves the
+///   upstream creator's manifest while declaring our publication event).
+///   `c2pa.opened` comes first because C2PA 2.x requires it; see
+///   [`sign_file`].
 ///
 /// `digitalSourceType` is only emitted for `Created` (where we know
 /// the source is a human-authored capture); `Published` omits it
@@ -606,6 +608,20 @@ pub fn sign_file(
             // sources go through the same path.
             let _ = builder.add_ingredient_from_stream(ingredient_json, &fmt, &mut stream);
         }
+    }
+
+    // C2PA 2.x requires the first action to be `c2pa.created` or
+    // `c2pa.opened`. Publishing pre-existing content is an edit of it, so
+    // the Edit intent puts `c2pa.opened`, pointing at the parent ingredient,
+    // ahead of our `c2pa.published`. When the source has no manifest there is
+    // no parent yet, and the intent makes one from the source file itself.
+    //
+    // Until v1.2.0 Published mode wrote `c2pa.published` alone. c2pa-rs 0.90
+    // signed that without checking it; 0.91 verifies after signing, rejects
+    // it as `assertion.action.malformed`, and reports files signed that way
+    // as invalid when it reads them.
+    if action == SignAction::Published {
+        builder.set_intent(c2pa::BuilderIntent::Edit);
     }
 
     let signer = c2pa::create_signer::from_keys(
@@ -1424,10 +1440,13 @@ const C2PA_TRUST_LIST_PEM: &str = include_str!("../trust-list/C2PA-TRUST-LIST.pe
 const C2PA_TSA_TRUST_LIST_PEM: &str = include_str!("../trust-list/C2PA-TSA-TRUST-LIST.pem");
 const ITL_ANCHORS_PEM: &str = include_str!("../trust-list/ITL-anchors.pem");
 const ITL_ALLOWED_PEM: &str = include_str!("../trust-list/ITL-allowed.pem");
+/// The signing-certificate EKUs c2pa-rs accepts by default, vendored from its
+/// own `valid_eku_oids.cfg`. See [`trust_settings`] for why we pass it.
+const VALID_EKU_OIDS: &str = include_str!("../trust-list/valid_eku_oids.cfg");
 
-/// Concatenate all four trust list PEM bundles into one blob suitable for the
-/// `trust.trust_anchors` settings field.  Newline-separated so individual
-/// certificates retain their `-----BEGIN/-----END` framing.
+/// Concatenate all four trust list PEM bundles into one blob for the single
+/// trust anchor that [`trust_settings`] registers.  Newline-separated so
+/// individual certificates retain their `-----BEGIN/-----END` framing.
 fn concatenated_trust_bundle() -> String {
     [
         C2PA_TRUST_LIST_PEM,
@@ -1449,6 +1468,24 @@ fn concatenated_trust_bundle() -> String {
 /// entry point below constructs its `Context` from them.  There is no longer a
 /// per-thread precondition to forget.
 ///
+/// The bundle is registered as one `manifest` anchor under the URI
+/// `system_anchors`.  That is exactly what c2pa-rs 0.91 makes of the legacy
+/// `trust.trust_anchors` string this code used to set (0.91 deprecates it and
+/// 0.92 removes it), so moving to `trust.anchors` changes no result.
+///
+/// `trust.trust_config` is set to c2pa-rs's own default EKU list.  0.90
+/// applied that list by default.  0.91 builds the store's trust policy with
+/// `clear()`, which drops it, and only adds EKUs back from `trust_config`.
+/// Without this, every signer whose certificate relies on one of those EKUs
+/// fails with `signingCredential.invalid` ("certificate missing required
+/// EKU"), which is what happened to OpenAI's Content Credentials.
+///
+/// Do not split the TSA list out under its own `tsa` kind without
+/// re-running the C2PA test vectors in `docs/c2pa-conformance/test-vectors`.
+/// It changes which set a chain is reported as matching, and c2pa-rs
+/// de-duplicates anchors through a `HashSet`, so the order the sets are
+/// searched in is not under our control.
+///
 /// TOML multi-line *literal* strings (triple single quotes) are used so no
 /// escape processing is applied to the PEM content.
 fn trust_settings() -> Result<&'static c2pa::Settings, String> {
@@ -1457,7 +1494,15 @@ fn trust_settings() -> Result<&'static c2pa::Settings, String> {
     SETTINGS
         .get_or_init(|| {
             let bundle = concatenated_trust_bundle();
-            let toml = format!("[trust]\ntrust_anchors = '''\n{bundle}\n'''\n");
+            let toml = format!(
+                "[trust]\n\
+                 trust_config = '''\n{VALID_EKU_OIDS}\n'''\n\
+                 \n\
+                 [[trust.anchors]]\n\
+                 trust_kind = \"manifest\"\n\
+                 trust_uri = \"system_anchors\"\n\
+                 trust_anchors = '''\n{bundle}\n'''\n"
+            );
             c2pa::Settings::new()
                 .with_toml(&toml)
                 .map_err(|e| format!("Failed to initialise C2PA trust settings: {e}"))
@@ -3630,6 +3675,186 @@ mod tests {
             parent_count >= 1,
             "expected >=1 ingredient, got {parent_count} — re-signing failed to preserve provenance chain"
         );
+
+        assert_eq!(
+            action_verbs(&signed_twice),
+            ["c2pa.opened", "c2pa.published"],
+            "Published must open the parent before publishing it"
+        );
+        assert_no_action_failures(&signed_twice);
+    }
+
+    /// Published mode on a file with no manifest. There is no prior signer to
+    /// point at, so the source file itself becomes the parent ingredient that
+    /// `c2pa.opened` refers to. Before v1.2.0 this wrote `c2pa.published`
+    /// alone, which C2PA 2.x does not allow as a first action.
+    #[test]
+    fn publishing_an_unsigned_file_opens_it_first() {
+        let tmp = tempfile::tempdir().expect("create tempdir");
+        let (cert, key) = ensure_certificate(tmp.path()).expect("ensure_certificate");
+        let source = tmp.path().join("unsigned.png");
+        write_test_png(&source, 32, 32);
+        let signed = tmp.path().join("unsigned-published.png");
+
+        sign_file(
+            &source,
+            &signed,
+            "Bob (re-publisher)",
+            Some("CC BY 4.0"),
+            SignAction::Published,
+            &cert,
+            &key,
+            None,
+        )
+        .expect("Published mode must sign a file that has no manifest");
+
+        assert_eq!(action_verbs(&signed), ["c2pa.opened", "c2pa.published"]);
+        assert_no_action_failures(&signed);
+    }
+
+    /// Created mode on a file that is already signed keeps `c2pa.created` as
+    /// its only action and attaches the prior manifest as a `parentOf`
+    /// ingredient. c2pa-rs 0.91 signs that and reads it back with no action
+    /// failure, so it is left as it was. This pins that down: if a later
+    /// c2pa-rs starts rejecting it, this test is where it shows.
+    #[test]
+    fn created_on_an_already_signed_file_still_validates() {
+        let tmp = tempfile::tempdir().expect("create tempdir");
+        let (cert, key) = ensure_certificate(tmp.path()).expect("ensure_certificate");
+        let source = tmp.path().join("created.png");
+        write_test_png(&source, 32, 32);
+        let once = tmp.path().join("created-1.png");
+        sign_file(
+            &source,
+            &once,
+            "Alice",
+            None,
+            SignAction::Created,
+            &cert,
+            &key,
+            None,
+        )
+        .expect("first sign");
+        let twice = tmp.path().join("created-2.png");
+        sign_file(
+            &once,
+            &twice,
+            "Alice",
+            None,
+            SignAction::Created,
+            &cert,
+            &key,
+            None,
+        )
+        .expect("Created mode must still sign an already-signed file");
+
+        assert_eq!(action_verbs(&twice), ["c2pa.created"]);
+        assert_no_action_failures(&twice);
+    }
+
+    /// A file signed by Published mode before v1.2.0 carries `c2pa.published`
+    /// alone and reads as `assertion.action.malformed`. Re-signing it in
+    /// Published mode is the remedy the changelog gives, so it must work:
+    /// the new manifest must be conformant and keep the old one as its
+    /// parent.
+    #[test]
+    fn republishing_a_pre_1_2_published_file_repairs_it() {
+        let tmp = tempfile::tempdir().expect("create tempdir");
+        let (cert, key) = ensure_certificate(tmp.path()).expect("ensure_certificate");
+        let source = tmp.path().join("old.png");
+        write_test_png(&source, 32, 32);
+
+        // Sign it the pre-1.2 way: `c2pa.published` as the only action, and
+        // verify-after-sign off, which is how c2pa-rs 0.90 behaved.
+        let old_published = tmp.path().join("old-published.png");
+        let mut settings = trust_settings().expect("trust settings").clone();
+        settings.verify.verify_after_sign = false;
+        let context = c2pa::Context::new()
+            .with_settings(settings)
+            .expect("context");
+        let definition = serde_json::json!({
+            "claim_generator_info": [{ "name": "Jura Trace", "version": "1.1.0" }],
+            "title": "old.png",
+            "assertions": [{
+                "label": "c2pa.actions",
+                "data": { "actions": [{ "action": "c2pa.published" }] }
+            }]
+        });
+        let signer = c2pa::create_signer::from_keys(&cert, &key, c2pa::SigningAlg::Es256, None)
+            .expect("signer");
+        c2pa::Builder::from_context(context)
+            .with_definition(definition.to_string())
+            .expect("definition")
+            .sign_file(&*signer, &source, &old_published)
+            .expect("the pre-1.2 manifest signs with verify-after-sign off");
+        let old = read_manifest(&old_published, false).unwrap().unwrap();
+        assert!(
+            old.validation_checks
+                .iter()
+                .any(|c| c.code == "assertion.action.malformed" && c.outcome == "fail"),
+            "the pre-1.2 manifest should read as malformed"
+        );
+
+        let republished = tmp.path().join("republished.png");
+        sign_file(
+            &old_published,
+            &republished,
+            "Bob (re-publisher)",
+            Some("CC BY 4.0"),
+            SignAction::Published,
+            &cert,
+            &key,
+            None,
+        )
+        .expect("re-signing a pre-1.2 Published file must succeed");
+
+        assert_eq!(
+            action_verbs(&republished),
+            ["c2pa.opened", "c2pa.published"]
+        );
+        assert_no_action_failures(&republished);
+        let chain = read_manifest_chain(&republished, false)
+            .expect("read_manifest_chain")
+            .expect("chain");
+        assert!(
+            !chain.ingredients.is_empty(),
+            "the old manifest must be kept as the parent"
+        );
+        let fixed = read_manifest(&republished, false).unwrap().unwrap();
+        assert!(fixed.is_valid, "the re-signed file must read as valid");
+    }
+
+    /// The action verbs of the active manifest, in order.
+    fn action_verbs(path: &Path) -> Vec<String> {
+        let manifest = read_manifest(path, false)
+            .expect("read_manifest must not error")
+            .expect("signed file must carry a manifest");
+        let actions = manifest
+            .assertions
+            .iter()
+            .find(|a| a.label.starts_with("c2pa.actions"))
+            .expect("manifest must carry an actions assertion");
+        let value: serde_json::Value =
+            serde_json::from_str(&actions.value).expect("actions assertion is JSON");
+        value["actions"]
+            .as_array()
+            .expect("actions array")
+            .iter()
+            .map(|a| a["action"].as_str().unwrap_or_default().to_string())
+            .collect()
+    }
+
+    /// The signed file must not fail any action rule when read back. The test
+    /// certificate is self-signed, so `signingCredential.untrusted` is expected
+    /// and is not what this checks.
+    fn assert_no_action_failures(path: &Path) {
+        let manifest = read_manifest(path, false).unwrap().unwrap();
+        let failures: Vec<_> = manifest
+            .validation_checks
+            .iter()
+            .filter(|c| c.outcome == "fail" && c.code.starts_with("assertion."))
+            .collect();
+        assert!(failures.is_empty(), "action rule failures: {failures:?}");
     }
 
     /// Helper for the parent-provenance test: writes a minimal valid PNG
@@ -4632,7 +4857,7 @@ mod tests {
     /// The trust settings must parse, and must be parsed exactly once for the
     /// process.  Identity of the returned reference is the assertion that
     /// matters: it is what proves the `OnceLock` is doing its job and the
-    /// 175-certificate PEM bundle is not being re-parsed on every verify.
+    /// 175 trust-list certificates are not being re-parsed on every verify.
     ///
     /// This replaced a thread-local idempotency test when c2pa-rs 0.90
     /// deprecated the thread-local settings API. The old test could only
@@ -4655,18 +4880,60 @@ mod tests {
     #[test]
     fn trust_context_carries_the_anchors() {
         let context = trust_context().expect("context must build");
-        let anchors = context
+        let list = context
             .settings()
             .trust
-            .trust_anchors
+            .anchors
             .as_deref()
-            .expect("trust_anchors must be populated on the context");
+            .expect("trust.anchors must be populated on the context");
+        assert_eq!(list.len(), 1, "the bundle should be one anchor");
+        assert_eq!(list[0].trust_kind, c2pa::settings::TrustListKind::Manifest);
+        let anchors = list[0].trust_anchors.as_str();
         let cert_count = anchors.matches("-----BEGIN CERTIFICATE-----").count();
         assert_eq!(
             cert_count, 175,
             "context should carry all 175 vendored certs, got {cert_count}"
         );
         assert!(anchors.contains("Google C2PA Root CA G3"));
+    }
+
+    /// The move from the deprecated `trust.trust_anchors` string to
+    /// `trust.anchors` must not change what c2pa-rs trusts. Parse the bundle
+    /// both ways and require the resulting anchor lists to be identical. When
+    /// 0.92 removes the legacy key this test will fail, and should then be
+    /// deleted rather than fixed.
+    #[test]
+    fn trust_anchors_match_the_legacy_setting() {
+        let bundle = concatenated_trust_bundle();
+        let legacy = c2pa::Settings::new()
+            .with_toml(&format!("[trust]\ntrust_anchors = '''\n{bundle}\n'''\n"))
+            .expect("legacy settings parse");
+        let current = trust_settings().expect("current settings parse");
+        assert_eq!(legacy.trust.anchors, current.trust.anchors);
+    }
+
+    /// OpenAI's Content Credentials must read as valid. This is the vector
+    /// that caught c2pa-rs 0.91 dropping its default EKU list: without
+    /// `trust.trust_config` it failed OpenAI's signing certificate with
+    /// `signingCredential.invalid` ("certificate missing required EKU").
+    #[test]
+    fn openai_credentials_stay_valid() {
+        let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../docs/c2pa-conformance/test-vectors/openai_generated.png");
+        let manifest = read_manifest(&fixture, false)
+            .expect("read_manifest must not error on the OpenAI asset")
+            .expect("OpenAI asset must contain a C2PA manifest");
+        let failures: Vec<_> = manifest
+            .validation_checks
+            .iter()
+            .filter(|c| c.outcome == "fail")
+            .collect();
+        assert!(failures.is_empty(), "unexpected failures: {failures:?}");
+        assert!(manifest
+            .validation_checks
+            .iter()
+            .any(|c| c.code == "signingCredential.trusted" && c.outcome == "pass"));
+        assert!(manifest.is_valid, "OpenAI credentials must read as valid");
     }
 
     /// After init, `c2pa::Reader::from_file` must not fail for reasons
@@ -4716,7 +4983,8 @@ mod tests {
         // The chain must have produced validation activity — an empty list
         // would indicate the Reader bailed out early and this test would be
         // a false positive.  With the official trust list loaded, c2pa-rs
-        // produces 9 passing checks: timeStamp.validated, timeStamp.trusted,
+        // produces 9 passing checks (and, from 0.91, one `info`, see below):
+        // timeStamp.validated, timeStamp.trusted,
         // signingCredential.trusted, claimSignature.insideValidity,
         // claimSignature.validated, 3x assertion.hashedURI.match,
         // assertion.dataHash.match.
@@ -4737,12 +5005,28 @@ mod tests {
              after trust-list init; got: {untrusted:?}"
         );
 
-        // All checks must have outcome "pass" — no "fail", no "info" on this
-        // canonical asset once the trust list is honoured.
+        // All checks must pass on this canonical asset once the trust list is
+        // honoured, with one exception. c2pa-rs 0.91 reports
+        // `signingCredential.ocsp.skipped` as `info`, because Trace is
+        // built without network fetching and so never asks the CA whether
+        // the certificate was revoked. That is the honest result of working
+        // offline, and it is a real code BL-CLAIM-003 can show the user. No
+        // other `info`, and no `fail`, is allowed.
+        assert!(
+            manifest
+                .validation_checks
+                .iter()
+                .any(|c| c.code == "timeStamp.trusted" && c.outcome == "pass"),
+            "the TSA list must make the Pixel timestamp trusted"
+        );
+        const EXPECTED_INFO: [&str; 1] = ["signingCredential.ocsp.skipped"];
         let non_pass: Vec<_> = manifest
             .validation_checks
             .iter()
-            .filter(|c| c.outcome != "pass")
+            .filter(|c| {
+                c.outcome != "pass"
+                    && !(c.outcome == "info" && EXPECTED_INFO.contains(&c.code.as_str()))
+            })
             .collect();
         assert!(
             non_pass.is_empty(),

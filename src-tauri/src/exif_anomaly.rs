@@ -159,7 +159,7 @@ pub fn analyse(
     let trust_score = score.max(0.0);
 
     // Sort by severity descending (Critical first)
-    findings.sort_by(|a, b| b.severity.cmp(&a.severity));
+    findings.sort_by_key(|f| std::cmp::Reverse(f.severity));
 
     ExifAnalysis {
         findings,
@@ -503,14 +503,10 @@ fn check_dimensions(
     let normal_match = exif_w == actual_w && exif_h == actual_h;
     let swapped_match = exif_w == actual_h && exif_h == actual_w;
 
-    // Orientations 5-8 swap width and height
-    let orientation_swaps = meta.orientation.is_some_and(|o| (5..=8).contains(&o));
-
-    let matches = if orientation_swaps {
-        swapped_match || normal_match
-    } else {
-        normal_match || swapped_match
-    };
+    // Either layout is accepted whatever the orientation tag (5-8 swap width
+    // and height) says, because writers disagree about whether EXIF
+    // dimensions are recorded before or after rotation.
+    let matches = normal_match || swapped_match;
 
     if !matches {
         findings.push(AnomalyFinding {

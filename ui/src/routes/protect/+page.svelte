@@ -1819,7 +1819,7 @@
                   <span>
                     <span class="font-medium">We are publishing pre-existing content</span>
                     <span class="block text-xs muted-help">
-                      <code class="font-mono text-[10px]">c2pa.published</code>. Any existing manifest on each source is preserved as a parent ingredient.
+                      <code class="font-mono text-[10px]">c2pa.opened</code> then <code class="font-mono text-[10px]">c2pa.published</code>. Any existing manifest on each source is preserved as a parent ingredient.
                     </span>
                     <span class="block text-[11px] text-flint-dark/80 dark:text-flint-light/80 italic mt-0.5">
                       Use this for content received from third parties (agency photographs, contributor submissions, syndicated press images) where the original creator stays in the chain.
@@ -3369,7 +3369,7 @@
                           <span>
                             <span class="font-medium">I am publishing pre-existing content</span>
                             <span class="block text-xs muted-help">
-                              <code class="font-mono text-[10px]">c2pa.published</code> — re-distribution of an asset that someone else captured or created. Any existing manifest on the source is preserved as a parent ingredient.
+                              <code class="font-mono text-[10px]">c2pa.opened</code> then <code class="font-mono text-[10px]">c2pa.published</code>: re-distribution of an asset that someone else captured or created. Any existing manifest on the source is preserved as a parent ingredient.
                             </span>
                             <span class="block text-[11px] text-flint-dark/80 dark:text-flint-light/80 italic mt-0.5">
                               Use this for content you received from another party (e.g. an agency photo, a community contributor's submission, a press image) where you are adding your own signing event on top.
