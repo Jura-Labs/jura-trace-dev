@@ -3752,6 +3752,78 @@ mod tests {
         assert_no_action_failures(&twice);
     }
 
+    /// A file signed by Published mode before v1.2.0 carries `c2pa.published`
+    /// alone and reads as `assertion.action.malformed`. Re-signing it in
+    /// Published mode is the remedy the changelog gives, so it must work:
+    /// the new manifest must be conformant and keep the old one as its
+    /// parent.
+    #[test]
+    fn republishing_a_pre_1_2_published_file_repairs_it() {
+        let tmp = tempfile::tempdir().expect("create tempdir");
+        let (cert, key) = ensure_certificate(tmp.path()).expect("ensure_certificate");
+        let source = tmp.path().join("old.png");
+        write_test_png(&source, 32, 32);
+
+        // Sign it the pre-1.2 way: `c2pa.published` as the only action, and
+        // verify-after-sign off, which is how c2pa-rs 0.90 behaved.
+        let old_published = tmp.path().join("old-published.png");
+        let mut settings = trust_settings().expect("trust settings").clone();
+        settings.verify.verify_after_sign = false;
+        let context = c2pa::Context::new()
+            .with_settings(settings)
+            .expect("context");
+        let definition = serde_json::json!({
+            "claim_generator_info": [{ "name": "Jura Trace", "version": "1.1.0" }],
+            "title": "old.png",
+            "assertions": [{
+                "label": "c2pa.actions",
+                "data": { "actions": [{ "action": "c2pa.published" }] }
+            }]
+        });
+        let signer = c2pa::create_signer::from_keys(&cert, &key, c2pa::SigningAlg::Es256, None)
+            .expect("signer");
+        c2pa::Builder::from_context(context)
+            .with_definition(definition.to_string())
+            .expect("definition")
+            .sign_file(&*signer, &source, &old_published)
+            .expect("the pre-1.2 manifest signs with verify-after-sign off");
+        let old = read_manifest(&old_published, false).unwrap().unwrap();
+        assert!(
+            old.validation_checks
+                .iter()
+                .any(|c| c.code == "assertion.action.malformed" && c.outcome == "fail"),
+            "the pre-1.2 manifest should read as malformed"
+        );
+
+        let republished = tmp.path().join("republished.png");
+        sign_file(
+            &old_published,
+            &republished,
+            "Bob (re-publisher)",
+            Some("CC BY 4.0"),
+            SignAction::Published,
+            &cert,
+            &key,
+            None,
+        )
+        .expect("re-signing a pre-1.2 Published file must succeed");
+
+        assert_eq!(
+            action_verbs(&republished),
+            ["c2pa.opened", "c2pa.published"]
+        );
+        assert_no_action_failures(&republished);
+        let chain = read_manifest_chain(&republished, false)
+            .expect("read_manifest_chain")
+            .expect("chain");
+        assert!(
+            !chain.ingredients.is_empty(),
+            "the old manifest must be kept as the parent"
+        );
+        let fixed = read_manifest(&republished, false).unwrap().unwrap();
+        assert!(fixed.is_valid, "the re-signed file must read as valid");
+    }
+
     /// The action verbs of the active manifest, in order.
     fn action_verbs(path: &Path) -> Vec<String> {
         let manifest = read_manifest(path, false)
