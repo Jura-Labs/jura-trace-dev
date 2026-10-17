@@ -35,7 +35,7 @@ opencv-python-headless==5.0.0.93
 # bundles will silently fail to open .heic/.heif files. The sidecar calls
 # pillow_heif.register_heif_opener() at startup; if the import fails we
 # log CRITICAL and continue (HEIC verification will fail, other formats OK).
-pillow-heif==1.8.0
+pillow-heif==1.8.1
 
 # AVIF support — added rc.31 (2026-06-09) after a known-fake test image in AVIF
 # format passed the trust algorithm at 77% because six detectors returned HTTP
@@ -80,7 +80,7 @@ regex==2026.9.29
 # faster-whisper>=1.0.0
 
 # Utilities
-python-dotenv==1.2.3
+python-dotenv==1.2.4
 pydantic==2.11.3
 
 # Testing
