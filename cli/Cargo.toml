@@ -1,6 +1,6 @@
 [package]
 name = "jura"
-version = "1.2.0-dev"
+version = "1.2.0"
 description = "Command-line client for the Jura Trace local REST API."
 authors = ["Paul Griffiths"]
 edition = "2021"

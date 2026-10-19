@@ -980,7 +980,7 @@ dependencies = [
 
 [[package]]
 name = "jura"
-version = "1.2.0-dev"
+version = "1.2.0"
 dependencies = [
  "clap",
  "keyring",
