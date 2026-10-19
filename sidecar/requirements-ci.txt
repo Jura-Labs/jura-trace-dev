@@ -40,10 +40,10 @@ scipy==1.18.1
 # for rationale. Watermark feature gated behind V1_SHOW_WATERMARK=false in
 # frontend; backend code stays in tree for v1.1 unhide. Library remains in
 # requirements.txt for dev testing.
-pillow-heif==1.8.0
+pillow-heif==1.8.1
 # AVIF support added rc.31 (2026-06-09) — see requirements.txt for rationale.
 pillow-avif-plugin==1.6.0
-python-dotenv==1.2.3
+python-dotenv==1.2.4
 pydantic==2.11.3
 # ONNX runtime — required for CLIP/UnivFD AI detection (JTV-143, 3 May 2026).
 # Without this pin the sidecar binary has no onnxruntime and clip_detect is
