@@ -795,8 +795,11 @@ jobs:
           fi
           echo "SHA-256 verification PASSED."
 
-          # B4: the committed prompt embeddings equal a live encoding, bit for
-          # bit, under this job's onnxruntime.
+          # B4: the committed prompt embeddings are within 1e-6 of a live
+          # encoding under this job's onnxruntime. Not bit for bit: the result
+          # depends on the CPU and the onnxruntime build, so it can only be
+          # exact on the machine that generated it. The reasoning and the
+          # observed differences are in the script's docstring.
           python scripts/clip_text_embeddings.py check --models-dir onnx-verify/models --embeddings-dir models
 
           # Stage the vision encoder and the prompt embeddings; never the text
