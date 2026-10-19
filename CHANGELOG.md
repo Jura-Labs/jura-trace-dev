@@ -8,6 +8,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased: v1.2.0
 
+Updating to v1.2.0:
+
+- From v1.1.0, the update installs and Jura Trace restarts by itself.
+- On macOS, from v1.0.0: the update installs, but the app does not restart
+  by itself, because the update runs v1.0.0's code. Quit Jura Trace and
+  open it again.
+
 Verification Record:
 
 - New **Verification Record** export on the verify page: a signed,
@@ -47,6 +54,16 @@ Command-line client:
 
 Installers:
 
+- Windows: the app is ready much sooner after launch. On GitHub's Windows
+  machines the analysis engine went from 39 seconds to 7.1 on first launch
+  and from 28 seconds to 3.7 after that. Those machines run without virus
+  scanning, so a normal PC will be slower than these figures. The engine is
+  no longer unpacked again on every launch, and the readiness check no
+  longer waits about two seconds for Ollama when Ollama is not running.
+- The log file now records information as well as errors, with millisecond
+  timestamps. That means it includes the paths of local images you verify
+  and the URLs you verify, with query strings removed. It stays on your
+  computer. Setting `RUST_LOG` still overrides the level.
 - Windows: the app's own executables are now signed. In v1.1.0 the
   installers were signed and the sidecar was signed, but `jura-trace.exe`
   inside them was not, which Smart App Control can block.
@@ -79,6 +96,34 @@ Installers:
   (`docs/calibration/numerical-stack-drift-oct2026.md`). One detector
   changes: GAN fingerprint analysis now runs on AVIF images, where it
   reported an error before.
+
+In the app:
+
+- The note that Jura Trace gives a second opinion, not a verdict, now sits
+  in the verdict card under every result and cannot be dismissed. It was a
+  first-run card above the upload area.
+- Signing in Standard network mode asks once whether to add a trusted
+  timestamp, which sends a hash of the signature to a timestamp service.
+  Until v1.2.0 it always did, while Settings said Standard mode made no
+  outbound connections. Settings, Network Access changes the answer or
+  makes the app ask again.
+- Settings, API Keys is shown in every edition, and its keys now work. A
+  key made there could never authenticate, because it was hashed with its
+  `jt_` prefix and the server checks it without one. Help explains keys,
+  where `jura` and `jura-trace-api` are installed, and a first
+  verification.
+- The UnivFD model card shows the figures of the model that ships (AUC
+  0.9929, false positives 3.87%, recall 95.77%). It showed the previous
+  model's.
+- The Content Credentials panel no longer shows "Tool: [object Object]"
+  where a manifest records its software agent as a structured value. This
+  was a known limitation of v1.1.0.
+- An installation kept off the startup disk still cannot update itself, a
+  known limitation of v1.1.0, but the app now says so: move Jura Trace to
+  the Applications folder on the startup disk and try again. The current
+  version is left unchanged.
+- Each release now carries the model-card metadata files the help pages
+  link to.
 
 Content Credentials (C2PA):
 
