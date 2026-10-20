@@ -1056,7 +1056,7 @@ jobs:
           # told they were up to date indefinitely. BL-REL-003 fault 2.
           #
           # It is now required rather than optional: the manifest completeness
-          # gate expects darwin-aarch64,linux-x86_64,windows-x86_64, so a
+          # gate expects darwin-aarch64,linux-x86_64,linux-x86_64-deb,windows-x86_64, so a
           # release without an AppImage stops at that gate rather than
           # publishing a manifest that quietly omits a platform.
           #
@@ -2005,6 +2005,12 @@ jobs:
     # Configure the "production" environment at:
     #   Settings > Environments > production > Required reviewers
     environment: production
+    # Job-level permissions replace the workflow's, so contents: write is
+    # repeated. actions: write lets the last step start installer-test.yml in
+    # this repository with the job's own token, and grants nothing else.
+    permissions:
+      contents: write
+      actions: write
     steps:
       # ── A4. Attach the model-card metadata ────────────────────────────────
       # The help page's model cards tell readers that per-generator recall "is
@@ -2356,6 +2362,16 @@ jobs:
                 urlSuffix: '.AppImage',
                 sigSuffix: '_amd64.AppImage.sig',
               },
+              'linux-x86_64-deb': {
+                // BL-REL-008. A .deb install looks for linux-x86_64-deb before
+                // linux-x86_64, so without this it took the AppImage and could
+                // not install it. The plugin installs a .deb with pkexec dpkg -i.
+                // Same friendly-name / raw-sig split as the AppImage. Must match
+                // PLATFORM_ASSET_CONFIG in the Cloudflare worker, which serves
+                // juralabs.org/api/updates/latest.json.
+                urlSuffix: '.deb',
+                sigSuffix: '_amd64.deb.sig',
+              },
               'windows-x86_64': {
                 // Use the MSI as the updater target (preferred over the NSIS exe for
                 // enterprise environments; both carry valid .sig files).
@@ -2536,12 +2552,12 @@ jobs:
           MANIFEST_PATH: ${{ steps.manifest.outputs.manifest_path }}
         run: |
           set -euo pipefail
-          EXPECTED="darwin-aarch64,linux-x86_64,windows-x86_64"
+          EXPECTED="darwin-aarch64,linux-x86_64,linux-x86_64-deb,windows-x86_64"
           echo "Manifest platforms: ${PLATFORM_KEYS:-<none>}"
           echo "Expected:           ${EXPECTED}"
 
           missing=""
-          for want in darwin-aarch64 linux-x86_64 windows-x86_64; do
+          for want in darwin-aarch64 linux-x86_64 linux-x86_64-deb windows-x86_64; do
             case ",${PLATFORM_KEYS}," in
               *",${want},"*) ;;
               *) missing="${missing} ${want}" ;;
@@ -2565,7 +2581,7 @@ jobs:
             echo "::error::A signature field contains a URL rather than the signature itself."
             exit 1
           fi
-          echo "OK: all three platforms present, all signatures inline."
+          echo "OK: all four platform entries present, all signatures inline."
 
       # ── JTV-146: push the manifest to juralabs.org ───────────────────────
       # Tauri's dual-endpoint config (JTV-147) lists juralabs.org first and
@@ -2706,8 +2722,8 @@ jobs:
           # The live manifest must also carry every platform and inline
           # signatures. The gate earlier checked the file we generated; this
           # checks what the world can actually fetch.
-          printf '%s' "${live}" | jq -e '(.platforms | keys | sort) == ["darwin-aarch64","linux-x86_64","windows-x86_64"]' >/dev/null || {
-            echo "::error::Live manifest does not carry all three platforms."
+          printf '%s' "${live}" | jq -e '(.platforms | keys | sort) == ["darwin-aarch64","linux-x86_64","linux-x86_64-deb","windows-x86_64"]' >/dev/null || {
+            echo "::error::Live manifest does not carry all four platform entries."
             exit 1
           }
           printf '%s' "${live}" | jq -e '[.platforms[].signature] | map(select(test("^https?://"))) | length == 0' >/dev/null || {
@@ -2844,3 +2860,28 @@ jobs:
               draft: false,
             });
             console.log(`Published release ${process.env.RELEASE_ID} on juralabs/jura-trace`);
+
+      # ── Start the installer test (BL-TEST-001) ────────────────────────────
+      # installer-test.yml listens for `release: published`, but releases are
+      # published on jura-trace, so that event never reaches this repository.
+      # This job is what publishes, so it starts the test itself, here, with
+      # its own token. No cross-repository token is needed.
+      #
+      # Stable tags only, as the jura-trace listener did: a tag with a hyphen
+      # (rc, beta, alpha) is a prerelease. A release published by hand in the
+      # GitHub UI does not pass through here; start the test from the Actions
+      # tab with that tag.
+      - name: Start the installer test
+        if: steps.publishable.outputs.ready == 'true' && !contains(needs.create-release.outputs.tag, '-')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.create-release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh workflow run installer-test.yml --repo "${GITHUB_REPOSITORY}" --ref main -f tag="${TAG}"
+          {
+            echo "### Installer test started for \`${TAG}\`"
+            echo ""
+            echo "This step only starts the test. Its result is at"
+            echo "<${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/workflows/installer-test.yml>."
+          } >> "$GITHUB_STEP_SUMMARY"
