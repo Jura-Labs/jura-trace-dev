@@ -74,6 +74,31 @@ SIDECAR_PYTHON_VERSION="3.12"   # release.yml's setup-python
 export UV_CACHE_DIR="${UV_CACHE_DIR:-$CARGO_TARGET_BASE/uv-cache}"
 export PYINSTALLER_CONFIG_DIR="${PYINSTALLER_CONFIG_DIR:-$CARGO_TARGET_BASE/pyinstaller-cache}"
 SIGNING_IDENTITY="Developer ID Application: Jura Labs CIC (Y82C4P9L7F)"
+
+# codesign with --timestamp asks Apple's timestamp service for every file,
+# about 800 times a build, and that service is briefly unavailable now and
+# then ("The timestamp service is not available."). A failed attempt leaves
+# the original intact beside a half-written <file>.cstemp. v1.2.0's first
+# two builds each died on one such failure. So retry: drop the .cstemp, wait
+# a little longer each time, and try again, up to five attempts. Any other
+# failure still fails after the last attempt, with codesign's own message.
+sign() {
+  local f="${!#}" attempt
+  for attempt in 1 2 3 4 5; do
+    if codesign "$@" 2>/tmp/jt-codesign.err; then
+      return 0
+    fi
+    rm -f "$f.cstemp"
+    if ! grep -q "timestamp service is not available" /tmp/jt-codesign.err; then
+      cat /tmp/jt-codesign.err >&2
+      return 1
+    fi
+    echo "  timestamp service unavailable signing $(basename "$f"), attempt $attempt of 5" >&2
+    sleep $((attempt * 5))
+  done
+  cat /tmp/jt-codesign.err >&2
+  return 1
+}
 TEAM_ID="Y82C4P9L7F"
 
 # ── Logging helpers ───────────────────────────────────────────────────
@@ -306,7 +331,7 @@ sign_skipped=0
 while IFS= read -r f; do
   # Skip if file is empty (defensive)
   [[ -s "$f" ]] || { sign_skipped=$((sign_skipped + 1)); continue; }
-  if codesign --force --sign "$SIGNING_IDENTITY" --options runtime --timestamp "$f" 2>/dev/null; then
+  if sign --force --sign "$SIGNING_IDENTITY" --options runtime --timestamp "$f" 2>/dev/null; then
     sign_count=$((sign_count + 1))
   else
     sign_failed=$((sign_failed + 1))
@@ -424,7 +449,7 @@ SIDECAR_ROOT="$APP_PATH/Contents/Resources/sidecar-bundle"
 count=0
 failed=0
 while IFS= read -r f; do
-  if codesign --force --sign "$SIGNING_IDENTITY" --options runtime --timestamp "$f"; then
+  if sign --force --sign "$SIGNING_IDENTITY" --options runtime --timestamp "$f"; then
     count=$((count + 1))
   else
     failed=$((failed + 1))
@@ -440,7 +465,7 @@ fi
 ok "Per-file signed $count nested .so/.dylib files."
 
 # Sign bootloader
-codesign --force --sign "$SIGNING_IDENTITY" --options runtime --timestamp "$SIDECAR_ROOT/jura-sidecar"
+sign --force --sign "$SIGNING_IDENTITY" --options runtime --timestamp "$SIDECAR_ROOT/jura-sidecar"
 ok "Signed sidecar bootloader."
 
 # The command-line binaries (v1.2.0 stage 5), signed explicitly and
@@ -448,12 +473,12 @@ ok "Signed sidecar bootloader."
 for bin in jura-trace-api jura; do
   f="$APP_PATH/Contents/MacOS/$bin"
   [[ -x "$f" ]] || die "$bin is not in Contents/MacOS; the bundle was built without --features api,cli."
-  codesign --force --sign "$SIGNING_IDENTITY" --options runtime --timestamp "$f"
+  sign --force --sign "$SIGNING_IDENTITY" --options runtime --timestamp "$f"
   ok "Signed $bin."
 done
 
 # Re-seal .app top level so nested hashes are embedded
-codesign --force --sign "$SIGNING_IDENTITY" --options runtime --timestamp "$APP_PATH"
+sign --force --sign "$SIGNING_IDENTITY" --options runtime --timestamp "$APP_PATH"
 ok "Re-sealed .app top level."
 
 # ── Phase 5b: verify deep ─────────────────────────────────────────────
@@ -577,7 +602,7 @@ ok "All $checked nested Mach-O binaries in the updater archive signed by Team=$T
 
 # ── Phase 7: codesign the DMG itself ──────────────────────────────────
 log "Phase 7: codesign the DMG"
-codesign --force --sign "$SIGNING_IDENTITY" --timestamp "$DMG_PATH"
+sign --force --sign "$SIGNING_IDENTITY" --timestamp "$DMG_PATH"
 codesign --verify --verbose=2 "$DMG_PATH" 2>&1 | tail -3
 ok "DMG signed."
 
