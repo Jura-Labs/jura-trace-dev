@@ -13,10 +13,31 @@ ship a 10 KB array instead of the encoder:
 
     clip_text_embeddings.py check --models-dir DIR
         Encodes the prompts again with the encoder in DIR, in THIS Python's
-        onnxruntime, and fails unless the result equals the committed array
-        bit for bit and the record names that encoder. The release runs it on
-        every platform, with the environment the sidecar is frozen from,
-        before leaving the encoder out of the bundle.
+        onnxruntime, and fails unless the result is within TOLERANCE of the
+        committed array and the record names that encoder. The release runs
+        it on every platform, with the environment the sidecar is frozen
+        from, before leaving the encoder out of the bundle.
+
+Why a tolerance and not bit for bit. The first version demanded bit-identical
+output, and that cannot hold off the machine the array was generated on.
+onnxruntime picks its kernels by CPU and is built differently per platform:
+with the same pins, the same encoder bytes and the same array, the check was
+bit-identical on the Apple Silicon Mac that generated it, 5.96e-08 out on
+Linux aarch64 on that same Mac, 2.98e-07 on GitHub's macOS runner and
+3.278e-07 on its Linux and Windows x86 runners (19 October 2026). No single
+array can match all of them, so regenerating it would only move the failure.
+
+What a difference that size can do. The verdict does not use these
+embeddings: the CLIP score is the UnivFD probe's, computed from the image
+embedding alone (clip_detector.py). They feed the zero-shot readout, a softmax
+over the five prompt similarities with no temperature, and the zero-shot
+fallback when the probe is missing. For any image, a prompt similarity moves
+by at most the L2 norm of that prompt's row of the difference, and a softmax
+probability by no more than that. At 3.3e-07 per component that is under
+1e-05, below the four decimals the readout shows. The image embedding itself
+is computed on the user's own CPU by the same onnxruntime, so it already
+varies between machines by this order. TOLERANCE is 1e-06, three times the
+largest difference observed, and the check prints the bound it implies.
 
 Run from the repository root, in an environment with the sidecar's
 requirements installed.
@@ -83,6 +104,9 @@ def generate(models_dir, out_dir):
     return 0
 
 
+TOLERANCE = 1e-06
+
+
 def check(models_dir, embeddings_dir):
     problems = []
     rec_path = os.path.join(embeddings_dir, cd.PRECOMPUTED_RECORD)
@@ -97,21 +121,30 @@ def check(models_dir, embeddings_dir):
         problems.append(f"{cd.PRECOMPUTED_EMBEDDINGS} in {embeddings_dir} is missing or unusable (see the log)")
     else:
         live = encode(models_dir)
-        if not np.array_equal(shipped, live):
-            diff = float(np.max(np.abs(shipped.astype(np.float64) - live.astype(np.float64))))
+        delta = shipped.astype(np.float64) - live.astype(np.float64)
+        diff = float(np.max(np.abs(delta)))
+        # Largest move of any prompt similarity, for any unit image embedding.
+        sim_bound = float(np.max(np.linalg.norm(delta, axis=1)))
+        where = f"under onnxruntime {ort.__version__} on {platform.system()} {platform.machine()}"
+        if diff > TOLERANCE:
             problems.append(
-                f"live encoding differs from the shipped array (max abs difference {diff:.3e}) "
-                f"under onnxruntime {ort.__version__} on {platform.system()} {platform.machine()}"
+                f"live encoding differs from the shipped array by {diff:.3e}, over the "
+                f"{TOLERANCE:.0e} tolerance, {where}. A prompt similarity could move by up to "
+                f"{sim_bound:.3e}."
             )
     if problems:
         print("clip_text_embeddings check: FAIL")
         for p in problems:
             print(f"  - {p}")
         return 1
-    print(
-        f"clip_text_embeddings check: OK, bit-identical under onnxruntime {ort.__version__} "
-        f"on {platform.system()} {platform.machine()} ({len(cd._TEXT_PROMPTS)} prompts)"
-    )
+    if diff == 0.0:
+        print(f"clip_text_embeddings check: OK, bit-identical {where} ({len(cd._TEXT_PROMPTS)} prompts)")
+    else:
+        print(
+            f"clip_text_embeddings check: OK, within {TOLERANCE:.0e} {where}: max abs difference "
+            f"{diff:.3e}, so any prompt similarity moves by at most {sim_bound:.3e} "
+            f"({len(cd._TEXT_PROMPTS)} prompts)"
+        )
     return 0
 
 

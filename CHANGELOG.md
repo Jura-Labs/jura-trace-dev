@@ -71,9 +71,11 @@ Installers:
 - Smaller downloads on every platform: the CLIP text encoder (243 MiB) is
   no longer shipped. It only ever encoded five fixed prompts, whose
   embeddings now ship precomputed (10 KB). This change leaves verdicts and
-  scores unchanged: the embeddings are checked bit for bit at build time on
-  each platform, and a 217-image golden set gives identical results with
-  and without the encoder.
+  scores unchanged: the CLIP verdict does not use these embeddings, a
+  217-image golden set gives identical results with and without the
+  encoder, and each platform's build checks the shipped embeddings against
+  a fresh encoding. That check allows a difference of 1e-6, because the
+  encoder's output varies by about 3e-7 between processors.
 - macOS: the analysis engine is built from the same pinned dependency list
   as Windows and Linux, not from the build machine's Python. The macOS app
   loses about 258 MiB of libraries nothing used (pyarrow, chromadb,
