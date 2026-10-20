@@ -258,15 +258,30 @@ jobs:
               repo: 'jura-trace',
               per_page: 100,
             });
-            const existing = releases.find(r => r.tag_name === tag);
+            // A draft hit by the tag-dropping edit below reads "untagged-<hash>",
+            // so fall back to its name, which is set from the tag.
+            const existing = releases.find(r => r.tag_name === tag)
+              || releases.find(r => r.draft && r.name === `Jura Trace ${tag}` && r.tag_name.startsWith('untagged-'));
             if (existing) {
               console.log(`Reusing existing release ${existing.id} for tag ${tag} (draft: ${existing.draft})`);
-              await github.rest.repos.updateRelease({
+              // tag_name must be sent again. Editing a DRAFT without it makes
+              // GitHub drop the draft's tag and report it as "untagged-<hash>",
+              // after which every `gh release upload <tag>` in the build jobs
+              // fails with "release not found". Found on the v1.2.0-rc.1
+              // rehearsal, run 39388732163: the re-dispatch reused the draft,
+              // refreshed its body, and all three uploads then missed it.
+              const { data: updated } = await github.rest.repos.updateRelease({
                 owner: 'juralabs',
                 repo: 'jura-trace',
                 release_id: existing.id,
+                tag_name: tag,
+                name: `Jura Trace ${tag}`,
                 body,
               });
+              if (updated.tag_name !== tag) {
+                core.setFailed(`Release ${existing.id} reports tag ${updated.tag_name} after the update, not ${tag}. The uploads would not find it.`);
+                return;
+              }
               return existing.id;
             }
             const { data } = await github.rest.repos.createRelease({
