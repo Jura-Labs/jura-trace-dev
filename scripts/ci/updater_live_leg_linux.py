@@ -31,6 +31,15 @@ run that looked and found nothing.
 Usage:
     updater_live_leg_linux.py --appimage PATH --previous-tag v1.1.0 \
         --expected 1.2.0 [--rehearsal] [--published-sha256 HEX]
+    updater_live_leg_linux.py --kind deb --appimage /usr/bin/jura-trace \
+        --previous-tag v1.1.0 --expected 1.2.0 [--rehearsal]
+
+--kind deb drives an app installed from the .deb (BL-REL-008). The path is
+then the installed binary, the manifest entry checked is linux-x86_64-deb,
+and the version installed is also read from dpkg. The plugin installs a .deb
+with pkexec, then a graphical sudo prompt, then plain sudo; a runner has no
+polkit agent and passwordless sudo, so here it is the third. On a desktop the
+user is asked for their password.
 
 Rehearsal mode expects NO update: the app must say it is up to date, stay on
 the version it started on, and leave its own file untouched. It exists
@@ -56,7 +65,13 @@ import urllib.request
 
 MANIFEST_URL = "https://juralabs.org/api/updates/latest.json"
 MANIFEST_HOST = "juralabs.org"
+# Set from --kind in main(). An AppImage install takes linux-x86_64; a .deb
+# install looks for linux-x86_64-deb first and must find a .deb there.
+KIND = "appimage"
 PLATFORM_KEY = "linux-x86_64"
+URL_SUFFIX = ".AppImage"
+LABEL = "AppImage"
+DEB_PACKAGE = "jura-trace"
 DRIVER_PORT = 4444
 DRIVER = f"http://127.0.0.1:{DRIVER_PORT}"
 
@@ -213,8 +228,8 @@ def assert_live(expected, rehearsal):
             fail = True
         else:
             say(f"OK: the {PLATFORM_KEY} signature is a minisign signature, not a URL.")
-        if not str(entry.get("url", "")).endswith(".AppImage"):
-            error(f"The {PLATFORM_KEY} entry does not point at an AppImage, and an AppImage client installs what it is sent.")
+        if not str(entry.get("url", "")).endswith(URL_SUFFIX):
+            error(f"The {PLATFORM_KEY} entry does not point at a {URL_SUFFIX} file, and a {LABEL} client only installs that.")
             fail = True
 
     # Asked before the 850 MB download rather than after it. If the service
@@ -321,7 +336,7 @@ def app_processes(appimage):
                 argv0 = f.read().split(b"\0")[0].decode(errors="replace")
         except OSError:
             continue
-        if argv0 == appimage or argv0.startswith("/tmp/.mount_"):
+        if argv0 == appimage or (KIND == "appimage" and argv0.startswith("/tmp/.mount_")):
             found.append((int(name), argv0))
     return found
 
@@ -471,6 +486,16 @@ def read_version_fresh(appimage, expected, record):
 # ── the verdict ─────────────────────────────────────────────────────────────
 
 
+def deb_version():
+    """The jura-trace package version dpkg has installed, or None."""
+    try:
+        out = subprocess.run(["dpkg-query", "-W", "-f", "${Version}", DEB_PACKAGE],
+                             capture_output=True, text=True, timeout=30)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return out.stdout.strip() or None if out.returncode == 0 else None
+
+
 def verdict(record, args):
     """Return (exit code, one-line verdict). Prints the reasoning."""
     prev, expected = args.previous_tag, args.expected
@@ -482,10 +507,10 @@ def verdict(record, args):
         say("This is a failure of the TEST, not evidence about the client.")
         return 1, None
     if not r["first_session"].get("opened"):
-        error("The driver could not launch the AppImage and open a session, so nothing was observed.")
+        error(f"The driver could not launch the {LABEL} and open a session, so nothing was observed.")
         say("This is a failure of the TEST, not evidence about the client.")
         say(f"What the driver said: {r['first_session'].get('failure')}")
-        say("driver.log is in the artefact. An AppImage that will not start at all (no FUSE, a")
+        say(f"driver.log is in the artefact. A {LABEL} that will not start at all (no FUSE, a")
         say("missing library) and a web view that refused automation both end here.")
         return 1, None
     if not r["dom_read"]:
@@ -527,14 +552,14 @@ def verdict(record, args):
             say("means the check failed or the client misread the answer.")
             ok = False
         if changed:
-            error("The AppImage on disk changed although there was nothing to install.")
+            error(f"The {LABEL} on disk changed although there was nothing to install.")
             ok = False
         if after != expected:
             error(f"A fresh launch afterwards calls itself {after}, not {expected}.")
             ok = False
         if not ok:
             return 1, None
-        say(f"OK: REHEARSAL. A publicly downloaded {prev} AppImage, talking to the live service,")
+        say(f"OK: REHEARSAL. A publicly downloaded {prev} {LABEL}, talking to the live service,")
         say(f"    was driven to Settings, asked, and said it is up to date. It stayed on {after}")
         say("    and its file is byte for byte what was downloaded.")
         say("    This proves the driving and the check. It does NOT prove an install: nothing")
@@ -543,10 +568,10 @@ def verdict(record, args):
 
     if before == expected:
         error(f"The launched {prev} already called itself {expected} before anything was pressed.")
-        say("This is a failure of the TEST: the wrong AppImage was fetched.")
+        say(f"This is a failure of the TEST: the wrong {LABEL} was fetched.")
         return 1, None
     if after != expected:
-        error(f"A pristine {prev} AppImage was asked, and did not end up on {expected}.")
+        error(f"A pristine {prev} {LABEL} was asked, and did not end up on {expected}.")
         say(f"It called itself {before} before the press and {after} on a fresh launch afterwards.")
         say("The button was pressed, so this is the client's answer rather than a gap in the test.")
         if r["offer_sentence"]:
@@ -559,21 +584,26 @@ def verdict(record, args):
     if not changed:
         error(f"The app now calls itself {expected} and the file on disk is unchanged, which cannot both be true of an update.")
         return 1, None
+    if KIND == "deb" and r.get("deb_version_after") != expected:
+        error(f"The app calls itself {expected} but dpkg has {r.get('deb_version_after')} installed.")
+        return 1, None
     if args.published_sha256 and r["sha256_after"] != args.published_sha256.lower():
-        error("The AppImage on disk after the update is not the published one.")
+        error(f"The {LABEL} on disk after the update is not the published one.")
         say(f"on disk  : {r['sha256_after']}")
         say(f"published: {args.published_sha256.lower()}")
         return 1, None
 
-    say(f"OK: a pristine {prev} AppImage, talking to the live service over public DNS and the")
+    say(f"OK: a pristine {prev} {LABEL}, talking to the live service over public DNS and the")
     say(f"    real certificate chain, fetched and installed {expected}.")
     say(f"    It called itself {before} before the press and {after} on a fresh launch afterwards.")
     if args.published_sha256:
-        say("    The file on disk is byte for byte the published AppImage.")
+        say(f"    The file on disk is byte for byte the published {LABEL}.")
     else:
         warning("No published SHA-256 was supplied, so the installed file was not compared with the release asset.")
     if r["offer_sentence"]:
         say(f'    The sentence caught in flight: "{r["offer_sentence"]}"')
+    if KIND == "deb":
+        say(f"    dpkg had {r.get('deb_version_before')} installed before and {r.get('deb_version_after')} after.")
 
     # Reported, not asserted. Whether an AppImage relaunches itself after
     # replacing its own file is a first observation in v1.2.0 and the plan
@@ -589,7 +619,8 @@ def verdict(record, args):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--appimage", required=True, help="path to the previous version's AppImage, already executable")
+    ap.add_argument("--appimage", required=True, help="the program to launch: the previous version's AppImage, or with --kind deb the installed binary")
+    ap.add_argument("--kind", choices=["appimage", "deb"], default="appimage", help="how the previous version was installed")
     ap.add_argument("--previous-tag", required=True)
     ap.add_argument("--expected", required=True, help="version the app must be on afterwards")
     ap.add_argument("--rehearsal", action="store_true", help="expect up to date and no change")
@@ -598,6 +629,13 @@ def main():
     ap.add_argument("--out", default=".", help="directory for verdict.log, observed-verdict.txt and driver.log")
     args = ap.parse_args()
     appimage = os.path.abspath(args.appimage)
+    global KIND, PLATFORM_KEY, URL_SUFFIX, LABEL
+    KIND = args.kind
+    if KIND == "deb":
+        PLATFORM_KEY, URL_SUFFIX, LABEL = "linux-x86_64-deb", ".deb", ".deb install"
+        if args.published_sha256:
+            warning("--published-sha256 is ignored for a .deb: the installed binary is not the package file. dpkg's version is checked instead.")
+            args.published_sha256 = ""
 
     assert_live(args.expected, args.rehearsal)
 
@@ -629,8 +667,13 @@ def main():
         "last_probe_of_any_kind": None,
         "probe_outcomes": [],
         "fresh_launch_outcomes": [],
+        "kind": KIND,
+        "deb_version_before": deb_version() if KIND == "deb" else None,
+        "deb_version_after": None,
     }
-    say(f"sha256 of the downloaded AppImage: {record['sha256_before']}")
+    say(f"sha256 of the {LABEL} before: {record['sha256_before']}")
+    if KIND == "deb":
+        say(f"dpkg has {DEB_PACKAGE} {record['deb_version_before']} installed")
 
     driver, failure = start_driver(os.path.join(args.out, "driver.log"))
     record["driver_failure"] = failure
@@ -653,7 +696,10 @@ def main():
 
             stop_app(appimage)
             record["sha256_after"] = sha256_of(appimage) if os.path.exists(appimage) else None
-            say(f"sha256 of the AppImage on disk now: {record['sha256_after']}")
+            say(f"sha256 of the {LABEL} on disk now: {record['sha256_after']}")
+            if KIND == "deb":
+                record["deb_version_after"] = deb_version()
+                say(f"dpkg has {DEB_PACKAGE} {record['deb_version_after']} installed now")
 
             if record["button_pressed"] and record["sha256_after"]:
                 say("── fresh launch of what is on disk now ──")

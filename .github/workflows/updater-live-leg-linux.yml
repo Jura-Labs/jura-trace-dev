@@ -53,7 +53,15 @@ name: Updater live leg (Linux)
 # v1.1.0 to v1.2.0 is the first Linux update that can exist, so there is no
 # earlier behaviour to hold it to. The step summary says which happened.
 #
-# DOES NOT PROVE: anything about the .deb. A .deb install does not update
+# THE .deb (BL-REL-008). Every run is a matrix of two: the AppImage, and the
+# .deb installed with apt and launched as /usr/bin/jura-trace. A .deb install
+# looks for `linux-x86_64-deb` in the manifest before `linux-x86_64`, and since
+# v1.2.0 the manifest carries it. The plugin installs a .deb with pkexec, then
+# a graphical sudo prompt, then sudo. A runner has no polkit agent and has
+# passwordless sudo, so here it is plain sudo; on a desktop the user is asked
+# for a password. That prompt is the one thing this leg cannot show.
+#
+# Before v1.2.0 this header said: DOES NOT PROVE anything about the .deb. A .deb install does not update
 # through this path at all. tauri-plugin-updater 2.10.0 picks its installer
 # from the bundle type, looks for `linux-x86_64-deb` and then `linux-x86_64`
 # in the manifest, and rejects anything that is not a .deb. The manifest
@@ -103,8 +111,12 @@ permissions:
 
 jobs:
   linux:
-    name: Linux, live${{ (github.event_name == 'pull_request' || github.event.inputs.rehearsal == 'true') && ', rehearsal' || '' }}
+    name: Linux ${{ matrix.kind }}, live${{ (github.event_name == 'pull_request' || github.event.inputs.rehearsal == 'true') && ', rehearsal' || '' }}
     runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        kind: [appimage, deb]
     timeout-minutes: 45
     env:
       # RELEASE_PAT where it exists, because the installers live on
@@ -159,6 +171,7 @@ jobs:
           dpkg -s webkit2gtk-driver | grep '^Version' | sed 's/^/webkit2gtk-driver /'
 
       - name: Download the previous version's AppImage
+        if: matrix.kind == 'appimage'
         env:
           PREV: ${{ steps.plan.outputs.prev }}
           EXPECTED: ${{ steps.plan.outputs.expected }}
@@ -194,6 +207,32 @@ jobs:
           fi
           echo "PUBLISHED_SHA256=$PUBLISHED" >> "$GITHUB_ENV"
 
+      - name: Download and install the previous version's .deb
+        if: matrix.kind == 'deb'
+        env:
+          PREV: ${{ steps.plan.outputs.prev }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/deb" out
+          gh release download "$PREV" --repo Jura-Labs/jura-trace \
+            --pattern "*Linux-x86_64.deb" --dir "$HOME/deb"
+          COUNT=$(find "$HOME/deb" -name '*.deb' | wc -l)
+          if [ "$COUNT" -ne 1 ]; then
+            echo "::error::Expected exactly one .deb on $PREV and found $COUNT."
+            exit 1
+          fi
+          DEB=$(find "$HOME/deb" -name '*.deb')
+          ls -lh "$DEB" | sed 's/^/  /'
+          # apt, not dpkg -i, so the package's Depends are installed the way a
+          # user's apt would install them.
+          sudo apt-get install -y --no-install-recommends "$DEB"
+          dpkg-query -W -f 'installed: ${Package} ${Version}\n' jura-trace
+          test -x /usr/bin/jura-trace
+          echo "APPIMAGE=/usr/bin/jura-trace" >> "$GITHUB_ENV"
+          # The installed binary is not the package file, so no published
+          # checksum applies; the script checks dpkg's version instead.
+          echo "PUBLISHED_SHA256=" >> "$GITHUB_ENV"
+
       - name: Launch it, press Check for Updates, and read its verdict
         env:
           PREV: ${{ steps.plan.outputs.prev }}
@@ -201,7 +240,7 @@ jobs:
           REHEARSAL: ${{ steps.plan.outputs.rehearsal }}
         run: |
           set -euo pipefail
-          ARGS=(--appimage "$APPIMAGE" --previous-tag "$PREV" --expected "$EXPECTED" --out out)
+          ARGS=(--kind "${{ matrix.kind }}" --appimage "$APPIMAGE" --previous-tag "$PREV" --expected "$EXPECTED" --out out)
           if [ "$REHEARSAL" = "true" ]; then ARGS+=(--rehearsal); fi
           if [ -n "$PUBLISHED_SHA256" ]; then ARGS+=(--published-sha256 "$PUBLISHED_SHA256"); fi
           # A session bus and a display, which is what a desktop login gives
@@ -217,9 +256,9 @@ jobs:
           REHEARSAL: ${{ steps.plan.outputs.rehearsal }}
         run: |
           {
-            echo "## Updater live leg, Linux"
+            echo "## Updater live leg, Linux (${{ matrix.kind }})"
             echo ""
-            echo "Launched the published \`$PREV\` AppImage and pointed it at the real update service."
+            echo "Launched the published \`$PREV\` ${{ matrix.kind }} and pointed it at the real update service."
             echo "No hosts entry, no throwaway certificate, no local listener."
             if [ "$REHEARSAL" = "true" ]; then
               echo ""
@@ -243,7 +282,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: updater-live-leg-linux
+          name: updater-live-leg-linux-${{ matrix.kind }}
           path: |
             out/verdict.log
             out/observed-verdict.txt

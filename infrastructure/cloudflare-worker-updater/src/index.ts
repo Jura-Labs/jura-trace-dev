@@ -18,7 +18,7 @@
  *     JSON for the platform when an update is available. Reduces wire
  *     bytes for the common no-update case.
  *
- *     {platform} is one of: darwin-aarch64, darwin-x86_64, linux-x86_64,
+ *     {platform} is one of: darwin-aarch64, linux-x86_64, linux-x86_64-deb,
  *                          windows-x86_64
  *     {current-version} is a semver string the client reports
  *
@@ -198,6 +198,17 @@ const PLATFORM_ASSET_CONFIG: Record<string, PlatformAssetConfig> = {
   "linux-x86_64": {
     urlSuffix: ".AppImage",
     sigSuffix: "_amd64.AppImage.sig",
+  },
+  // Linux, installed from the .deb (BL-REL-008). tauri-plugin-updater looks
+  // for "{os}-{arch}-{bundle_type}" before "{os}-{arch}", so a .deb install
+  // takes this entry and an AppImage install never sees it. Without it a
+  // .deb install fell back to linux-x86_64, downloaded the AppImage and
+  // refused to install it. The plugin (2.10.0 in v1.1.0, and later) installs
+  // a .deb with `pkexec dpkg -i`, so the user is asked for their password.
+  // The .deb.sig is an updater signature like the others, uploaded raw.
+  "linux-x86_64-deb": {
+    urlSuffix: ".deb",
+    sigSuffix: "_amd64.deb.sig",
   },
   // Windows: MSI is friendly-renamed; .sig is uploaded raw.
   // Must match the suffix release.yml's manifest job writes.
@@ -401,7 +412,7 @@ async function fetchLatestRelease(env: Env): Promise<GitHubRelease | null> {
 async function buildManifest(release: GitHubRelease): Promise<TauriUpdateManifest> {
   const names = Object.keys(PLATFORM_ASSET_CONFIG);
 
-  // Fetch every platform's signature concurrently. Three small files.
+  // Fetch every platform's signature concurrently. Four small files.
   const blocks = await Promise.all(
     names.map((platform) => buildPlatformBlock(release, platform)),
   );
