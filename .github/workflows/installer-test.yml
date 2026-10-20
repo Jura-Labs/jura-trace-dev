@@ -29,12 +29,13 @@ name: Installer test
 # that reason, while BL-TEST-001 stayed open on the grounds that nothing
 # tests the installed product.
 #
-# What reaches it now is `workflow_dispatch`, sent by
-# `.github/workflows/installer-test-dispatch.yml` in the installers
-# repository, which fires on `release: published` there and calls the
-# workflow-dispatch API here with the published tag. That route needs only an
-# `actions: write` token, which is why it was chosen over
-# `repository_dispatch` and its `contents: write`.
+# What reaches it now is `workflow_dispatch`, sent by the last step of
+# release.yml's publish job, in this repository, with that job's own token
+# (`actions: write`). The publish job is what publishes, so it knows the tag
+# and needs no cross-repository token. It replaced a listener in the
+# installers repository that needed a personal access token to call here.
+# A release published by hand in the GitHub UI bypasses that step: run this
+# workflow from the Actions tab with the tag.
 #
 # The `release` trigger is kept rather than deleted, because it is correct
 # for any release cut in this repository and costs nothing while none is.

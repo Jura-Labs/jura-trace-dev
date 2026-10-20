@@ -2005,6 +2005,12 @@ jobs:
     # Configure the "production" environment at:
     #   Settings > Environments > production > Required reviewers
     environment: production
+    # Job-level permissions replace the workflow's, so contents: write is
+    # repeated. actions: write lets the last step start installer-test.yml in
+    # this repository with the job's own token, and grants nothing else.
+    permissions:
+      contents: write
+      actions: write
     steps:
       # ── A4. Attach the model-card metadata ────────────────────────────────
       # The help page's model cards tell readers that per-generator recall "is
@@ -2854,3 +2860,28 @@ jobs:
               draft: false,
             });
             console.log(`Published release ${process.env.RELEASE_ID} on juralabs/jura-trace`);
+
+      # ── Start the installer test (BL-TEST-001) ────────────────────────────
+      # installer-test.yml listens for `release: published`, but releases are
+      # published on jura-trace, so that event never reaches this repository.
+      # This job is what publishes, so it starts the test itself, here, with
+      # its own token. No cross-repository token is needed.
+      #
+      # Stable tags only, as the jura-trace listener did: a tag with a hyphen
+      # (rc, beta, alpha) is a prerelease. A release published by hand in the
+      # GitHub UI does not pass through here; start the test from the Actions
+      # tab with that tag.
+      - name: Start the installer test
+        if: steps.publishable.outputs.ready == 'true' && !contains(needs.create-release.outputs.tag, '-')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.create-release.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh workflow run installer-test.yml --repo "${GITHUB_REPOSITORY}" --ref main -f tag="${TAG}"
+          {
+            echo "### Installer test started for \`${TAG}\`"
+            echo ""
+            echo "This step only starts the test. Its result is at"
+            echo "<${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/workflows/installer-test.yml>."
+          } >> "$GITHUB_STEP_SUMMARY"
