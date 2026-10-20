@@ -340,7 +340,7 @@ cp models/univfd_probe.joblib src-tauri/models/ 2>/dev/null || warn "univfd_prob
 # CLIP (B4, BL-SIZE-001): the vision encoder and the precomputed prompt
 # embeddings ship; the text encoder (243 MiB) does not. First prove, with
 # the onnxruntime the sidecar was just frozen from, that encoding the
-# prompts gives exactly the committed array, as release.yml does.
+# prompts gives the committed array to within 1e-6, as release.yml does.
 for f in clip-vit-b32-vision.onnx clip-vit-b32-vision.onnx.data clip-vit-b32-text.onnx clip-vit-b32-text.onnx.data; do
   [[ -f "models/$f" ]] || die "models/$f missing. Fetch the four CLIP files from the model-assets-clip-v1 release (scripts/onnx-model-sha256.manifest)."
 done
