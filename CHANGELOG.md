@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
-## Unreleased: v1.2.0
+## 20 October 2026: v1.2.0, Verification Record
 
 Updating to v1.2.0:
 
@@ -54,6 +54,11 @@ Command-line client:
 
 Installers:
 
+- Linux: a `.deb` install now updates itself. Until now the update
+  service offered it the AppImage, which it refused to install, so a
+  `.deb` install never updated. It is now offered the `.deb`, and asks for
+  your password to install it, as any system package does. This reaches
+  existing v1.0.0 and v1.1.0 `.deb` installs without a reinstall.
 - Windows: the app is ready much sooner after launch. On GitHub's Windows
   machines the analysis engine went from 39 seconds to 7.1 on first launch
   and from 28 seconds to 3.7 after that. Those machines run without virus
