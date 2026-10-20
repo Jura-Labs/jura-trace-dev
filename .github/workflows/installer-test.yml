@@ -771,25 +771,51 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artefacts
-          # Ask the way an installed app asks. Cloudflare's Bot Fight Mode
-          # challenges curl's own user agent from GitHub's (Azure) machines
-          # with a 403, while the app's requests from the same machines pass.
-          # The version comes from Cargo.lock, so it follows the app.
-          updater_version=$(grep -A1 '^name = "tauri-plugin-updater"$' src-tauri/Cargo.lock \
-            | sed -n 's/^version = "\(.*\)"$/\1/p')
-          [ -n "$updater_version" ] || {
-            echo "::error::tauri-plugin-updater is not in src-tauri/Cargo.lock."
-            exit 1
-          }
-          echo "Requesting as tauri-plugin-updater/${updater_version}"
-          curl -fsS --max-time 20 \
-            -A "tauri-plugin-updater/${updater_version}" \
-            -H "Accept: application/json" \
-            https://juralabs.org/api/updates/latest.json \
-            -o artefacts/latest.json || {
-              echo "::error::The live update endpoint did not return a manifest."
-              exit 1
-            }
+          # Fetch the manifest from the endpoints the app polls, in its order,
+          # sending the app's headers (version from Cargo.lock).
+          #
+          # Cloudflare's Bot Fight Mode sometimes answers a GitHub (Azure)
+          # machine with a challenge, a 403 carrying `cf-mitigated: challenge`.
+          # It challenged curl here on every run since 4 October, whatever the
+          # user agent, while the installed app's requests from the same
+          # machines passed. A challenge says nothing about the manifest, so
+          # it is a warning and the next endpoint is checked, as the app
+          # would do. Any other failure is an error.
+          python3 - <<'FETCH'
+          import json, pathlib, re, sys, urllib.error, urllib.request
+
+          lock = pathlib.Path("src-tauri/Cargo.lock").read_text()
+          m = re.search(r'^name = "tauri-plugin-updater"\nversion = "([^"]+)"', lock, re.M)
+          if not m:
+              print("::error::tauri-plugin-updater is not in src-tauri/Cargo.lock.")
+              sys.exit(1)
+          agent = f"tauri-plugin-updater/{m.group(1)}"
+          conf = json.loads(pathlib.Path("src-tauri/tauri.conf.json").read_text())
+          endpoints = conf["plugins"]["updater"]["endpoints"]
+          print(f"Requesting as {agent}")
+
+          for url in endpoints:
+              req = urllib.request.Request(url, headers={"User-Agent": agent, "Accept": "application/json"})
+              try:
+                  with urllib.request.urlopen(req, timeout=20) as r:
+                      body = r.read()
+              except urllib.error.HTTPError as e:
+                  if e.headers.get("cf-mitigated", "").lower() == "challenge":
+                      print(f"::warning::Cloudflare sent this runner a bot challenge for {url}. "
+                            "That is not a manifest fault; checking the app's next endpoint.")
+                      continue
+                  print(f"::error::{url} answered HTTP {e.code}.")
+                  sys.exit(1)
+              except Exception as e:
+                  print(f"::error::{url} did not answer: {e}")
+                  sys.exit(1)
+              pathlib.Path("artefacts/latest.json").write_bytes(body)
+              print(f"Manifest from {url}")
+              break
+          else:
+              print("::error::No update endpoint returned a manifest.")
+              sys.exit(1)
+          FETCH
           echo "── manifest ──"
           python3 -m json.tool artefacts/latest.json | head -40
 
