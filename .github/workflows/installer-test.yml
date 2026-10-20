@@ -764,15 +764,28 @@ jobs:
       #
       # What it proves and what it does not, stated here rather than implied:
       # a well-formed, correctly signed manifest pointing at assets that exist.
-      # It does NOT prove an update applies. That needs a previous version
-      # installed and the endpoint redirected, and on Linux it is currently
-      # impossible at all, because Tauri's Linux updater installs AppImages and
-      # the pipeline builds --bundles deb only. See BL-REL-003 fault 2.
+      # It does NOT prove an update applies. The live update legs do that
+      # (updater-live-leg.yml, updater-live-leg-linux.yml; macOS by hand),
+      # from an installed previous version on each platform.
       - name: Check the live update manifest
         run: |
           set -euo pipefail
           mkdir -p artefacts
-          curl -fsS --max-time 20 https://juralabs.org/api/updates/latest.json \
+          # Ask the way an installed app asks. Cloudflare's Bot Fight Mode
+          # challenges curl's own user agent from GitHub's (Azure) machines
+          # with a 403, while the app's requests from the same machines pass.
+          # The version comes from Cargo.lock, so it follows the app.
+          updater_version=$(grep -A1 '^name = "tauri-plugin-updater"$' src-tauri/Cargo.lock \
+            | sed -n 's/^version = "\(.*\)"$/\1/p')
+          [ -n "$updater_version" ] || {
+            echo "::error::tauri-plugin-updater is not in src-tauri/Cargo.lock."
+            exit 1
+          }
+          echo "Requesting as tauri-plugin-updater/${updater_version}"
+          curl -fsS --max-time 20 \
+            -A "tauri-plugin-updater/${updater_version}" \
+            -H "Accept: application/json" \
+            https://juralabs.org/api/updates/latest.json \
             -o artefacts/latest.json || {
               echo "::error::The live update endpoint did not return a manifest."
               exit 1
@@ -863,10 +876,8 @@ jobs:
             echo "belongs; every signature is signed by the key the app trusts;"
             echo "and every asset URL resolves."
             echo ""
-            echo "**Does not assert that an update applies.** That needs a previous"
-            echo "version installed and the endpoint redirected. On Linux it is"
-            echo "currently impossible: Tauri's Linux updater installs AppImages"
-            echo "and the pipeline builds deb only (BL-REL-003 fault 2)."
+            echo "**Does not assert that an update applies.** The live update legs"
+            echo "do that, from an installed previous version on each platform."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload artefacts
