@@ -73,9 +73,11 @@ Kept in the table because the history is the point. Each file carries its
 | [BL-LOG-001](BL-LOG-001-the-app-log-file-records-errors-only.md) | The app's log file recorded errors only. Default filter now `warn,jura_trace_lib=info`, millisecond timestamps (#109) | 24 Sept |
 | [BL-CLAIM-004](BL-CLAIM-004-standard-mode-does-not-cover-the-signing-timestamp.md) | Signing sent a hash to DigiCert even in Standard mode. Option 3: ask once, remember, refuse until answered (#112) | 24 Sept |
 | [BL-REL-001](BL-REL-001-stray-model-backup-in-the-bundle.md) | A stray classifier backup sat inside the bundled resources glob and shipped in the first local v1.1.0 build. Moved out; the build script now refuses to bundle with any stray model file present, using CI's own pattern | 9 September 2026 |
+| [BL-REL-009](BL-REL-009-the-release-page-and-the-download-page-recommend-different-windows-installers.md) | The release page recommends the `.msi`, the download page the `.exe`. Target v1.3.0, after BL-TEST-004 | Open | Low |
 | [BL-CI-001](BL-CI-001-test-gate-has-not-run-since-april.md) | The test gate had not run since 30 April and only fired on pull requests. Push trigger, pinned ruff, lint cleared, `cargo test` and `pytest` green on every push to `main`; four further CI gaps closed in #34 | 8 September 2026 |
 | [BL-CI-002](BL-CI-002-osv-scanner-has-scanned-nothing-since-july.md) | The weekly supply-chain scan had scanned nothing since July. `--skip-git` removed, SARIF asserted present, upload working; 1,451 packages across seven lockfiles scanned on every push | 8 September 2026 |
 | [BL-TEST-002](BL-TEST-002-timing-dependent-tests-fail-under-load.md) | Two timing-dependent Rust integration tests failed under runner load. Both replaced with signal-based waits (#30, #33) | 8 September 2026 |
+| [BL-TEST-004](BL-TEST-004-the-real-updater-has-never-updated-an-exe-install.md) | The real updater has never updated a Windows `.exe` install; only a hand-run `.msi` stands in for it. Target v1.3.0 | Open | Medium |
 
 The first four items as originally listed (BL-REL-002, BL-CI-001, BL-CI-002,
 BL-DEPS-001) were one story: no working channel through which a newly
