@@ -41,6 +41,14 @@ them:
    `--format ndjson`, `--fail-on`, `--ephemeral` or the endpoint list has
    nowhere to go.
 
+5. **`docs/API_WRAPPER.md` still tells the v1.1.0 story about keys.** Its
+   "Obtaining a key: the honest position" section opens "In v1.1.0 there is
+   no supported way for a user to obtain a key" and calls the Settings
+   panel switched off. The Examples section says getting a key is "not yet
+   straightforward". In v1.2.0 Settings, API Keys works in every edition and
+   `jura-trace-api keys add` exists. Found 22 October 2026, drafting the
+   announcement.
+
 ## Why it matters
 
 The v1.2.0 announcement needs a walkthrough to point to. As it stands, it
@@ -59,6 +67,9 @@ would have to link into the development repository by hand.
 - Add a "Full guide" link at the end of help section 7.
 - Add a line and link to the download page, next to the Linux server
   tarball.
+- Rewrite the key section of `docs/API_WRAPPER.md` for v1.2.0: Settings,
+  API Keys first, then `jura-trace-api keys add`, and drop "not yet
+  straightforward" from Examples.
 
 ## What not to do
 
