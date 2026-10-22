@@ -97,6 +97,17 @@ Kept in the table because the history is the point. Each file carries its
 | [BL-DEPS-005](BL-DEPS-005-three-deferred-major-upgrades.md) | reqwest 0.13 (#25), onnxruntime 1.30 (#91) and Tailwind 4 were deferred; each needs its own check. Target v1.3.0 | Open | Medium |
 | [BL-RIS-001](BL-RIS-001-reverse-image-search-is-built-and-unreachable.md) | Bring-your-own-key reverse image search (`ris.rs`, 33 tests) is not compiled in; the app tells users to search elsewhere. Enhanced mode, per-search consent. Target v1.3.0 | Open | Medium |
 | [BL-MON-001](BL-MON-001-watched-locations-is-built-and-hidden.md) | Watched Locations is built, flagged off, and its scheduler runs only on a Pro tier that does not exist. Needs Paul's Community limit. Target v1.3.0 | Open | Medium |
+| [BL-UX-006](BL-UX-006-first-run-is-four-screens-and-no-sample.md) | First run is an overlay, a wizard, a reminder and two cards, and no sample to try. One screen and a "Try a sample image" button. Target v1.3.0 | Open | Medium |
+| [BL-DOC-005](BL-DOC-005-the-getting-started-guide-describes-a-product-that-never-shipped.md) | `docs/user-guide/getting-started.md` (March 2026) promises watermarking, video, audio and old verdict names, and says "no data leaves your device". Rewrite. Target v1.3.0 | Open | High |
+| [BL-REC-002](BL-REC-002-the-verification-record-can-only-be-made-in-the-desktop-app.md) | The CLI and API cannot make a Verification Record, and it has no analyst or case fields. First step for Uwazi and team use. Target v1.3.0 | Open | Medium |
+| [BL-DOC-006](BL-DOC-006-nothing-shows-a-team-how-to-share-one-trace.md) | No guide for one server and many desks; the only team advice is SQLite on a shared drive. Target v1.3.0 | Open | Medium |
+| [BL-A11Y-001](BL-A11Y-001-no-accessibility-audit-since-may.md) | No accessibility audit since May, no automated check in CI, no accessibility statement. Target v1.3.0 | Open | Medium |
+| [BL-I18N-001](BL-I18N-001-the-app-can-only-speak-english.md) | English only, no i18n library. Start the process: library, core-path strings, glossary, one pilot language. Target v1.3.0 (groundwork) | Open | Medium |
+| [BL-DIST-001](BL-DIST-001-not-in-any-package-manager.md) | In no package manager. winget and a Homebrew tap; not Flathub (its AI-content rule). Target v1.3.0 | Open | Medium |
+| [BL-DIST-002](BL-DIST-002-not-on-the-digital-public-goods-registry.md) | Not on the Digital Public Goods registry; needs an app privacy policy and an ownership statement first. Target v1.3.0 (preparation) | Open | Medium |
+| [BL-INT-001](BL-INT-001-a-uwazi-recipe-test.md) | HURIDOCS/Uwazi: a recipe script and template, tested on sample images, before anything further. After BL-REC-002. Target v1.3.0 | Open | Medium |
+| [BL-REL-011](BL-REL-011-no-intel-mac-build.md) | No Intel Mac build; no request on record. Target later | Open | Low |
+| [BL-OBS-001](BL-OBS-001-nobody-reads-the-signals-we-already-have.md) | Update-check counts and download-click events exist and go unread. Target later | Open | Low |
 
 The first four items as originally listed (BL-REL-002, BL-CI-001, BL-CI-002,
 BL-DEPS-001) were one story: no working channel through which a newly
