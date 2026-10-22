@@ -144,3 +144,9 @@ Read from `src-tauri/src/api/mod.rs` on `main`, not run.
 - **Step 4, answered** by the v1.2.0 design: desktop carries on, headless fails.
 
 What remains is step 3.
+
+## Update, 22 October 2026: target v1.3.0
+
+Step 3 remains: the desktop app cannot show that the local API is not
+running. With the CLI now in every installer, users will hit this.
+Targeted at v1.3.0 (Paul, 22 October 2026).

@@ -200,3 +200,8 @@ that agrees with them regardless of what they do.
 - **Finding 5, done as far as the client goes.** `JURA_API_URL` is the one name used by the `jura` client and `docs/API_WRAPPER.md`. `JURA_SIDECAR_URL` survives in two script lines.
 - **Finding 2, open.** `sidecar_port` and `sidecar_host` are still in `sidecar/app/config.py`.
 - **Findings 1 and 3, not checked** in this pass. `src-tauri/src/sidecar.rs` still mentions video and audio 78 times, which suggests finding 1 is open.
+
+## Update, 22 October 2026: target v1.3.0
+
+Findings 1 to 3 remain (for example `sidecar_port` still in
+`sidecar/config.py:13`). Targeted at v1.3.0 (Paul, 22 October 2026).
