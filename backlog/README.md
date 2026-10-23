@@ -107,6 +107,7 @@ Kept in the table because the history is the point. Each file carries its
 | [BL-DIST-002](BL-DIST-002-not-on-the-digital-public-goods-registry.md) | Not on the Digital Public Goods registry; needs an app privacy policy and an ownership statement first. Target v1.3.0 (preparation) | Open | Medium |
 | [BL-INT-001](BL-INT-001-a-uwazi-recipe-test.md) | HURIDOCS/Uwazi: a recipe script and template, tested on sample images, before anything further. After BL-REC-002. Target v1.3.0 | Open | Medium |
 | [BL-CLI-001](BL-CLI-001-jura-is-not-on-the-path-after-a-mac-or-windows-install.md) | `jura` is not on the PATH after a Mac or Windows install; the first command fails with "command not found". A Settings button on macOS, PATH in the Windows installers. Target v1.3.0 | Open | Medium |
+| [BL-UX-007](BL-UX-007-a-capped-score-does-not-say-it-was-capped.md) | An AI image and a real photo both scored 55: the low-resolution cap (under 1 MP or short edge under 768 px) and the inconclusive cap fire silently, and `ceilingApplied` is null. Report every cap and say it in plain words. Target v1.3.0 | Open | High |
 | [BL-REL-011](BL-REL-011-no-intel-mac-build.md) | No Intel Mac build; no request on record. Target later | Open | Low |
 | [BL-OBS-001](BL-OBS-001-nobody-reads-the-signals-we-already-have.md) | Update-check counts and download-click events exist and go unread. Target later | Open | Low |
 

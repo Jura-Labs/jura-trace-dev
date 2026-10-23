@@ -65,3 +65,12 @@ Measure first, then decide.
   recommends against it on false-positive evidence, especially for
   non-native English writers. Whether to follow it is for Paul; see
   `~/jura-brain/inbox/2026-10-22-trace-v130-review.md`.
+
+## Update, 23 October 2026: a field example
+
+Paul checked `hero-fake-image-verdict-1024w.webp` (an AI-generated street
+flood scene, 1024 x 593 WebP, no metadata) in v1.2.0. The AI detector
+returned `inconclusive`, low confidence, classifier 0.30, and none of its
+19 statistical signals triggered; the score was 0.55 (low-resolution and
+inconclusive caps, BL-UX-007). Its generator is not recorded. Add it to the
+2026 evaluation slice once its source is known and its licence allows.
