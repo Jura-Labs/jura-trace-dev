@@ -3,7 +3,8 @@
 # the juralabs.org Cloudflare account.
 #
 # Routes are registered against the juralabs.org zone so the worker
-# answers https://juralabs.org/api/updates/*.
+# answers https://juralabs.org/api/updates/* and the counted download
+# links at https://juralabs.org/dl/*.
 
 name = "jura-trace-updater"
 main = "src/index.ts"
@@ -16,6 +17,14 @@ compatibility_flags = ["nodejs_compat"]
 # /api/updates/{platform}/{current-version} routes.
 [[routes]]
 pattern = "juralabs.org/api/updates/*"
+zone_name = "juralabs.org"
+
+# Counted download links (W43-13, approved 2026-10-23). /dl/<version>/<slug>
+# answers a 302 to the installer on GitHub Releases and counts the click in
+# KV on the way. The website's download buttons are pointed here in a
+# separate change; until then the route answers but nothing calls it.
+[[routes]]
+pattern = "juralabs.org/dl/*"
 zone_name = "juralabs.org"
 
 # Observability. Cloudflare's free plan includes basic logs; enable
@@ -55,13 +64,17 @@ GITHUB_REPO = "juralabs/jura-trace"
 #   wrangler deploy
 #
 # To read:
-#   wrangler kv key list --binding UPDATE_COUNTS
-#   wrangler kv key get  --binding UPDATE_COUNTS "checks:2026-09-06:latest"
+#   wrangler kv key list --binding UPDATE_COUNTS --remote --prefix checks:
+#   wrangler kv key list --binding UPDATE_COUNTS --remote --prefix downloads:
+#   wrangler kv key get  --binding UPDATE_COUNTS --remote "checks:2026-09-06:latest"
 #
 # Keys are checks:<YYYY-MM-DD>:<bucket>, where bucket is "latest" for the
 # aggregated endpoint every v1.0.0 install polls, or "<platform>" and
-# "<platform>:<version>" for the per-platform route. Keys expire after 100
-# days.
+# "<platform>:<version>" for the per-platform route; and
+# downloads:<YYYY-MM-DD>:<slug>:<version> for the /dl route. Requests the
+# worker takes to be automation (our own CI, curl, the GitHub CLI; see
+# isAutomation in src/index.ts) go under checks-ci: and downloads-ci:
+# instead. Keys expire after 100 days.
 #
 [[kv_namespaces]]
 binding = "UPDATE_COUNTS"
