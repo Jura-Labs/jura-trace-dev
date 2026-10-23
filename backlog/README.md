@@ -106,6 +106,7 @@ Kept in the table because the history is the point. Each file carries its
 | [BL-DIST-001](BL-DIST-001-not-in-any-package-manager.md) | In no package manager. winget and a Homebrew tap; not Flathub (its AI-content rule). Target v1.3.0 | Open | Medium |
 | [BL-DIST-002](BL-DIST-002-not-on-the-digital-public-goods-registry.md) | Not on the Digital Public Goods registry; needs an app privacy policy and an ownership statement first. Target v1.3.0 (preparation) | Open | Medium |
 | [BL-INT-001](BL-INT-001-a-uwazi-recipe-test.md) | HURIDOCS/Uwazi: a recipe script and template, tested on sample images, before anything further. After BL-REC-002. Target v1.3.0 | Open | Medium |
+| [BL-CLI-001](BL-CLI-001-jura-is-not-on-the-path-after-a-mac-or-windows-install.md) | `jura` is not on the PATH after a Mac or Windows install; the first command fails with "command not found". A Settings button on macOS, PATH in the Windows installers. Target v1.3.0 | Open | Medium |
 | [BL-REL-011](BL-REL-011-no-intel-mac-build.md) | No Intel Mac build; no request on record. Target later | Open | Low |
 | [BL-OBS-001](BL-OBS-001-nobody-reads-the-signals-we-already-have.md) | Update-check counts and download-click events exist and go unread. Target later | Open | Low |
 
