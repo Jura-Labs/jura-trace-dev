@@ -15,7 +15,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import worker, { DOWNLOAD_SLUGS, downloadUrl, isAutomation } from "../src/index";
+import worker, { DOWNLOAD_SLUGS, downloadUrl, isAutomation, resolvePlatform } from "../src/index";
 
 // ── Fakes ──────────────────────────────────────────────────────────────────
 
@@ -321,6 +321,182 @@ describe("update-check counting (unchanged keys)", () => {
     const res = await run("/api/updates/", {}, kv);
     expect(res.status).toBe(404);
     expect(kv.store.size).toBe(0);
+  });
+});
+
+// ── Per-platform route, {os}-{arch}-{bundle_type} form (v1.3.0) ────────────
+//
+// tauri.conf.json sends /api/updates/{{target}}-{{arch}}-{{bundle_type}}/
+// {{current_version}} from v1.3.0. These pin what the worker makes of each
+// string the plugin can produce, and what it refuses.
+
+describe("resolvePlatform", () => {
+  it.each([
+    // What tauri-plugin-updater 2.13.3 sends for each install type that ships,
+    // and the PLATFORM_ASSET_CONFIG entry that answers it.
+    ["darwin-aarch64-app", "darwin-aarch64"],
+    ["windows-x86_64-msi", "windows-x86_64"],
+    ["windows-x86_64-nsis", "windows-x86_64"],
+    ["linux-x86_64-appimage", "linux-x86_64"],
+    ["linux-x86_64-deb", "linux-x86_64-deb"],
+    // A binary that was never bundled (cargo run) says "unknown".
+    ["linux-x86_64-unknown", "linux-x86_64"],
+    ["windows-x86_64-unknown", "windows-x86_64"],
+    // The bare keys the per-platform route took before v1.3.0 still work.
+    ["darwin-aarch64", "darwin-aarch64"],
+    ["linux-x86_64", "linux-x86_64"],
+    ["windows-x86_64", "windows-x86_64"],
+  ])("resolves %s to %s", (requested, expected) => {
+    expect(resolvePlatform(requested)).toBe(expected);
+  });
+
+  it("keeps the .deb distinct from the AppImage (BL-REL-008)", () => {
+    // A .deb install must get a block under linux-x86_64-deb, never the
+    // bare linux-x86_64 entry, which is the AppImage it cannot install.
+    expect(resolvePlatform("linux-x86_64-deb")).toBe("linux-x86_64-deb");
+    expect(resolvePlatform("linux-x86_64-deb")).not.toBe(resolvePlatform("linux-x86_64-appimage"));
+  });
+
+  it.each([
+    "linux-x86_64-rpm", // no RPM is built
+    "darwin-x86_64-app", // Intel Mac, not built; Rosetta runs the ARM build
+    "darwin-aarch64-dmg", // not a name the plugin uses
+    "linux-x86_64-deb-deb",
+    "windows-x86_64-",
+    "-app",
+    "app",
+    "bogus",
+    "latest.json",
+    "",
+  ])("rejects %j", (requested) => {
+    expect(resolvePlatform(requested)).toBeNull();
+  });
+});
+
+describe("GET /api/updates/{os}-{arch}-{bundle_type}/{version}", () => {
+  /** The release the stubbed GitHub API returns: v1.2.0 with every asset and .sig. */
+  const release = {
+    tag_name: "v1.2.0",
+    name: "v1.2.0",
+    body: "notes",
+    published_at: "2026-10-20T12:00:00Z",
+    prerelease: false,
+    draft: false,
+    assets: [
+      "Jura.Trace.app.tar.gz",
+      "Jura.Trace_1.2.0_aarch64.app.tar.gz.sig",
+      "JuraTrace-1.2.0-Linux-x86_64.AppImage",
+      "Jura.Trace_1.2.0_amd64.AppImage.sig",
+      "JuraTrace-1.2.0-Linux-x86_64.deb",
+      "Jura.Trace_1.2.0_amd64.deb.sig",
+      "JuraTrace-1.2.0-Windows-x64.msi",
+      "Jura.Trace_1.2.0_x64_en-US.msi.sig",
+    ].map((name) => ({
+      name,
+      browser_download_url: `https://github.com/Jura-Labs/jura-trace/releases/download/v1.2.0/${name}`,
+      size: 1,
+    })),
+  };
+  // Long enough and base64-shaped, which is all looksLikeSignature asks.
+  const signature = "A".repeat(80) + "==";
+
+  beforeEach(() => {
+    vi.stubGlobal("fetch", async (input: string | URL | Request) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (url.startsWith("https://api.github.com/")) {
+        return new Response(JSON.stringify(release), { headers: { "Content-Type": "application/json" } });
+      }
+      if (url.endsWith(".sig")) return new Response(signature);
+      return new Response("unexpected fetch " + url, { status: 500 });
+    });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  async function manifest(path: string) {
+    const res = await run(path, { headers: { "User-Agent": "tauri-plugin-updater/2.13.3" } });
+    expect(res.status).toBe(200);
+    return (await res.json()) as { version: string; platforms: Record<string, { url: string; signature: string }> };
+  }
+
+  it.each([
+    // requested platform, manifest key the plugin's lookup finds, asset served
+    ["darwin-aarch64-app", "darwin-aarch64", "Jura.Trace.app.tar.gz"],
+    ["windows-x86_64-msi", "windows-x86_64", "JuraTrace-1.2.0-Windows-x64.msi"],
+    ["windows-x86_64-nsis", "windows-x86_64", "JuraTrace-1.2.0-Windows-x64.msi"],
+    ["linux-x86_64-appimage", "linux-x86_64", "JuraTrace-1.2.0-Linux-x86_64.AppImage"],
+    ["linux-x86_64-deb", "linux-x86_64-deb", "JuraTrace-1.2.0-Linux-x86_64.deb"],
+    ["linux-x86_64-unknown", "linux-x86_64", "JuraTrace-1.2.0-Linux-x86_64.AppImage"],
+  ])("%s on 1.1.0 gets 1.2.0 under %s, pointing at %s", async (requested, key, asset) => {
+    const m = await manifest(`/api/updates/${requested}/1.1.0`);
+    expect(m.version).toBe("1.2.0");
+    expect(Object.keys(m.platforms)).toEqual([key]);
+    expect(m.platforms[key].url.endsWith(`/${asset}`)).toBe(true);
+    expect(m.platforms[key].signature).toBe(signature);
+  });
+
+  it("answers 204 when the install is already on the latest version", async () => {
+    for (const p of ["darwin-aarch64-app", "windows-x86_64-nsis", "linux-x86_64-deb"]) {
+      const res = await run(`/api/updates/${p}/1.2.0`);
+      expect(res.status).toBe(204);
+      expect(await res.text()).toBe("");
+    }
+  });
+
+  it("serves a release candidate the current 1.2.0 manifest, for the plugin to compare", async () => {
+    // 1.3.0-rc.1 is newer than 1.2.0; the plugin, not the worker, decides
+    // there is no update. The worker only has to answer with a manifest.
+    const m = await manifest("/api/updates/darwin-aarch64-app/1.3.0-rc.1");
+    expect(m.version).toBe("1.2.0");
+  });
+
+  it("counts the string the client asked for, with its version, so msi and nsis stay apart", async () => {
+    const kv = new FakeKV();
+    const ua = { "User-Agent": "tauri-plugin-updater/2.13.3" };
+    await run("/api/updates/windows-x86_64-msi/1.3.0", { headers: ua }, kv);
+    await run("/api/updates/windows-x86_64-nsis/1.3.0", { headers: ua }, kv);
+    await run("/api/updates/windows-x86_64-nsis/1.2.0", { headers: ua }, kv);
+    await run("/api/updates/linux-x86_64-deb/1.3.0", { headers: ua }, kv);
+    expect(Object.fromEntries(kv.store)).toEqual({
+      [`checks:${TODAY}:windows-x86_64-msi`]: "1",
+      [`checks:${TODAY}:windows-x86_64-msi:1.3.0`]: "1",
+      [`checks:${TODAY}:windows-x86_64-nsis`]: "2",
+      [`checks:${TODAY}:windows-x86_64-nsis:1.3.0`]: "1",
+      [`checks:${TODAY}:windows-x86_64-nsis:1.2.0`]: "1",
+      [`checks:${TODAY}:linux-x86_64-deb`]: "1",
+      [`checks:${TODAY}:linux-x86_64-deb:1.3.0`]: "1",
+    });
+  });
+
+  it("files a curl or X-Jura-Test probe of the new form under checks-ci:", async () => {
+    const kv = new FakeKV();
+    await run("/api/updates/darwin-aarch64-app/0.0.0", { headers: { "User-Agent": "curl/8.7.1" } }, kv);
+    await run("/api/updates/darwin-aarch64-app/0.0.0", { headers: { "X-Jura-Test": "1" } }, kv);
+    expect(Object.fromEntries(kv.store)).toEqual({
+      [`checks-ci:${TODAY}:darwin-aarch64-app`]: "2",
+      [`checks-ci:${TODAY}:darwin-aarch64-app:0.0.0`]: "2",
+    });
+  });
+
+  it.each(["linux-x86_64-rpm", "bogus", "darwin-x86_64-app"])(
+    "400s %s without counting it or asking GitHub",
+    async (requested) => {
+      const kv = new FakeKV();
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+      const res = await run(`/api/updates/${requested}/1.1.0`, {}, kv);
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as { error: string; detail: string };
+      expect(body.error).toBe("Unknown platform");
+      expect(body.detail).toContain(requested);
+      expect(kv.store.size).toBe(0);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    },
+  );
+
+  it("still 404s a path with the wrong number of segments", async () => {
+    for (const path of ["/api/updates/darwin-aarch64-app", "/api/updates/darwin-aarch64-app/1.2.0/extra", "/api/updates/Darwin-aarch64/1.2.0"]) {
+      const res = await run(path);
+      expect(res.status).toBe(404);
+    }
   });
 });
 

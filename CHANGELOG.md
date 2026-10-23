@@ -6,6 +6,44 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## Unreleased: v1.3.0
+
+The update check:
+
+- The update check now tells the update service which platform it is on
+  and which version it is running. Up to v1.2.0 every install asked
+  `juralabs.org/api/updates/latest.json`, one address for everyone, so the
+  service could not tell a macOS install from a Linux one or v1.0.0 from
+  v1.2.0. From v1.3.0 the app asks
+  `juralabs.org/api/updates/<os>-<arch>-<install type>/<version>`, for
+  example `linux-x86_64-deb/1.3.0` or `windows-x86_64-msi/1.3.0`. The
+  variables are filled in by Tauri's updater from the build itself; the
+  GitHub Releases `latest.json` stays as the fallback.
+- What that request carries: operating system, processor architecture,
+  install type (`app`, `msi`, `nsis`, `appimage` or `deb`) and the version
+  you are running, in the web address, and nothing else. No identifier of
+  the computer or the install, no header the service reads, no setting, no
+  file. Trace still collects nothing from your device. The service counts
+  requests per day, per platform and version, which is how many installs of
+  each version are still in use, and nothing finer: two installs are
+  indistinguishable, and one install checking twice is indistinguishable
+  from two checking once.
+- Why: that count is the only way to know whether people have moved off a
+  release with a known fault, and which installer types are in use. Until
+  now the answer was a single number across every version.
+- A `.deb` install asks as `linux-x86_64-deb` and is offered the `.deb`; an
+  AppImage asks as `linux-x86_64-appimage` and is offered the AppImage; a
+  setup `.exe` install asks as `windows-x86_64-nsis` and is offered the
+  MSI, as it was before. The update service (the Cloudflare worker in
+  `infrastructure/cloudflare-worker-updater`) learns the
+  `<os>-<arch>-<install type>` form in this change and must be deployed
+  before the v1.3.0 tag is cut; until then a v1.3.0 install falls back to
+  GitHub, uncounted. The `latest.json` route stays for every install up to
+  v1.2.0.
+- When you are already on the latest version the service answers
+  204 No Content, and the app shows up to date. In Standard network mode
+  nothing changes: the automatic check stays off.
+
 ## 20 October 2026: v1.2.0, Verification Record
 
 Updating to v1.2.0:
