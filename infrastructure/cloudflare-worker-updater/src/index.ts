@@ -22,6 +22,14 @@
  *                          windows-x86_64
  *     {current-version} is a semver string the client reports
  *
+ *   GET|HEAD /dl/{version}/{slug}
+ *     Counted download link. Answers 302 to the matching installer on
+ *     GitHub Releases, so the website's download buttons can point here
+ *     instead of straight at github.com and the click gets counted on the
+ *     way through. {version} is a strict semver string (1.2.0, 1.3.0-rc.1)
+ *     and {slug} is one of the fixed names in DOWNLOAD_SLUGS; anything else
+ *     is a 404. The worker does not check that the asset exists.
+ *
  * Backing store:
  *
  *   GitHub Releases on juralabs/jura-trace. The worker fetches the latest
@@ -69,63 +77,182 @@ interface Env {
   UPDATE_COUNTS?: KVNamespace;
 }
 
-// ── Update-check counting (loop L4) ────────────────────────────────────────
+// ── Request counting (loop L4, extended to downloads W43-13) ───────────────
 //
 // Trace collects nothing from the device and this does not change that. What
 // is counted here is a request the worker already receives, reduced to a
-// number: how many update checks arrived, on what day, against which route.
+// number: how many update checks arrived, on what day, against which route;
+// and, since October 2026, how many download links were followed, on what
+// day, for which installer.
 //
 // Explicitly NOT recorded: IP address, user agent, any header, any identifier
 // of any kind. Two installs are indistinguishable, and one install checking
 // twice is indistinguishable from two installs checking once. That is the
 // intended precision. The number answers "is anyone running this" and nothing
-// finer.
+// finer. The user agent and the network ASN are looked at, once, to decide
+// which bucket the count goes in (see isAutomation), and then dropped.
 //
 // Why the worker and not analytics: Cloudflare's free plan retains
 // request-level analytics for one day, a limit hit by hand on 5 September
 // while trying to answer exactly this question. A durable count has to be
 // written by something that outlives the request.
+//
+// Why the worker and not GitHub's download counts: those are cumulative from
+// the day of release and every CI run that fetches an installer adds to them,
+// so a release week's tests cannot be separated out afterwards (about a fifth
+// of the 473 counted by 23 October 2026 were our own). A per-day count with
+// automation in its own bucket is what the GitHub figure cannot give.
 
 /** UTC day key, so the boundary does not move with British summer time. */
 function dayKey(now: Date): string {
   return now.toISOString().slice(0, 10);
 }
 
+/** What is being counted. The KV key starts with this, "-ci" appended for automation. */
+type CountKind = "checks" | "downloads";
+
 /**
- * Record one update check.
+ * Decide whether a request comes from automation rather than a person or an
+ * installed copy of Trace. Automation is counted under "checks-ci:" and
+ * "downloads-ci:" instead of "checks:" and "downloads:", so our own release
+ * workflows, live legs and hand checks stop inflating the figures that are
+ * meant to say whether anyone outside is using this.
+ *
+ * This is a heuristic, not a security control. It will misfile a developer
+ * who curls a download link from home, and it will miss a script with a
+ * browser user agent on a residential connection. Both are rare enough, and
+ * the cost of either is one count in the wrong bucket. Nothing it reads is
+ * stored. Any of the three rules is enough:
+ *
+ *   1. The X-Jura-Test header is present. The explicit opt-in: a workflow
+ *      that touches the live worker sends it and is filed as a test whatever
+ *      its network or client looks like. Value ignored, presence is enough.
+ *
+ *   2. The request arrives from AS8075 (Microsoft), which is where
+ *      GitHub-hosted Actions runners live. Catches every runner request
+ *      regardless of client, including the Windows live leg's precheck, which
+ *      uses a custom user agent. Self-hosted runners are not on AS8075 and
+ *      rely on the other two rules. request.cf is absent in local dev and in
+ *      unit tests, hence the optional chain.
+ *
+ *   3. The user agent names a command-line or library HTTP client: the GitHub
+ *      CLI ("GitHub CLI 2.x", or "gh/" in older builds), curl, Wget,
+ *      python-requests, Go-http-client. These are what release.yml's smoke
+ *      step, the installer test and a person checking a link by hand use.
+ *      Browsers never send any of them.
+ *
+ * Deliberately NOT caught: the Tauri updater. tauri-plugin-updater builds its
+ * reqwest client with user_agent("tauri-plugin-updater/<crate version>")
+ * (src/updater.rs, const UPDATER_USER_AGENT, same in 2.10.0 which v1.0.0 and
+ * v1.1.0 ship and 2.13.3 which v1.2.0 ships). None of the patterns above
+ * match it, and the test suite pins that, because an updater request counted
+ * as CI would silently empty the one field signal this worker exists to give.
+ */
+export function isAutomation(request: Request): boolean {
+  if (request.headers.has("X-Jura-Test")) return true;
+  if (request.cf?.asn === 8075) return true;
+  return AUTOMATION_USER_AGENTS.test(request.headers.get("User-Agent") ?? "");
+}
+
+// "gh/" needs the word boundary so it cannot match the tail of some other
+// product token ending in "gh"; "tauri-plugin-updater/" ends in "r/" and is
+// safe either way, but the boundary makes the rule say what it means.
+const AUTOMATION_USER_AGENTS = /GitHub CLI|\bgh\/|curl\/|Wget|python-requests|Go-http-client/i;
+
+/**
+ * Record one request against a daily bucket.
  *
  * Never awaited by the request path and never allowed to throw: a failure to
- * count must not become a failure to update. Runs through ctx.waitUntil so it
- * settles after the response has gone.
+ * count must not become a failure to update or to download. Runs through
+ * ctx.waitUntil so it settles after the response has gone.
+ *
+ * Keys are <kind>[-ci]:<YYYY-MM-DD>:<bucket>, for example
+ *   checks:2026-09-06:latest
+ *   checks:2026-09-06:linux-x86_64:1.1.0
+ *   checks-ci:2026-10-20:latest
+ *   downloads:2026-10-23:macos:1.2.0
+ *   downloads-ci:2026-10-23:linux-server:1.2.0
  *
  * Read the counts back with:
- *   wrangler kv key list  --binding UPDATE_COUNTS
- *   wrangler kv key get   --binding UPDATE_COUNTS "checks:2026-09-06:latest"
+ *   wrangler kv key list  --binding UPDATE_COUNTS --remote --prefix downloads:
+ *   wrangler kv key get   --binding UPDATE_COUNTS --remote "checks:2026-09-06:latest"
  *
  * KV is eventually consistent and this is a read-modify-write, so simultaneous
- * checks can lose an increment. At a few hundred a day that is a rounding
+ * requests can lose an increment. At a few hundred a day that is a rounding
  * error, and the figure is meant to be directional rather than forensic. If it
  * ever needs to be exact, move to Durable Objects or Analytics Engine; do not
  * add locking here.
  */
-function countCheck(env: Env, ctx: ExecutionContext, bucket: string): void {
+function count(env: Env, ctx: ExecutionContext, kind: CountKind, automation: boolean, bucket: string): void {
   const kv = env.UPDATE_COUNTS;
   if (!kv) return;
 
   ctx.waitUntil(
     (async () => {
       try {
-        const key = `checks:${dayKey(new Date())}:${bucket}`;
+        const key = `${kind}${automation ? "-ci" : ""}:${dayKey(new Date())}:${bucket}`;
         const current = await kv.get(key);
         const next = (current === null ? 0 : parseInt(current, 10) || 0) + 1;
         // 100-day retention: long enough to see a release land and a trend
         // form, short enough that the namespace does not grow without bound.
         await kv.put(key, String(next), { expirationTtl: 100 * 24 * 60 * 60 });
       } catch (err) {
-        console.error(`update-check counting failed (non-fatal): ${err}`);
+        console.error(`${kind} counting failed (non-fatal): ${err}`);
       }
     })(),
   );
+}
+
+// ── Counted download links (/dl) ───────────────────────────────────────────
+//
+// juralabs.org/download used to link straight at github.com, so the website
+// never saw the click and the only figure was GitHub's cumulative one. These
+// routes put the worker in the middle for exactly one redirect. No asset
+// lookup, no GitHub API call, no cache: a 302 built from two validated path
+// segments and a fixed table, with Cache-Control: no-store so every click
+// reaches the worker rather than a browser or edge cache.
+
+/**
+ * Where the redirect points. Fixed on purpose: env.GITHUB_REPO exists so the
+ * API fetch can be tested against a fork, and a download link must never
+ * follow it anywhere else.
+ */
+const DOWNLOAD_BASE = "https://github.com/Jura-Labs/jura-trace/releases/download";
+
+/**
+ * The only versions a download link accepts: MAJOR.MINOR.PATCH, with an
+ * optional -rc.N. Anchored, digits only, no leading "v" (the redirect adds
+ * it). Anything looser is an open redirect waiting to happen, since the
+ * value goes into a URL.
+ */
+const DOWNLOAD_VERSION = /^\d+\.\d+\.\d+(?:-rc\.\d+)?$/;
+
+/**
+ * Slug to release asset name, with "<v>" standing for the version. These
+ * are the friendly names release.yml uploads, checked against the v1.2.0
+ * release on 23 October 2026. A slug missing here is a 404, never a
+ * passthrough; the path is not a file name and is not treated as one.
+ */
+export const DOWNLOAD_SLUGS: Readonly<Record<string, string>> = {
+  macos: "JuraTrace-<v>-macOS-AppleSilicon.dmg",
+  "windows-exe": "JuraTrace-<v>-Windows-x64-setup.exe",
+  "windows-msi": "JuraTrace-<v>-Windows-x64.msi",
+  "linux-appimage": "JuraTrace-<v>-Linux-x86_64.AppImage",
+  "linux-deb": "JuraTrace-<v>-Linux-x86_64.deb",
+  "linux-server": "JuraTrace-<v>-Linux-x86_64-server.tar.gz",
+  sha256sums: "SHA256SUMS.txt",
+};
+
+/**
+ * Resolve a /dl/{version}/{slug} pair to the GitHub Releases URL it stands
+ * for, or null when either part fails validation. Pure, so the tests can
+ * exercise every slug without a request.
+ */
+export function downloadUrl(version: string, slug: string): string | null {
+  if (!DOWNLOAD_VERSION.test(version)) return null;
+  const template = Object.prototype.hasOwnProperty.call(DOWNLOAD_SLUGS, slug) ? DOWNLOAD_SLUGS[slug] : undefined;
+  if (!template) return null;
+  return `${DOWNLOAD_BASE}/v${version}/${template.replace("<v>", version)}`;
 }
 
 interface GitHubAsset {
@@ -244,21 +371,55 @@ export default {
 
     const path = url.pathname;
 
+    // Decided once per request and threaded into every count below, so the
+    // update-check and download buckets split the same way.
+    const automation = isAutomation(request);
+
     // Counting happens here, before dispatch, and deliberately not inside the
     // handlers. handleLatestManifest returns early from the edge cache, so a
     // counter placed inside it would miss every cache hit and report a number
     // silently lower than the truth — the same shape of quiet wrongness this
     // worker was fixed for in BL-REL-002.
     //
-    // HEAD is counted alongside GET. A HEAD is still an install asking whether
-    // there is an update.
+    // HEAD is counted alongside GET for update checks. A HEAD is still an
+    // install asking whether there is an update. It is NOT counted for
+    // downloads, where a HEAD is a link checker or a browser preflight and
+    // a GET is the click.
+
+    // /dl/{version}/{slug}: validated and counted here, redirect built here.
+    // Only a request that resolves is counted, so a scanner walking /dl/ for
+    // paths that do not exist leaves nothing in KV.
+    const downloadMatch = path.match(/^\/dl\/([^/]+)\/([^/]+)$/);
+    if (downloadMatch) {
+      const [, version, slug] = downloadMatch;
+      const target = downloadUrl(version, slug);
+      if (!target) {
+        return jsonError(
+          404,
+          "Not found",
+          `No download matches ${path}. Expected /dl/<version>/<slug> with slug one of: ${Object.keys(DOWNLOAD_SLUGS).join(", ")}.`,
+        );
+      }
+      if (request.method === "GET") {
+        count(env, ctx, "downloads", automation, `${slug}:${version}`);
+      }
+      // Built by hand rather than Response.redirect(), whose headers are
+      // immutable and would not take the no-store.
+      return new Response(null, {
+        status: 302,
+        headers: {
+          Location: target,
+          "Cache-Control": "no-store",
+        },
+      });
+    }
 
     if (path === "/api/updates/latest.json") {
       // Every v1.0.0 install has this URL baked into its binary, so this
       // bucket is the closest thing to a count of the original 145 that
       // exists. New installs will appear here too until the endpoint format
       // changes, which is a separate decision.
-      countCheck(env, ctx, "latest");
+      count(env, ctx, "checks", automation, "latest");
       return handleLatestManifest(env, ctx);
     }
 
@@ -270,8 +431,8 @@ export default {
       // from anything about the client. The version is what the install says
       // it is running, which is what makes the re-download notice measurable:
       // installs still reporting 1.0.0 have not taken it.
-      countCheck(env, ctx, platform);
-      countCheck(env, ctx, `${platform}:${currentVersion}`);
+      count(env, ctx, "checks", automation, platform);
+      count(env, ctx, "checks", automation, `${platform}:${currentVersion}`);
       return handlePerPlatform(env, ctx, platform, currentVersion);
     }
 
