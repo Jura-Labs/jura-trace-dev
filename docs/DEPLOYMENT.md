@@ -477,11 +477,12 @@ All three ports listen on `127.0.0.1` only. None are bound to `0.0.0.0`. No inbo
 
 | Destination                                                              | Purpose                    | Configurable          |
 |--------------------------------------------------------------------------|----------------------------|-----------------------|
-| `https://github.com/juralabs/jura-archive/releases/latest/download/latest.json` | Auto-update check | Disable in Settings → Updates |
+| `https://juralabs.org/api/updates/<os>-<arch>-<bundle>/<version>` (from v1.3.0; `latest.json` up to v1.2.0) | Auto-update check | Standard network mode turns the automatic check off |
+| `https://github.com/Jura-Labs/jura-trace/releases/latest/download/latest.json` | Auto-update check, fallback | As above |
 | `https://ollama.com` (Ollama install only)                               | Model download             | One-time, manual only |
 | `https://huggingface.co` (first use only)                                | Whisper model download     | One-time, automatic   |
 
-The auto-updater checks the GitHub releases endpoint once per session. It does not transmit any device or usage data — it only fetches the `latest.json` manifest. You can disable it in **Settings → Updates**.
+The auto-updater asks juralabs.org once a day at startup, and when the user presses Check for Updates. From v1.3.0 the web address carries the operating system, architecture, install type (`app`, `msi`, `nsis`, `appimage` or `deb`) and the running version, which is how a `.deb` install is offered a `.deb` and how the service counts installs per version. It transmits nothing else: no device identifier, no usage data, no file content. Standard network mode in Settings turns the automatic check off.
 
 No telemetry is collected. No usage data, file metadata, or verification results are ever transmitted.
 

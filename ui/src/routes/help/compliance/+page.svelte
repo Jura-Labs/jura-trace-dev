@@ -185,10 +185,12 @@
       <li>
         <strong class="font-semibold text-text-light dark:text-text-dark">Update check:</strong>
         in Enhanced mode, at most once a day at launch, the app requests the current update
-        manifest from juralabs.org, falling back to GitHub Releases. The request carries no
-        user data or file content, and this automatic check only reports that an update
-        exists. Choosing Check for Updates makes the same request in either mode, and if an
-        update is found it downloads and installs it.
+        manifest from juralabs.org, falling back to GitHub Releases. The web address names
+        your operating system, processor, install type and the version you are running, so
+        the service can answer with the right installer; it carries no identifier, no user
+        data and no file content. This automatic check only reports that an update exists.
+        Choosing Check for Updates makes the same request in either mode, and if an update
+        is found it downloads and installs it.
       </li>
       <li>
         <strong class="font-semibold text-text-light dark:text-text-dark">Weather context:</strong>

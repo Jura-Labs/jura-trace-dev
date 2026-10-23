@@ -77,7 +77,28 @@ curl -i https://juralabs.org/api/updates/darwin-aarch64/0.9.0
 # Per-platform check, stale version
 # Expect 200 with single-platform JSON block
 curl https://juralabs.org/api/updates/darwin-aarch64/0.8.0 | jq .
+
+# The form a v1.3.0 or later install sends: {os}-{arch}-{bundle_type}.
+# Expect 200 with the block keyed darwin-aarch64, linux-x86_64,
+# linux-x86_64-deb or windows-x86_64 respectively (the key the plugin's
+# fallback lookup finds), or 204 when the version is already the latest.
+for p in darwin-aarch64-app linux-x86_64-appimage linux-x86_64-deb \
+         windows-x86_64-msi windows-x86_64-nsis; do
+  curl -s -o /dev/null -w "$p %{http_code}\n" "https://juralabs.org/api/updates/$p/0.0.0"
+done
 ```
+
+Every request to these routes is counted in KV (see wrangler.toml), so a
+hand check adds to that day's figure. The weekly usage line in the brain
+notes test days for this reason.
+
+**Deploy before the v1.3.0 tag is cut.** v1.3.0 is the first release whose
+installs ask on the `{os}-{arch}-{bundle_type}` form. Until this worker is
+deployed those requests get 400 or 404 from juralabs.org, the plugin logs
+it and moves on to the GitHub fallback (latest.json, which carries every
+key including linux-x86_64-deb), so updates still arrive on every install
+type, but silently and uncounted. Deploying early is safe: no shipped
+install asks on the new form yet, and latest.json is unchanged.
 
 The desktop app's updater check (automatic, or manual via Settings →
 Service Status → Check for Updates) hits the

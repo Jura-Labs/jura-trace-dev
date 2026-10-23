@@ -774,6 +774,16 @@ jobs:
           # Fetch the manifest from the endpoints the app polls, in its order,
           # sending the app's headers (version from Cargo.lock).
           #
+          # Since v1.3.0 the first endpoint is a template,
+          # /api/updates/{{target}}-{{arch}}-{{bundle_type}}/{{current_version}},
+          # which tauri-plugin-updater fills in per install. This step fills
+          # it in the same way for every install type that ships (macOS app,
+          # Windows msi and nsis, Linux appimage and deb), with 0.0.0 as the
+          # version so the worker answers with a manifest rather than 204,
+          # and merges the five answers into one platforms map for the checks
+          # below. An endpoint without variables (the GitHub latest.json
+          # fallback) is requested once, as before.
+          #
           # Cloudflare's Bot Fight Mode sometimes answers a GitHub (Azure)
           # machine with a challenge, a 403 carrying `cf-mitigated: challenge`.
           # It challenged curl here on every run since 4 October, whatever the
@@ -794,23 +804,69 @@ jobs:
           endpoints = conf["plugins"]["updater"]["endpoints"]
           print(f"Requesting as {agent}")
 
-          for url in endpoints:
+          # (target, arch, bundle_type) as the plugin fills them in, one per
+          # install type that ships. Must match PLATFORM_ASSET_CONFIG plus
+          # BUNDLE_TYPES_WITHOUT_OWN_ASSET in the Cloudflare worker.
+          INSTALLS = [
+              ("darwin", "aarch64", "app"),
+              ("windows", "x86_64", "msi"),
+              ("windows", "x86_64", "nsis"),
+              ("linux", "x86_64", "appimage"),
+              ("linux", "x86_64", "deb"),
+          ]
+
+          def expand(template):
+              if "{{" not in template:
+                  return [template]
+              return [
+                  template.replace("{{target}}", t).replace("{{arch}}", a)
+                          .replace("{{bundle_type}}", b).replace("{{current_version}}", "0.0.0")
+                  for t, a, b in INSTALLS
+              ]
+
+          class Challenge(Exception):
+              pass
+
+          def fetch(url):
               req = urllib.request.Request(url, headers={"User-Agent": agent, "Accept": "application/json"})
               try:
                   with urllib.request.urlopen(req, timeout=20) as r:
-                      body = r.read()
+                      if r.status == 204:
+                          print(f"::error::{url} answered 204 No Content to version 0.0.0, which no release is.")
+                          sys.exit(1)
+                      return json.loads(r.read())
               except urllib.error.HTTPError as e:
                   if e.headers.get("cf-mitigated", "").lower() == "challenge":
-                      print(f"::warning::Cloudflare sent this runner a bot challenge for {url}. "
-                            "That is not a manifest fault; checking the app's next endpoint.")
-                      continue
+                      raise Challenge(url)
                   print(f"::error::{url} answered HTTP {e.code}.")
+                  if e.code in (400, 404) and "juralabs.org" in url:
+                      print("::error::juralabs.org does not serve this route. The Cloudflare worker in "
+                            "infrastructure/cloudflare-worker-updater must be deployed before a release "
+                            "whose installs ask on the {{target}}-{{arch}}-{{bundle_type}} form.")
                   sys.exit(1)
               except Exception as e:
                   print(f"::error::{url} did not answer: {e}")
                   sys.exit(1)
-              pathlib.Path("artefacts/latest.json").write_bytes(body)
-              print(f"Manifest from {url}")
+
+          for endpoint in endpoints:
+              merged = None
+              try:
+                  for url in expand(endpoint):
+                      answer = fetch(url)
+                      print(f"  {url} -> version {answer.get('version')}, platforms {sorted(answer.get('platforms') or {})}")
+                      if merged is None:
+                          merged = dict(answer, platforms={})
+                      elif answer.get("version") != merged.get("version"):
+                          print(f"::error::{url} advertises {answer.get('version')} but an earlier "
+                                f"request to the same endpoint advertised {merged.get('version')}.")
+                          sys.exit(1)
+                      merged["platforms"].update(answer.get("platforms") or {})
+              except Challenge as c:
+                  print(f"::warning::Cloudflare sent this runner a bot challenge for {c}. "
+                        "That is not a manifest fault; checking the app's next endpoint.")
+                  continue
+              pathlib.Path("artefacts/latest.json").write_text(json.dumps(merged, indent=2))
+              print(f"Manifest from {endpoint}")
               break
           else:
               print("::error::No update endpoint returned a manifest.")
@@ -895,7 +951,8 @@ jobs:
           {
             echo "## Updater manifest contract"
             echo ""
-            echo "Checks the live endpoint an installed app actually polls."
+            echo "Checks the live endpoint an installed app actually polls, filled in"
+            echo "for each install type that ships (app, msi, nsis, appimage, deb)."
             echo ""
             echo "**Asserts:** the manifest declares at least one platform; no"
             echo "signature field contains a URL where the inline minisign blob"

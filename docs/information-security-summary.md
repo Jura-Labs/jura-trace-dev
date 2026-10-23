@@ -191,7 +191,7 @@ The following operations involve no external network traffic whatsoever:
 
 Two features involve external network communication. Both require explicit user action:
 
-**Auto-update check**: The application periodically checks `github.com/juralabs/jura-archive/releases` for new version information. This is a single HTTPS GET request. No user data, no file content, no analysis results, and no telemetry are transmitted. The request contains only the current application version number and platform identifier. This check can be disabled by organisations that manage application updates centrally.
+**Auto-update check**: The application checks `juralabs.org/api/updates/` for new version information once a day at startup and when the user asks, falling back to GitHub Releases. This is a single HTTPS GET request. No user data, no file content, no analysis results, and no telemetry are transmitted. From v1.3.0 the request path contains the operating system, architecture, install type and current application version, and nothing else; releases up to v1.2.0 request a fixed `latest.json` that carries none of these. The update service keeps a daily count per platform and version, with no identifier of any kind. Standard network mode turns the automatic check off, for organisations that manage application updates centrally.
 
 **Reverse image search** (Professional tier and above, future): When enabled, Jura Trace can perform reverse image search via TinEye or Google Vision APIs. This feature requires the user to supply their own API credentials. Jura Trace sends a thumbnail-sized image crop (not the full file) to the configured API endpoint. Per-analysis consent is required. This feature is not enabled by default and is not available on the Community tier.
 

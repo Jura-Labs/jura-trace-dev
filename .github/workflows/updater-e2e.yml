@@ -377,7 +377,10 @@ jobs:
               $ctx.Response.ContentType = "application/json"
               $ctx.Response.OutputStream.Write($buf, 0, $buf.Length)
               $ctx.Response.Close()
-              if ($path -eq "/api/updates/latest.json") { $asked = $true }
+              # Up to v1.2.0 the app asks for /api/updates/latest.json. From
+              # v1.3.0 it asks for /api/updates/<os>-<arch>-<bundle>/<version>
+              # (windows-x86_64-msi/1.3.0 here). Both are the app asking.
+              if ($path -like "/api/updates/*") { $asked = $true }
               # Deliberately no break. The manifest must stay servable: the
               # client may retry, and the verdict has not been read yet.
               $ctxTask = $listener.GetContextAsync()
