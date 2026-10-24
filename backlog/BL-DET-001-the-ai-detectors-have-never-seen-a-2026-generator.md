@@ -1,6 +1,6 @@
 # BL-DET-001: the AI detectors have never seen a 2026 generator
 
-**Status**: Open. Target v1.3.0 (measurement); any model change follows the
+**Status**: Open. Target v1.3.0: measure, then retrain on 2026 generators (Paul, 24 October 2026); the new model ships only if it passes the gates. Any model change follows the
 measurement.
 **Raised**: 22 October 2026, from the pre-v1.3.0 review of detection
 research.
@@ -74,3 +74,28 @@ returned `inconclusive`, low confidence, classifier 0.30, and none of its
 19 statistical signals triggered; the score was 0.55 (low-resolution and
 inconclusive caps, BL-UX-007). Its generator is not recorded. Add it to the
 2026 evaluation slice once its source is known and its licence allows.
+
+## Update, 24 October 2026: retrain is the v1.3.0 target
+
+Paul, 24 October 2026: retraining on 2026 generators is a v1.3.0 headline
+("retrain on 2026 models, big step up"). The measurement steps above stay
+first; the retrain is now in scope rather than a later decision.
+
+1. **Training data**, not only evaluation data: generate locally with
+   Apache-2.0 models (Qwen-Image, FLUX.2 [klein] 4B), across subjects,
+   resolutions and the platform-forwarding augmentation the current model
+   uses, and store prompts and seeds. Output of GPT Image, Nano Banana,
+   Midjourney or Seedream goes into training only after each provider's
+   terms are checked; evaluation use is a separate question.
+2. **Real-photo negatives**: the current-phone slice (step 2 above) is
+   needed for training as well as the gate, with permission for that use.
+3. **Model**: retrain the UnivFD probe and the GBM on the extended corpus;
+   evaluate the PE-Core backbone (step 4) in the same run.
+4. **Gates** (unchanged in spirit from the June attempt, which failed and
+   was archived, `docs/calibration/gbm-v5-v11-archive-jun2026.md`): better
+   on the 2026 slice; no rise in false positives on the phone slice;
+   217-image golden set within agreed tolerance. If it fails, v1.3.0 ships
+   the current model and publishes the measurements instead.
+5. **Public**: the v1.3.0 preview (brain `comms/2026-10-24-trace-v1.3.0-preview.md`)
+   promises the retrain and published results, and says the new model ships
+   only if it passes. Keep it that way.
