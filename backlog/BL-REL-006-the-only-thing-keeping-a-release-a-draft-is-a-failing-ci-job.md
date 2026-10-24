@@ -183,3 +183,8 @@ Read from `.github/workflows/release.yml` on `main`, not run.
 - **Step 1, done** in PR #87 (`93bf8347`, 16 September, plan items A1a and A1b). The publish decision no longer reads `needs.build.result == 'success'`; the comment at `:2749` records the change, and publishing asserts what is attached.
 - **Step 2, open.** The freshness gate exists for Windows only (`:1792`). There is no equivalent for macOS or Linux.
 - **Steps 3 and 4, not checked** in this pass.
+
+## Update, 22 October 2026: target v1.3.0
+
+Step 2, the macOS and Linux freshness gate, is still missing and is
+targeted at v1.3.0 (Paul, 22 October 2026).

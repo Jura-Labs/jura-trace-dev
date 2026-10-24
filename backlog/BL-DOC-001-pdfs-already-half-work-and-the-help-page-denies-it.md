@@ -105,3 +105,16 @@ Do not let a PDF result render in the same visual frame as a full image
 verdict without a label. The trust score means something different when
 eleven of thirteen detectors did not run, which is the same problem
 JTV-215 raises for degraded image results.
+
+## Update, 22 October 2026: the feature half is v1.3.0
+
+The pre-v1.3.0 backlog review split this item. The correctness half is
+done: both drop paths are gated (`ui/src/routes/verify/+page.svelte:1458,
+1482`), so the help page's statement is now true. The feature half, full
+PDF document mode, is targeted at v1.3.0:
+
+- c2pa's `pdf` feature needs lopdf 0.44; the tree pins 0.42
+  (`src-tauri/Cargo.toml:132`).
+- PDF results must not show the C2PA conformance badge: the validator
+  record covers JPEG, PNG, TIFF and WebP only.
+- Reinstate the CI step that builds and tests with the PDF feature on.
