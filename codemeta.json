@@ -1,0 +1,62 @@
+{
+  "@context": "https://w3id.org/codemeta/3.0",
+  "@type": "SoftwareSourceCode",
+  "name": "Jura Trace",
+  "description": "Free, open-source desktop application for checking images. It reads and adds C2PA Content Credentials, runs image forensic checks and looks for signs of AI generation, all on the user's own computer. Includes a command-line client and a local REST API.",
+  "version": "1.2.0",
+  "softwareVersion": "1.2.0",
+  "datePublished": "2026-06-18",
+  "dateModified": "2026-10-20",
+  "license": "https://spdx.org/licenses/AGPL-3.0-or-later",
+  "codeRepository": "https://github.com/Jura-Labs/jura-trace-dev",
+  "downloadUrl": "https://juralabs.org/download",
+  "url": "https://juralabs.org/jura-trace",
+  "readme": "https://github.com/Jura-Labs/jura-trace-dev/blob/main/README.md",
+  "issueTracker": "https://github.com/Jura-Labs/jura-trace-dev/issues",
+  "applicationCategory": "Image forensics",
+  "operatingSystem": [
+    "macOS",
+    "Windows",
+    "Linux"
+  ],
+  "programmingLanguage": [
+    "Rust",
+    "TypeScript",
+    "Python"
+  ],
+  "runtimePlatform": "Tauri",
+  "isAccessibleForFree": true,
+  "developmentStatus": "active",
+  "keywords": [
+    "C2PA",
+    "Content Credentials",
+    "image forensics",
+    "provenance",
+    "AI-generated images",
+    "media verification",
+    "OSINT"
+  ],
+  "author": [
+    {
+      "@type": "Person",
+      "givenName": "Paul",
+      "familyName": "Griffiths",
+      "affiliation": {
+        "@type": "Organization",
+        "name": "Jura Labs CIC"
+      }
+    }
+  ],
+  "maintainer": {
+    "@type": "Organization",
+    "name": "Jura Labs CIC",
+    "url": "https://juralabs.org"
+  },
+  "copyrightHolder": {
+    "@type": "Person",
+    "name": "Paul Griffiths"
+  },
+  "sameAs": [
+    "https://www.wikidata.org/wiki/Q141880620"
+  ]
+}
