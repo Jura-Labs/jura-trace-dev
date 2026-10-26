@@ -1,0 +1,34 @@
+# Citation metadata for Jura Trace. GitHub shows a "Cite this repository"
+# button from this file, and Zenodo reads it when it archives a release.
+# At each release, change version and date-released (see
+# docs/release/mac-release-runbook.md, after publishing).
+cff-version: 1.2.0
+message: "If you use Jura Trace in research or reporting, please cite it as below."
+type: software
+title: "Jura Trace"
+abstract: >-
+  Jura Trace is a free, open-source desktop application for checking images.
+  It reads and adds C2PA Content Credentials, runs image forensic checks
+  (error level analysis, noise, copy-move, JPEG ghost and others) and looks
+  for signs of AI generation. All checks run on the user's own computer.
+  It includes a command-line client and a local REST API.
+authors:
+  - given-names: Paul
+    family-names: Griffiths
+    affiliation: "Jura Labs CIC"
+  - name: "Jura Labs CIC"
+    website: "https://juralabs.org"
+version: "1.2.0"
+date-released: "2026-10-20"
+license: AGPL-3.0-or-later
+url: "https://juralabs.org/jura-trace"
+repository-code: "https://github.com/Jura-Labs/jura-trace-dev"
+repository-artifact: "https://github.com/Jura-Labs/jura-trace/releases"
+keywords:
+  - C2PA
+  - Content Credentials
+  - image forensics
+  - provenance
+  - AI-generated images
+  - media verification
+  - OSINT

@@ -1,0 +1,69 @@
+# publiccode.yml: machine-readable description for public-sector and
+# open-source software catalogues (https://yml.publiccode.tools).
+# At each release, change softwareVersion and releaseDate.
+publiccodeYmlVersion: "0.4"
+
+name: Jura Trace
+url: "https://github.com/Jura-Labs/jura-trace-dev"
+landingURL: "https://juralabs.org/jura-trace"
+softwareVersion: "1.2.0"
+releaseDate: "2026-10-20"
+logo: src-tauri/icons/icon.png
+
+platforms:
+  - mac
+  - windows
+  - linux
+
+categories:
+  - it-security
+  - digital-asset-management
+  - digital-citizenship
+
+developmentStatus: stable
+softwareType: "standalone/desktop"
+
+description:
+  en:
+    genericName: Image checking and Content Credentials
+    shortDescription: >-
+      Free desktop app that checks images for signs of editing and AI
+      generation and reads C2PA Content Credentials, on your own computer.
+    longDescription: >
+      Jura Trace is a free, open-source desktop application for checking
+      images and protecting your own. It runs a set of image forensic
+      checks (error level analysis, noise, copy-move, JPEG ghost and
+      others), looks for signs of AI generation, and reads and adds C2PA
+      Content Credentials. Every check runs on the user's own computer, so
+      images are not uploaded to anyone. Each result shows which checks ran
+      and what they found. A command-line client and a local REST API let
+      teams run the same checks from scripts. It is built for newsrooms,
+      archives, cultural institutions, human-rights researchers and
+      anyone who needs to weigh up an image before relying on it.
+    documentation: "https://github.com/Jura-Labs/jura-trace/wiki"
+    apiDocumentation: "https://github.com/Jura-Labs/jura-trace-dev/blob/main/docs/API_WRAPPER.md"
+    features:
+      - Reads and checks C2PA Content Credentials
+      - Adds Content Credentials to your own images
+      - Image forensic checks run locally
+      - Looks for signs of AI generation
+      - Command-line client and local REST API
+      - Signed Verification Record of each check
+    screenshots: []
+
+legal:
+  license: AGPL-3.0-or-later
+  mainCopyrightOwner: Paul Griffiths
+  repoOwner: Jura Labs CIC
+
+maintenance:
+  type: internal
+  contacts:
+    - name: Paul Griffiths
+      email: hello@juralabs.org
+      affiliation: Jura Labs CIC
+
+localisation:
+  localisationReady: false
+  availableLanguages:
+    - en
