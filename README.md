@@ -2,6 +2,8 @@
 
 **Know What's Real.**
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23674914.svg)](https://doi.org/10.5281/zenodo.23674914)
+
 In a world of synthetic media, evidence matters. Jura Trace helps cultural institutions protect their digital assets from unauthorised AI extraction, and helps communities weigh up the media they encounter.
 
 Your files are analysed on your own machine. Nothing you open, sign or check
