@@ -46,7 +46,7 @@ Permission may be granted, refused, or granted with conditions on a case-by-case
 
 ## Crawler defence
 
-A `robots.txt` file at the repository root and at juralabs.org disallows known AI training crawlers. The list is non-exhaustive and is maintained on a best-effort basis. Failure of a crawler to honour `robots.txt` does not constitute permission under the licence — it constitutes evidence of infringement.
+A `robots.txt` file at the repository root and at juralabs.org disallows known AI training crawlers, and juralabs.org also refuses several of them at its network edge (Cloudflare). On juralabs.org, search engines and the fetchers that assistants use to read a page when someone asks them a question (for example OAI-SearchBot, ChatGPT-User, Claude-SearchBot, Claude-User and PerplexityBot) are allowed, so that people can find the project; that permission does not extend to training. The lists are non-exhaustive and are maintained on a best-effort basis. Failure of a crawler to honour `robots.txt` does not constitute permission under the licence — it constitutes evidence of infringement.
 
 ## Documentary record
 
