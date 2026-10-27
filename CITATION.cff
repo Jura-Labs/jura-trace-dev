@@ -24,6 +24,14 @@ license: AGPL-3.0-or-later
 url: "https://juralabs.org/jura-trace"
 repository-code: "https://github.com/Jura-Labs/jura-trace-dev"
 repository-artifact: "https://github.com/Jura-Labs/jura-trace/releases"
+doi: "10.5281/zenodo.23674914"
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.23674914"
+    description: "All versions (Zenodo concept DOI)"
+  - type: doi
+    value: "10.5281/zenodo.23674915"
+    description: "Version 1.2.0"
 keywords:
   - C2PA
   - Content Credentials
