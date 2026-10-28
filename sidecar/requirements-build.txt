@@ -23,3 +23,8 @@
 open-clip-torch==3.3.0
 torch==2.14.0
 torchvision==0.29.0
+
+# Security floors for transitive dependencies (huggingface-hub, through
+# open-clip-torch). See the same block in requirements.txt.
+httpx2>=2.10.0           # GHSA-f2fp-rgf2-35cp and four more
+httpcore2>=2.10.0        # GHSA-7mj9-2mp8-4m2p

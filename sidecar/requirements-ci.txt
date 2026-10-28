@@ -29,6 +29,7 @@ starlette==1.7.0
 h11==0.16.0
 anyio==4.14.2
 certifi==2026.10.19
+idna==3.19
 Pillow==13.0.0
 imagehash==4.3.2
 numpy==2.5.4
