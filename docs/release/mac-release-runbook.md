@@ -171,6 +171,18 @@ gh release upload v0.9.0-rc.X --repo Jura-Labs/jura-trace \
 
 Check the draft release on `Jura-Labs/jura-trace` and confirm both Windows (`.msi`, `.exe`) and macOS (`.dmg`, `.app.tar.gz`, `.app.tar.gz.sig`) assets are present. Then publish the draft.
 
+After publishing, change the version in the counted download links on the website. The download page links `https://juralabs.org/dl/<version>/<slug>`, and nothing updates `<version>` automatically. Check every page that links installers (the download page, the jura-trace product page, getting-started, the FAQ, the pilot guide), then confirm each link lands on the new file:
+
+```bash
+for s in macos windows-exe windows-msi linux-appimage linux-deb linux-server sha256sums; do
+  curl -sI "https://juralabs.org/dl/VERSION/$s" | grep -i '^location'
+done
+```
+
+`curl -sI` sends a HEAD, which the worker does not count. If an asset's file name changed in this release, update the slug table in `infrastructure/cloudflare-worker-updater/src/index.ts` first, or the link 302s to a missing file.
+
+Change the version and release date in the citation metadata too, before tagging, so the tag carries them: `version` and `date-released` in `CITATION.cff`, `version`, `softwareVersion` and `dateModified` in `codemeta.json`, and `softwareVersion` and `releaseDate` in `publiccode.yml`. Then publish a source release for the same tag on `Jura-Labs/jura-trace-dev` (`gh release create vVERSION -R Jura-Labs/jura-trace-dev --verify-tag`), which is what makes Zenodo archive it and mint the version's DOI.
+
 ---
 
 ## 6. Failure modes
