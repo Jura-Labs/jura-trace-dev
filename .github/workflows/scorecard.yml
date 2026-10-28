@@ -1,0 +1,59 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# OpenSSF Scorecard: an outside, automated check of the repository's security
+# practices (branch protection, pinned actions, token permissions, signed
+# releases, dependency updates and others). Results go to the Security tab as
+# SARIF and, with publish_results, to the public Scorecard API, which is what
+# the README badge and https://scorecard.dev/viewer/?uri=github.com/Jura-Labs/jura-trace-dev
+# read. Reviewers for the Digital Public Goods registry and procurement teams
+# look at this score.
+#
+# publish_results only takes effect on the default branch, and the action
+# refuses to publish if the job runs anything other than the steps below or
+# has write permissions beyond id-token and security-events. Keep it that way.
+
+name: OpenSSF Scorecard
+
+on:
+  push:
+    branches: [main]
+  # Branch protection changes are not pushes; this catches them.
+  branch_protection_rule:
+  schedule:
+    # 04:23 UTC every Monday, after the OSV scan at 03:17.
+    - cron: '23 4 * * 1'
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  analysis:
+    name: Scorecard analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write  # upload SARIF to code scanning
+      id-token: write         # sign the published results
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Run Scorecard
+        uses: ossf/scorecard-action@fa7117db83c52d787ae5a89f350999701505d78e # v2.5.0
+        with:
+          results_file: scorecard-results.sarif
+          results_format: sarif
+          publish_results: true
+
+      - name: Keep the SARIF as an artefact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: scorecard-results
+          path: scorecard-results.sarif
+          retention-days: 30
+
+      - name: Upload SARIF to code scanning
+        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          sarif_file: scorecard-results.sarif
+          category: openssf-scorecard
