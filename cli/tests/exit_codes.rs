@@ -33,7 +33,7 @@ type Handler = dyn Fn(&Seen) -> (u16, String, Duration) + Send + Sync;
 fn stub(
     handler: impl Fn(&Seen) -> (u16, String, Duration) + Send + Sync + 'static,
 ) -> (String, Arc<Mutex<Vec<Seen>>>) {
-    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let listener = listener();
     let base = format!("http://{}", listener.local_addr().unwrap());
     let seen = Arc::new(Mutex::new(Vec::new()));
     let log = Arc::clone(&seen);
@@ -46,6 +46,33 @@ fn stub(
         }
     });
     (base, seen)
+}
+
+/// Ports handed out by `refused_port`. No stub ever listens on one.
+static REFUSED: Mutex<Vec<u16>> = Mutex::new(Vec::new());
+
+/// A port with nothing listening on it, for the cases that need a refused
+/// connection. Binding a listener and dropping it frees the port, and a stub
+/// from a test running in parallel could then be handed the same port and
+/// answer: on CI for PR #210, 27 October 2026, the client got a 401 instead
+/// of a refused connection. So the port is recorded before it is freed, and
+/// `listener` never serves on a recorded port.
+fn refused_port() -> u16 {
+    let probe = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = probe.local_addr().unwrap().port();
+    REFUSED.lock().unwrap().push(port);
+    port
+}
+
+/// A listener on a free port that is not one of `refused_port`'s.
+fn listener() -> TcpListener {
+    loop {
+        let l = TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = l.local_addr().unwrap().port();
+        if !REFUSED.lock().unwrap().contains(&port) {
+            return l;
+        }
+    }
 }
 
 fn serve(mut stream: TcpStream, handler: &Handler, log: &Mutex<Vec<Seen>>) {
@@ -314,11 +341,7 @@ fn exit_1_when_the_server_refuses_the_request_as_malformed() {
 
 #[test]
 fn exit_2_when_nothing_is_listening() {
-    let port = TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap()
-        .port();
+    let port = refused_port();
     let (_d, file) = photo();
     let out = jura(
         &format!("http://127.0.0.1:{port}"),
@@ -366,7 +389,7 @@ fn exit_3_with_no_key_before_any_request() {
 /// that 401 while it is still sending; it must still exit 3, not 6.
 #[test]
 fn exit_3_when_the_key_is_refused_mid_upload() {
-    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let listener = listener();
     let base = format!("http://{}", listener.local_addr().unwrap());
     std::thread::spawn(move || {
         for mut stream in listener.incoming().flatten() {
@@ -537,11 +560,7 @@ fn wait_ready_waits_then_proceeds_or_gives_up() {
     assert!(start.elapsed() < Duration::from_secs(10));
 
     // Nothing listening for the whole wait: 2.
-    let port = TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap()
-        .port();
+    let port = refused_port();
     let out = jura(
         &format!("http://127.0.0.1:{port}"),
         Some(KEY),
@@ -792,11 +811,7 @@ fn version_reports_client_engine_and_api() {
     assert_eq!(v["apiVersion"], "1.0");
     assert_eq!(v["cli"], env!("CARGO_PKG_VERSION"));
 
-    let port = TcpListener::bind("127.0.0.1:0")
-        .unwrap()
-        .local_addr()
-        .unwrap()
-        .port();
+    let port = refused_port();
     let out = jura(&format!("http://127.0.0.1:{port}"), None, &["version"]);
     assert_eq!(code(&out), 2);
     assert!(
