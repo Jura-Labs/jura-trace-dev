@@ -85,7 +85,7 @@ regex==2026.9.29
 # OpenSSF Scorecard) from picking an old, vulnerable version, and make sure
 # no install from this file alone can. Raise one when an advisory needs it.
 anyio>=4.14.2            # GHSA-82r6-8w77-94w6, GHSA-5p39-cfhj-2xmp
-certifi>=2026.10.18      # GHSA-6q48-6c7w-9gw2
+certifi>=2026.10.19      # GHSA-6q48-6c7w-9gw2 (PYSEC-2026-4320 says .19)
 idna>=3.15               # GHSA-65pc-fj4g-8rjx
 
 # Utilities
