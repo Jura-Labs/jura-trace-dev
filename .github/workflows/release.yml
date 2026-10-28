@@ -20,10 +20,11 @@ on:
           - windows-only
           - linux-only
 
-# contents: write is still needed for checking out source from jura-archive.
-# All release creation/publishing targets Jura-Labs/jura-trace via RELEASE_PAT.
+# Read only. Every release write (create, upload, publish) goes to
+# Jura-Labs/jura-trace with RELEASE_PAT, never with this workflow's own token,
+# and checking out this repository needs only read.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   # ── Phase 1: Create a draft release with changelog body ───────────────────
@@ -2005,11 +2006,11 @@ jobs:
     # Configure the "production" environment at:
     #   Settings > Environments > production > Required reviewers
     environment: production
-    # Job-level permissions replace the workflow's, so contents: write is
-    # repeated. actions: write lets the last step start installer-test.yml in
-    # this repository with the job's own token, and grants nothing else.
+    # Job-level permissions replace the workflow's. actions: write lets the
+    # last step start installer-test.yml in this repository with the job's own
+    # token, and grants nothing else; every release write uses RELEASE_PAT.
     permissions:
-      contents: write
+      contents: read
       actions: write
     steps:
       # ── A4. Attach the model-card metadata ────────────────────────────────

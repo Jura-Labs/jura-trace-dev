@@ -1,7 +1,9 @@
 # Jura Trace — Python ML Sidecar
 # Base: python:3.12-slim (glibc needed for opencv/numpy wheels)
 
-FROM python:3.12-slim AS base
+# Pinned by digest (OpenSSF Scorecard, Pinned-Dependencies); the tag is kept
+# for readers. Dependabot's docker updates move both together.
+FROM python:3.12-slim@sha256:aa943ce411423c7582288f18707ff66eddcbaeb510502d747a72aeb34f30d159 AS base
 
 # System deps for opencv-python-headless
 RUN apt-get update \

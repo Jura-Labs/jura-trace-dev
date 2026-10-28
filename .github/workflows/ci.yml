@@ -14,6 +14,11 @@ on:
     branches: [main]
   workflow_dispatch:  # manual trigger from Actions tab when needed
 
+# Every job here only reads the repository. The repository default is already
+# read-only; saying so here keeps it true if that default ever changes.
+permissions:
+  contents: read
+
 # Cancel redundant runs on the same branch or PR to save CI minutes, but never
 # on main, where every push gets its own concurrency group and therefore its
 # own verdict.

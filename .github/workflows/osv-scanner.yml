@@ -30,13 +30,17 @@ on:
 
 permissions:
   contents: read
-  security-events: write  # required to upload SARIF
   actions: read
 
 jobs:
   scan:
     name: Scan lockfiles
     runs-on: ubuntu-latest
+    # Job-level permissions replace the workflow's, so the reads are repeated.
+    permissions:
+      contents: read
+      actions: read
+      security-events: write  # required to upload SARIF
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
