@@ -36,7 +36,7 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://juralabs.org/api/updates/latest.json",
+        "https://juralabs.org/api/updates/{{target}}-{{arch}}-{{bundle_type}}/{{current_version}}",
         "https://github.com/Jura-Labs/jura-trace/releases/latest/download/latest.json"
       ],
       "dialog": true,

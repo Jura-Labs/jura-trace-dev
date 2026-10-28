@@ -9,18 +9,38 @@
  *
  *   GET /api/updates/latest.json
  *     Canonical aggregated manifest. Returns the Tauri-format JSON for the
- *     latest release across all platforms. Polled by the desktop app on
- *     start-up and at the user-configured interval.
+ *     latest release across all platforms. Every install up to v1.2.0 has
+ *     this URL baked into its binary and polls it on start-up and when the
+ *     user presses Check for Updates, so this route stays for as long as
+ *     any of those installs exist. It carries no platform or version.
  *
  *   GET /api/updates/{platform}/{current-version}
  *     Per-platform delta check. Returns 204 No Content when the requesting
- *     client is already on the latest version, or the full Tauri-format
- *     JSON for the platform when an update is available. Reduces wire
- *     bytes for the common no-update case.
+ *     client is already on the latest version, or the Tauri-format JSON for
+ *     the platform when an update is available. Reduces wire bytes for the
+ *     common no-update case.
  *
- *     {platform} is one of: darwin-aarch64, linux-x86_64, linux-x86_64-deb,
- *                          windows-x86_64
- *     {current-version} is a semver string the client reports
+ *     From v1.3.0 this is the route the app polls. tauri.conf.json sets the
+ *     endpoint to
+ *       /api/updates/{{target}}-{{arch}}-{{bundle_type}}/{{current_version}}
+ *     and tauri-plugin-updater fills the variables in, so {platform} arrives
+ *     as `{os}-{arch}-{bundle_type}`: darwin-aarch64-app, windows-x86_64-msi,
+ *     windows-x86_64-nsis, linux-x86_64-appimage, linux-x86_64-deb, or
+ *     `-unknown` for a binary that was never bundled. The bare keys
+ *     (darwin-aarch64, linux-x86_64, windows-x86_64) and linux-x86_64-deb
+ *     are still accepted as before. See resolvePlatform for the mapping.
+ *
+ *     The response is keyed by the manifest key the plugin searches for.
+ *     It looks for `{os}-{arch}-{bundle_type}` first and `{os}-{arch}` second
+ *     (tauri-plugin-updater 2.13.3, Updater::get_urls), so a .deb install
+ *     asking as linux-x86_64-deb gets a block under that exact key, and an
+ *     NSIS install asking as windows-x86_64-nsis gets the MSI under
+ *     windows-x86_64, which its second lookup finds.
+ *
+ *     {current-version} is a semver string the client reports. Nothing else
+ *     about the client is in the request: no identifier, no header the
+ *     worker reads. The platform and version are counted by day (see
+ *     count) and that is the whole of what is kept.
  *
  *   GET|HEAD /dl/{version}/{slug}
  *     Counted download link. Answers 302 to the matching installer on
@@ -350,6 +370,48 @@ const PLATFORM_ASSET_SUFFIXES: Record<string, string> = Object.fromEntries(
   Object.entries(PLATFORM_ASSET_CONFIG).map(([k, v]) => [k, v.urlSuffix])
 );
 
+/**
+ * Bundle types tauri-plugin-updater can put in `{{bundle_type}}` that do NOT
+ * get an asset of their own, and so resolve to the bare `{os}-{arch}` entry.
+ *
+ *   app       macOS, from the .dmg or a bare .app. Always "app" on macOS.
+ *   msi       Windows WiX installer. The entry already carries the MSI.
+ *   nsis      Windows setup .exe. There is no NSIS updater asset, so an NSIS
+ *             install is offered the MSI, exactly as it was from latest.json
+ *             (the parallel-install consequence is BL-TEST-001, unchanged).
+ *   appimage  Linux AppImage. The bare linux-x86_64 entry is the AppImage.
+ *   unknown   The plugin's word for a binary that was never bundled, such
+ *             as `cargo run`. Resolved rather than rejected so a dev build
+ *             still gets a manifest, as it did from latest.json.
+ *
+ * `deb` is deliberately absent: linux-x86_64-deb is its own entry in
+ * PLATFORM_ASSET_CONFIG and must stay so (BL-REL-008). `rpm` is absent
+ * because no RPM is built; an rpm request gets 400, which the plugin treats
+ * as "try the next endpoint".
+ */
+const BUNDLE_TYPES_WITHOUT_OWN_ASSET = ["app", "msi", "nsis", "appimage", "unknown"];
+
+/**
+ * Map the platform string a client asked for onto the PLATFORM_ASSET_CONFIG
+ * key that serves it, or null when nothing does.
+ *
+ * Accepts the bare keys and linux-x86_64-deb as they are, and
+ * `{os}-{arch}-{bundle_type}` for the bundle types listed above. Returns the
+ * key the response block is published under, which is also the key the
+ * plugin's fallback lookup finds.
+ */
+export function resolvePlatform(requested: string): string | null {
+  if (requested in PLATFORM_ASSET_CONFIG) return requested;
+  const cut = requested.lastIndexOf("-");
+  if (cut <= 0) return null;
+  const base = requested.slice(0, cut);
+  const bundle = requested.slice(cut + 1);
+  if (BUNDLE_TYPES_WITHOUT_OWN_ASSET.includes(bundle) && base in PLATFORM_ASSET_CONFIG) {
+    return base;
+  }
+  return null;
+}
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
@@ -415,24 +477,41 @@ export default {
     }
 
     if (path === "/api/updates/latest.json") {
-      // Every v1.0.0 install has this URL baked into its binary, so this
-      // bucket is the closest thing to a count of the original 145 that
-      // exists. New installs will appear here too until the endpoint format
-      // changes, which is a separate decision.
+      // Every install up to v1.2.0 has this URL baked into its binary, so
+      // this bucket is the closest thing to a count of those installs that
+      // exists. From v1.3.0 the app polls the per-platform route below, so
+      // this bucket shrinks as people update and never gains a new install.
       count(env, ctx, "checks", automation, "latest");
       return handleLatestManifest(env, ctx);
     }
 
-    const perPlatformMatch = path.match(/^\/api\/updates\/([a-z0-9-]+_[a-z0-9-]+|[a-z]+-[a-z0-9_]+)\/(.+)$/);
+    // One path segment for the platform, one for the version. The platform
+    // segment is `{os}-{arch}` or `{os}-{arch}-{bundle_type}`; what the
+    // worker accepts is decided by resolvePlatform, not by this pattern.
+    const perPlatformMatch = path.match(/^\/api\/updates\/([a-z][a-z0-9_-]*)\/([^/]+)$/);
     if (perPlatformMatch) {
-      const platform = perPlatformMatch[1];
+      const requested = perPlatformMatch[1];
       const currentVersion = perPlatformMatch[2];
-      // Platform is taken from the path the client asked for, not inferred
-      // from anything about the client. The version is what the install says
-      // it is running, which is what makes the re-download notice measurable:
-      // installs still reporting 1.0.0 have not taken it.
-      count(env, ctx, "checks", automation, platform);
-      count(env, ctx, "checks", automation, `${platform}:${currentVersion}`);
+      const platform = resolvePlatform(requested);
+      if (platform === null) {
+        // Not counted. Counting an unknown platform would let anyone grow
+        // the namespace with made-up keys, and a request the worker cannot
+        // answer is not an install asking for an update.
+        return jsonError(
+          400,
+          "Unknown platform",
+          `Platform "${requested}" is not recognised. Valid: ${Object.keys(PLATFORM_ASSET_SUFFIXES).join(", ")}, ` +
+            `or one of those followed by -${BUNDLE_TYPES_WITHOUT_OWN_ASSET.join(", -")}.`,
+        );
+      }
+      // Counted as the client asked, so the buckets keep the bundle type
+      // (windows-x86_64-msi and windows-x86_64-nsis are separate), with the
+      // version as a second key. The platform is taken from the path the
+      // client asked for, not inferred from anything about the client. The
+      // version is what the install says it is running, which is what makes
+      // adoption measurable: installs still reporting 1.2.0 have not moved.
+      count(env, ctx, "checks", automation, requested);
+      count(env, ctx, "checks", automation, `${requested}:${currentVersion}`);
       return handlePerPlatform(env, ctx, platform, currentVersion);
     }
 
@@ -546,14 +625,19 @@ async function handlePerPlatform(
 async function fetchLatestRelease(env: Env): Promise<GitHubRelease | null> {
   const repo = env.GITHUB_REPO || DEFAULT_REPO;
   const url = `https://api.github.com/repos/${repo}/releases/latest`;
-  const resp = await fetch(url, {
-    headers: {
-      "User-Agent": USER_AGENT,
-      Authorization: `Bearer ${env.GITHUB_TOKEN}`,
-      Accept: "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28",
-    },
-  });
+  // The releases of a public repo can be read without a token, at GitHub's
+  // unauthenticated rate limit. That is enough for `wrangler dev` against the
+  // real release and means no token has to be written to disk to try a
+  // worker change locally. Production sets GITHUB_TOKEN as a secret.
+  const headers: Record<string, string> = {
+    "User-Agent": USER_AGENT,
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+  };
+  if (env.GITHUB_TOKEN) {
+    headers.Authorization = `Bearer ${env.GITHUB_TOKEN}`;
+  }
+  const resp = await fetch(url, { headers });
   if (!resp.ok) {
     console.error(`GitHub releases fetch failed: ${resp.status} ${await resp.text()}`);
     return null;

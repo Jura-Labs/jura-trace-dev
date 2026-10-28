@@ -13,7 +13,14 @@ Jura Trace does make a small number of network calls. Each one is either
 something you asked for or something you can turn off:
 
 - **Update check.** When you press Check for Updates, and once a day at
-  startup. Enhanced network mode only.
+  startup. Enhanced network mode only. The request goes to
+  `juralabs.org/api/updates/`, with GitHub Releases as the fallback. From
+  v1.3.0 the web address names your operating system, processor, install
+  type (for example `.deb` or AppImage) and the version you are running, so
+  the update service can answer with the right installer and count how many
+  installs of each version are still in use. It carries nothing else: no
+  identifier, no file, no setting. The service keeps a daily count per
+  platform and version and nothing about any one computer.
 - **Timestamp when you sign.** Signing sends a hash derived from your file to
   `timestamp.digicert.com` so the signature carries a trusted time. The file
   itself does not leave your machine, and the app shows you this before it
