@@ -1,0 +1,93 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# OSV-Scanner configuration for the lockfile in this directory. Read by the
+# OSV-Scanner workflow and, if it honours it, by OpenSSF Scorecard.
+#
+# The rule from src-tauri/.cargo/audit.toml applies: an entry here hides an
+# advisory, so adding one is a decision, not a cleanup. Each entry names the
+# advisory, says why the exposure does not apply to Jura Trace or why no fix
+# exists yet, and expires on ignoreUntil, after which it is reported again
+# and has to be re-checked. Never add one to make a scan pass.
+#
+# Proposed 28 October 2026. Not in force until Paul approves it.
+
+# ── zip before 9.0.0 ─────────────────────────────────────────────────────────
+# Already ignored for cargo audit in src-tauri/.cargo/audit.toml (#182,
+# approved by Paul 17 October 2026), which has the full reasoning: the
+# updater extracts only signature-checked archives, utoipa-swagger-ui reads
+# its own vendored bundle at build time, and our code makes no archive calls.
+# Out when `cargo tree -i zip` shows nothing below 9.0.0.
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0367"
+ignoreUntil = 2027-01-31T00:00:00Z
+reason = "zip extraction; same as .cargo/audit.toml (#182): no untrusted archive is extracted"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0368"
+ignoreUntil = 2027-01-31T00:00:00Z
+reason = "zip extraction; same as .cargo/audit.toml (#182): no untrusted archive is extracted"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0369"
+ignoreUntil = 2027-01-31T00:00:00Z
+reason = "zip extraction; same as .cargo/audit.toml (#182): no untrusted archive is extracted"
+
+# ── GTK3 stack (Linux only), through Tauri ──────────────────────────────────
+# glib 0.18 and proc-macro-error arrive with gtk 0.18, webkit2gtk, tao, wry
+# and muda. Tauri 2 is on GTK3; the fix (glib 0.20) is in the GTK4 bindings,
+# which Tauri has not moved to. Out when Tauri's Linux stack leaves gtk 0.18.
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0429"
+ignoreUntil = 2027-01-31T00:00:00Z
+reason = "glib 0.18 Iterator unsoundness; GTK3 stack required by Tauri 2 on Linux, no fixed release in that line; we do not use glib iterators directly"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0370"
+ignoreUntil = 2027-01-31T00:00:00Z
+reason = "proc-macro-error unmaintained; build-time proc macro of the GTK3 bindings Tauri 2 requires; no replacement in that line"
+
+# ── Unmaintained, no fixed release ──────────────────────────────────────────
+# Informational advisories: the crate has no maintainer, not a known flaw.
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0436"
+ignoreUntil = 2027-01-31T00:00:00Z
+reason = "paste unmaintained; build-time macro under image, rav1e and faer; no known flaw"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0105"
+ignoreUntil = 2027-01-31T00:00:00Z
+reason = "core2 unmaintained and yanked; under image's AVIF encoder (rav1e, bitstream-io); no known flaw; out when image moves off it"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0192"
+ignoreUntil = 2027-01-31T00:00:00Z
+reason = "ttf-parser unmaintained; under lopdf, which parses PDFs users open (pdf_provenance.rs), so re-check at once if a flaw is published; no known flaw"
+
+# ── block-buffer 0.10 ───────────────────────────────────────────────────────
+# A panic inside the compression callback, caught and followed by more use of
+# the same hasher, can corrupt the buffer. The callbacks are the RustCrypto
+# hash cores, which do not panic, and we do not catch_unwind around hashing.
+# Fixed in 0.12.1, which needs the digest 0.11 generation (sha2 0.11, #154,
+# and c2pa's ed25519-dalek). Out when block-buffer 0.10 leaves the tree.
+[[IgnoredVulns]]
+id = "GHSA-qwgh-2vcv-g2f7"
+ignoreUntil = 2027-01-31T00:00:00Z
+reason = "block-buffer 0.10 caught-panic corruption; hash cores do not panic and nothing catches panics around hashing; fix needs digest 0.11"
+
+# ── zbus family, unmaintained ───────────────────────────────────────────────
+# Same as cli/osv-scanner.toml: via zbus, under keyring's Linux Secret
+# Service store, which holds the reverse-image-search API key.
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0370"
+ignoreUntil = 2027-01-31T00:00:00Z
+reason = "zvariant unmaintained; via zbus under keyring's Linux Secret Service store; no known flaw"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0371"
+ignoreUntil = 2027-01-31T00:00:00Z
+reason = "zbus_names unmaintained; via zbus under keyring's Linux Secret Service store; no known flaw"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0372"
+ignoreUntil = 2027-01-31T00:00:00Z
+reason = "zvariant_derive unmaintained; via zbus under keyring's Linux Secret Service store; no known flaw"
