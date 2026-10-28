@@ -202,3 +202,24 @@ updates:
       github-actions:
         patterns:
           - "*"
+
+  # ── Docker base images ─────────────────────────────────────────────────────
+  # Both images are pinned by digest (OpenSSF Scorecard, Pinned-Dependencies).
+  # A digest never moves on its own, so without this entry the pins would go
+  # stale and miss base-image security fixes. Monthly: neither image is in the
+  # shipped app; Dockerfile.build is a local build environment and
+  # sidecar/Dockerfile a development container.
+  - package-ecosystem: docker
+    directories:
+      - /
+      - /sidecar
+    schedule:
+      interval: monthly
+    labels:
+      - dependencies
+    commit-message:
+      prefix: deps
+    groups:
+      docker:
+        patterns:
+          - "*"
