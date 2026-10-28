@@ -160,3 +160,36 @@ current claim problem.
 Do not re-add `invisible-watermark` to `sidecar/requirements.txt` without
 measuring the bundle. The line above it exists because somebody already
 learned that lesson.
+
+## Update, 22 October 2026: target v1.3.0, with a different library
+
+Paul put watermarking in v1.3.0 on 22 October 2026. The pre-v1.3.0 review
+changes what the work should be.
+
+- Our own robustness report (`docs/watermark-robustness-report.json`,
+  21 March 2026, 20 images) shows the current DWT-DCT-SVD watermark
+  surviving JPEG Q95 and Q85 and a 50% resize, and **0% at JPEG Q70, a 75%
+  resize, a 20% crop and a simulated screenshot**. That is the cliff.
+- Adobe TrustMark is MIT-licensed (github.com/adobe/trustmark, LICENSE
+  read 22 Oct) and its Q, C and P variants are on the C2PA soft-binding
+  algorithm list (`com.adobe.trustmark.Q` etc., read 22 Oct), so a
+  TrustMark watermark can be declared in a C2PA manifest and found again
+  after the manifest is stripped.
+- The review reports (arXiv:2610.04151, not re-read) TrustMark-Q keeping
+  0.999 bit accuracy at JPEG Q75, and its blind detector firing on 5.9 to
+  15.3% of unmarked images, so a detection must check the payload, not
+  just the presence of a mark.
+
+Proposed scope:
+
+1. Replace the embed and extract pair with TrustMark-Q on both sides, which
+   removes the bit-placement mismatch and the `imwatermark` torch import
+   that doubled the bundle.
+2. Declare it in the manifest as a C2PA soft binding when signing.
+3. On verify, read TrustMark and report "an open watermark was found" only
+   when its payload checks out.
+4. Link out to Google's SynthID Detector for users who want that check: it
+   has no API, so Trace cannot run it, and the link must say the image
+   would go to Google.
+5. Re-run the robustness report with the same degradations before turning
+   on `V1_SHOW_WATERMARK`. claims.md row 7 stays "conflict" until it ships.
