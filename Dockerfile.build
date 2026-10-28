@@ -9,7 +9,7 @@
 
 # Pinned by digest (OpenSSF Scorecard, Pinned-Dependencies); the tag is kept
 # for readers. Dependabot's docker updates move both together.
-FROM ubuntu:22.04@sha256:e0f80c829509ef4df9e76bd8944eb7b8ec25cbb379b112a7f9448b2c77a77c9b
+FROM ubuntu:25.10@sha256:7cc5e35f6567ee8c66d2abb4aab0fd866669e6207c237c3a8f0947a5c7f17092
 
 ENV DEBIAN_FRONTEND=noninteractive
 
