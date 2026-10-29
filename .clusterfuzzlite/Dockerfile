@@ -11,4 +11,4 @@ FROM gcr.io/oss-fuzz-base/base-builder-rust:v1@sha256:3428d0a90b1e7efbe2ba947bd1
 COPY src-tauri/fuzz $SRC/jura-trace-dev/src-tauri/fuzz
 COPY src-tauri/src $SRC/jura-trace-dev/src-tauri/src
 COPY .clusterfuzzlite/build.sh $SRC/
-WORKDIR $SRC/jura-trace-dev/src-tauri
+WORKDIR $SRC/jura-trace-dev/src-tauri/fuzz
