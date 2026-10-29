@@ -183,7 +183,7 @@ done
 
 `curl -sI` sends a HEAD, which the worker does not count. If an asset's file name changed in this release, update the slug table in `infrastructure/cloudflare-worker-updater/src/index.ts` first, or the link 302s to a missing file.
 
-Change the version and release date in the citation metadata too, before tagging, so the tag carries them: `version` and `date-released` in `CITATION.cff`, `version`, `softwareVersion` and `dateModified` in `codemeta.json`, and `softwareVersion` and `releaseDate` in `publiccode.yml`. Then publish a source release for the same tag on `Jura-Labs/jura-trace-dev` (`gh release create vVERSION -R Jura-Labs/jura-trace-dev --verify-tag`), which is what makes Zenodo archive it and mint the version's DOI.
+Change the version and release date in the citation metadata too, before tagging, so the tag carries them: `version` and `date-released` in `CITATION.cff`, `version`, `softwareVersion` and `dateModified` in `codemeta.json`, and `softwareVersion` and `releaseDate` in `publiccode.yml`. Then publish a source release for the same tag on `Jura-Labs/jura-trace-dev` (`gh release create vVERSION -R Jura-Labs/jura-trace-dev --verify-tag`), which is what makes Zenodo archive it and mint the version's DOI. After it is published, ask Software Heritage to archive the repository (`curl -X POST https://archive.softwareheritage.org/api/1/origin/save/git/url/https://github.com/Jura-Labs/jura-trace-dev/`), read the new tag's release identifier from the archive (`swh:1:rel:...`, under `refs/tags/vVERSION` in the latest snapshot), and replace the `swh` identifier in `CITATION.cff` and `codemeta.json` on main. It can only follow the tag, so it is the one identifier that is not in the tagged files.
 
 ---
 
