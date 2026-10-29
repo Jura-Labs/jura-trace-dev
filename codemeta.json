@@ -39,6 +39,7 @@
   "author": [
     {
       "@type": "Person",
+      "@id": "https://orcid.org/0009-0005-9478-484X",
       "givenName": "Paul",
       "familyName": "Griffiths",
       "affiliation": {
@@ -54,6 +55,7 @@
   },
   "copyrightHolder": {
     "@type": "Person",
+    "@id": "https://orcid.org/0009-0005-9478-484X",
     "name": "Paul Griffiths"
   },
   "sameAs": [
