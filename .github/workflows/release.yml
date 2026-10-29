@@ -549,22 +549,22 @@ jobs:
           key: pip-pyinstaller-${{ matrix.target }}-${{ hashFiles('sidecar/requirements.lock') }}
           restore-keys: pip-pyinstaller-${{ matrix.target }}-
 
-      # Install from the pinned lock file for reproducible builds.
-      # PyInstaller is intentionally excluded from requirements.txt and
-      # requirements.lock (it is a build tool, not a runtime dependency), so it
-      # is installed separately here. Pin to 6.x to match the spike version.
+      # Install from the hashed lock, the file ci.yml runs the sidecar tests
+      # against, so the binary ships what was tested. It was requirements-ci.txt
+      # until October 2026; check_requirements_sync.py holds every pin in that
+      # file equal to the lock, so the versions are the same, and the lock also
+      # pins the transitive dependencies with hashes (OpenSSF Scorecard,
+      # Pinned-Dependencies). Like requirements-ci.txt it leaves out
+      # open-clip-torch and faster-whisper, which are lazy-loaded at runtime.
+      # PyInstaller is a build tool, not a runtime dependency, so it has its
+      # own hashed lock (6.x, constrained by the sidecar lock) in
+      # .github/requirements/. One pip run for both, so a pin the two files
+      # disagree on fails here instead of quietly changing what ships; ci.yml
+      # checks the same pair on every pull request.
       - name: Install sidecar dependencies
         run: |
-          # Use CI-safe requirements (excludes open-clip-torch ~2GB and faster-whisper)
-          # These optional deps are lazy-loaded at runtime and degrade gracefully
-          if [ -f sidecar/requirements-ci.txt ]; then
-            pip install -r sidecar/requirements-ci.txt
-          elif [ -f sidecar/requirements.lock ]; then
-            pip install -r sidecar/requirements.lock
-          else
-            pip install -r sidecar/requirements.txt
-          fi
-          pip install "pyinstaller>=6,<7"
+          pip install --require-hashes -r sidecar/requirements.lock \
+            -r .github/requirements/pyinstaller.txt
         shell: bash
 
       # PyInstaller build. Two output modes depending on platform:

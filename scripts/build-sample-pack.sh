@@ -39,8 +39,9 @@ rm -rf "$OUT" "$OUT.zip"; mkdir -p "$OUT" build/sample-media
 work=build/sample-media
 
 verify() { # file -> prints overallTrust + deepfake verdict
-  curl -s -m 180 -H "Authorization: Bearer ${JURA_API_KEY}" -F "file=@$1" "$API/api/v1/verify" \
-    | python3 -c "import sys,json;r=json.load(sys.stdin).get('data',{});print('  trust',round(r.get('overallTrust',-1),3),'deepfake',(r.get('deepfakeResult') or {}).get('verdictLevel'),'c2paValid',r.get('c2paValid'))"
+  local response
+  response=$(curl -s -m 180 -H "Authorization: Bearer ${JURA_API_KEY}" -F "file=@$1" "$API/api/v1/verify")
+  printf '%s' "$response" | python3 -c "import sys,json;r=json.load(sys.stdin).get('data',{});print('  trust',round(r.get('overallTrust',-1),3),'deepfake',(r.get('deepfakeResult') or {}).get('verdictLevel'),'c2paValid',r.get('c2paValid'))"
 }
 
 echo "1/4 authentic.jpg (scrub GPS + serials, keep camera identity)"

@@ -203,11 +203,26 @@ updates:
         patterns:
           - "*"
 
+  # ── Python, CI tools ───────────────────────────────────────────────────────
+  # Hashed locks for ruff, pip-audit, PyInstaller and pip-licenses
+  # (.github/requirements/, OpenSSF Scorecard, Pinned-Dependencies). Monthly:
+  # ruff and pip-audit are pinned on purpose (ci.yml says why), so a bump is
+  # a deliberate change; PyInstaller does reach the shipped binary, so a
+  # bump to it wants a release smoke run before it merges.
+  - package-ecosystem: pip
+    directory: /.github/requirements
+    schedule:
+      interval: monthly
+    labels:
+      - dependencies
+    commit-message:
+      prefix: deps
+
   # ── Docker base images ─────────────────────────────────────────────────────
-  # Both images are pinned by digest (OpenSSF Scorecard, Pinned-Dependencies).
-  # A digest never moves on its own, so without this entry the pins would go
-  # stale and miss base-image security fixes. Monthly: neither image is in the
-  # shipped app; Dockerfile.build is a local build environment and
+  # Every image is pinned by digest (OpenSSF Scorecard, Pinned-Dependencies),
+  # including the rust and node build stages in Dockerfile.build. A digest
+  # never moves on its own, so without this entry the pins would go stale and
+  # miss base-image security fixes. Monthly: no image is in the shipped app; Dockerfile.build is a local build environment and
   # sidecar/Dockerfile a development container.
   - package-ecosystem: docker
     directories:

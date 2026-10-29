@@ -7,6 +7,12 @@
 #   docker build -f Dockerfile.build -t jura-build .
 #   docker run --rm -v $(pwd)/dist:/dist jura-build
 
+# Rust and Node come from their official images, pinned by digest, instead
+# of `curl | sh` installers (OpenSSF Scorecard, Pinned-Dependencies). Both
+# toolchains run on Ubuntu 22.04's glibc.
+FROM rust:1.96.1-bookworm@sha256:a339861ae23e9abb272cea45dfafde21760d2ce6577a70f8a926153677902663 AS rust
+FROM node:20.20.2-bookworm-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0 AS node
+
 # Pinned by digest (OpenSSF Scorecard, Pinned-Dependencies); the tag is kept
 # for readers. Dependabot's docker updates move both together.
 FROM ubuntu:22.04@sha256:e0f80c829509ef4df9e76bd8944eb7b8ec25cbb379b112a7f9448b2c77a77c9b
@@ -34,16 +40,18 @@ RUN apt-get update \
         ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Rust 1.96 via rustup
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-    | sh -s -- -y --default-toolchain 1.96.1 --profile minimal \
-        --component clippy rustfmt
-ENV PATH="/root/.cargo/bin:${PATH}"
+# Rust 1.96.1, from the rust image above
+ENV RUSTUP_HOME=/usr/local/rustup CARGO_HOME=/usr/local/cargo
+ENV PATH="/usr/local/cargo/bin:${PATH}"
+COPY --from=rust /usr/local/rustup /usr/local/rustup
+COPY --from=rust /usr/local/cargo /usr/local/cargo
+RUN rustup component add clippy rustfmt
 
-# Node.js 20 LTS
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
-    && rm -rf /var/lib/apt/lists/*
+# Node.js 20, from the node image above
+COPY --from=node /usr/local/bin/node /usr/local/bin/node
+COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+    && ln -s ../lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 
 # Tauri CLI
 RUN cargo install tauri-cli --version "^2"

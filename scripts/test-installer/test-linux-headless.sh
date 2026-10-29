@@ -31,7 +31,7 @@ orb -m "$MACHINE" --cwd "$REPO/sidecar" -- bash -c '
   set -e
   python3 -m venv .venv-orb 2>/dev/null || true
   source .venv-orb/bin/activate
-  pip install -q -r requirements-ci.txt
+  pip install -q --require-hashes -r requirements.lock
   python -m pytest tests/ -x --timeout=60 -q
 '
 

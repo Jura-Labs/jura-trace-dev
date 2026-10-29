@@ -422,8 +422,12 @@ jobs:
       # April 2026: 35 of the 67 findings were E402, a rule about import
       # placement. The code did not break, the tool moved. Bump this
       # deliberately, with the findings fixed in the same commit.
+      #
+      # Every pip install here uses --require-hashes against a hashed lock
+      # (OpenSSF Scorecard, Pinned-Dependencies). The tool locks live in
+      # .github/requirements/, with how to regenerate them.
       - name: Install ruff
-        run: pip install ruff==0.14.2
+        run: pip install --require-hashes -r .github/requirements/ruff.txt
 
       - name: Lint
         run: cd sidecar && ruff check .
@@ -431,15 +435,20 @@ jobs:
       - name: Format check
         run: cd sidecar && ruff format --check .
 
-      # Install from pinned lock file for reproducible builds.
-      # Falls back to requirements.txt if lock file is absent.
+      # Install from the hashed lock, the same file release.yml builds the
+      # shipped sidecar from. No fallback: a missing lock should fail here.
       - name: Install sidecar dependencies
+        run: pip install --require-hashes -r sidecar/requirements.lock
+
+      # release.yml installs the sidecar lock and the PyInstaller lock in one
+      # pip run. Resolve the same pair here, so a sidecar bump that moves a
+      # pin PyInstaller shares (packaging, setuptools) fails on the pull
+      # request rather than on release day. Fix: recompile pyinstaller.txt
+      # (.github/requirements/README.md).
+      - name: Check the PyInstaller lock agrees with the sidecar lock
         run: |
-          if [ -f sidecar/requirements.lock ]; then
-            pip install -r sidecar/requirements.lock
-          else
-            pip install -r sidecar/requirements.txt
-          fi
+          pip install --dry-run --require-hashes -r sidecar/requirements.lock \
+            -r .github/requirements/pyinstaller.txt
 
       # Tests run BEFORE the audit, deliberately.
       #
@@ -463,8 +472,15 @@ jobs:
       # PINNED, for the same reason ruff is: an unpinned linter or auditor
       # can turn the build red with no change to this repository, and that
       # is precisely how the Python job died in April.
+      #
+      # pip-audit runs from its own venv so its dependencies cannot change
+      # the environment it audits; PIPAPI_PYTHON_LOCATION points it at the
+      # sidecar's Python.
       - name: pip-audit
-        run: pip install pip-audit==2.10.1 && pip-audit
+        run: |
+          python -m venv "$RUNNER_TEMP/pip-audit"
+          "$RUNNER_TEMP/pip-audit/bin/pip" install --require-hashes -r .github/requirements/pip-audit.txt
+          PIPAPI_PYTHON_LOCATION="$(command -v python)" "$RUNNER_TEMP/pip-audit/bin/pip-audit"
 
   # ── Repo hygiene: fail build if stray model backup files are committed ─────
   # Rationale: unverified .joblib backups in models/ are a supply-chain risk —

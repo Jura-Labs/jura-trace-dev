@@ -19,8 +19,10 @@ RUN groupadd --gid 1000 jura \
 WORKDIR /app
 
 # Install Python deps first (cache-friendly layer ordering)
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# The hashed lock, as CI and release builds use (OpenSSF Scorecard,
+# Pinned-Dependencies).
+COPY requirements.lock .
+RUN pip install --no-cache-dir --require-hashes -r requirements.lock
 
 # Copy application code (changes most frequently)
 COPY main.py .
