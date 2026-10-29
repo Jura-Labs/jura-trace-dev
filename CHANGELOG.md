@@ -44,6 +44,18 @@ The update check:
   204 No Content, and the app shows up to date. In Standard network mode
   nothing changes: the automatic check stays off.
 
+Downloads:
+
+- Each file the release workflow builds now carries a signed build
+  provenance attestation, which you check with
+  `gh attestation verify <file> -R Jura-Labs/jura-trace-dev`, and each
+  release carries a software bill of materials in CycloneDX JSON for the
+  Rust app, the Python sidecar and the interface, listed in
+  `SHA256SUMS.txt` with the installers. Windows and Linux files are always
+  attested; macOS files only when the workflow built them, not when they
+  were built locally and attached by hand. See `SECURITY.md`, "Verifying a
+  download".
+
 ## 20 October 2026: v1.2.0, Verification Record
 
 Updating to v1.2.0:
