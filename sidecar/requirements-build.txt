@@ -21,8 +21,8 @@
 
 # PyTorch stack — required for open_clip training/export only
 open-clip-torch==3.3.0
-torch==2.14.0
-torchvision==0.29.0
+torch==2.14.1
+torchvision==0.29.1
 
 # Security floors for transitive dependencies (huggingface-hub, through
 # open-clip-torch). See the same block in requirements.txt.
