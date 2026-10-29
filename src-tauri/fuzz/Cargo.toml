@@ -1,0 +1,50 @@
+# Fuzz targets for the parsers that read files a user opens (SPDX:
+# AGPL-3.0-or-later). Run with cargo-fuzz on nightly, from src-tauri:
+#   cargo +nightly fuzz run xmp_packet
+# ClusterFuzzLite builds and runs them on every pull request
+# (.clusterfuzzlite/, .github/workflows/cflite_pr.yml).
+#
+# A crate of its own, not part of the app's build. It compiles
+# src/metadata.rs and src/pdf_provenance.rs directly (see src/lib.rs), so
+# it does not build Tauri, and its dependencies are the versions those two
+# files use in the app (Cargo.lock started as a copy of ../Cargo.lock).
+[package]
+name = "jura-trace-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+license = "AGPL-3.0-or-later"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+kamadak-exif = "0.5"
+image = "0.25"
+lopdf = "0.42"
+serde = { version = "1", features = ["derive"] }
+
+# Not a member of any workspace above it.
+[workspace]
+
+[[bin]]
+name = "xmp_packet"
+path = "fuzz_targets/xmp_packet.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "image_metadata"
+path = "fuzz_targets/image_metadata.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "pdf_provenance"
+path = "fuzz_targets/pdf_provenance.rs"
+test = false
+doc = false
+bench = false

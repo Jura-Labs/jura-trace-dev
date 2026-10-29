@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# OSV-Scanner configuration for the fuzz crate's lockfile. This lockfile
+# started as a copy of ../Cargo.lock, so the crates it shares with the app
+# are the same versions, and the four advisories below are the same ones
+# ../osv-scanner.toml already ignores, for the same crates (image's AVIF
+# encoder and lopdf), with the same reasons and expiry. Copied, not new:
+# when an entry leaves ../osv-scanner.toml, it leaves here too.
+#
+# The fuzz crate is a test harness that never ships. The rule in
+# ../.cargo/audit.toml still applies: adding an entry here that is not in
+# ../osv-scanner.toml is a decision, not a cleanup.
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0436"
+ignoreUntil = 2027-01-31T00:00:00Z
+reason = "paste unmaintained; build-time macro under image, rav1e and faer; no known flaw"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0105"
+ignoreUntil = 2027-01-31T00:00:00Z
+reason = "core2 unmaintained and yanked; under image's AVIF encoder (rav1e, bitstream-io); no known flaw; out when image moves off it"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0192"
+ignoreUntil = 2027-01-31T00:00:00Z
+reason = "ttf-parser unmaintained; under lopdf, which parses PDFs users open (pdf_provenance.rs), so re-check at once if a flaw is published; no known flaw"
+
+[[IgnoredVulns]]
+id = "GHSA-qwgh-2vcv-g2f7"
+ignoreUntil = 2027-01-31T00:00:00Z
+reason = "block-buffer 0.10 caught-panic corruption; hash cores do not panic and nothing catches panics around hashing; fix needs digest 0.11"
