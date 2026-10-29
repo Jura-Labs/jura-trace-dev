@@ -125,10 +125,11 @@ Two different measurements exist, and they are not equally strong.
    only out-of-sample figure for GBM v4.
 2. **A by-source check and a threshold sweep on 7 April 2026**
    (`models/deepfake_classifier_v4.bias_check.json`,
-   `models/deepfake_classifier_v4.calibration.json`). These ran the trained
-   model over 5,724 authentic and 4,985 AI-generated images
-   (`scripts/calibrate_gbm.py` loads the fitted model and calls
-   `predict_proba`). The AI count is identical to the training set's and the
+   `models/deepfake_classifier_v4.calibration.json`). Both ran the trained
+   model over 5,724 authentic and 4,985 AI-generated images. The threshold
+   sweep comes from `scripts/calibrate_gbm.py`, which loads the fitted model
+   and calls `predict_proba`; the script that wrote the by-source check is
+   not in the repository. The AI count is identical to the training set's and the
    authentic count is three short of it, so **these figures were almost
    certainly measured on the training images** and are likely optimistic.
    The files do not record which images were used.

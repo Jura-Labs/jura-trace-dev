@@ -54,6 +54,12 @@ Trusted from 0.70, Uncertain from 0.40 up to 0.70, and Untrusted below
 are synthetic above 0.60 and authentic below 0.35, with the interval
 between them inconclusive (`clip_detector.py:90-91`).
 
+The trust score also takes other detectors that these cards do not
+describe. One is JPEG ghost, counted at half weight; that weight was kept
+after tests on synthetic splice images only, because no real splice test
+set exists (`docs/calibration/s28-jpeg-ghost-weight.md`, "Outcome C").
+These cards cover the two classifiers, not the composite score.
+
 **The Uncertain band is the expected outcome for many real images.** It
 means the evidence does not support a call either way. It does not mean the
 image is fake.
@@ -292,8 +298,8 @@ groups.
   removed.
 - **False accusation.** A false positive on an authentic photograph,
   especially of a person, can harm the person shown or the person who took
-  it. The 3.87% held-out rate is a lower bound on what to expect in use
-  (section 6.1).
+  it. The 3.87% held-out rate is likely to understate the rate in
+  use (section 6.1).
 - **Evasion.** A generator outside the training families, or deliberate
   post-processing, can lower the score. The detector does not prove an image
   is authentic.
