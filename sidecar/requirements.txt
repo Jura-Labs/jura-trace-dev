@@ -90,7 +90,7 @@ idna>=3.15               # GHSA-65pc-fj4g-8rjx
 
 # Utilities
 python-dotenv==1.2.3
-pydantic==2.11.3
+pydantic==2.13.5
 
 # Testing
 pytest>=9.1.1
