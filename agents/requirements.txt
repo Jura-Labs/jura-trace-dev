@@ -1,12 +1,12 @@
 anthropic>=0.42.0
 rich>=13.0
 click>=8.1
-python-dotenv>=1.0
+python-dotenv>=1.2.2   # PYSEC-2026-2270 (GHSA-mf9w-mj56-hr94)
 pyyaml>=6.0
 
 # Security floors for transitive dependencies of anthropic. Nothing here
 # imports them directly; the floors keep an install, and a scanner resolving
 # this file, off the vulnerable versions.
-httpx2>=2.10.0              # GHSA-f2fp-rgf2-35cp and four more
+httpx2>=2.12.0              # GHSA-f2fp-rgf2-35cp and four more; PYSEC-2026-3846 says 2.12.0
 httpcore2>=2.10.0           # GHSA-7mj9-2mp8-4m2p
 opentelemetry-api>=1.45.1   # GHSA-xcq7-p3pf-p88h
