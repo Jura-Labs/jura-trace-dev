@@ -174,6 +174,10 @@ jobs:
 
           **Verify your download:** grab **[SHA256SUMS.txt](${base}/SHA256SUMS.txt)** and run \`shasum -a 256 -c SHA256SUMS.txt\` (macOS / Linux) or \`certutil -hashfile <filename> SHA256\` (Windows).
 
+          **Check where it was built:** files built by our release workflow carry a signed build provenance attestation. With the GitHub CLI, run \`gh attestation verify <file> -R Jura-Labs/jura-trace-dev\`. A macOS file built on our own Mac and attached by hand has none; the checksum above still covers it. Details: [Verifying a download](https://github.com/Jura-Labs/jura-trace-dev/blob/main/SECURITY.md#verifying-a-download).
+
+          **Software bill of materials (CycloneDX):** [Rust app](${base}/JuraTrace-${ver}-sbom-rust.cdx.json) • [Python sidecar](${base}/JuraTrace-${ver}-sbom-sidecar.cdx.json) • [UI](${base}/JuraTrace-${ver}-sbom-ui.cdx.json).
+
           **Model cards:** training and evaluation metadata for the two AI-detection models, including recall by generator family, is in **[model-card-univfd.json](${base}/model-card-univfd.json)** and **[model-card-gbm.json](${base}/model-card-gbm.json)**.
 
           Full install + first-test walkthrough: **[GETTING_STARTED.md](https://github.com/Jura-Labs/jura-trace/blob/main/GETTING_STARTED.md)**.
@@ -348,6 +352,15 @@ jobs:
       matrix: ${{ fromJson(needs.prepare-matrix.outputs.matrix) }}
 
     runs-on: ${{ matrix.runner }}
+    # Job-level permissions replace the workflow's, so contents: read is
+    # repeated here for checkout. id-token: write lets actions/attest get a
+    # short-lived Sigstore certificate for this run, and attestations: write
+    # stores the signed provenance on this repository. Neither can write
+    # code, releases or packages; every release write still uses RELEASE_PAT.
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     # The sidecar build (torch + open_clip) can take 10-20 minutes alone on
     # a cold cache. Linux Rust compilation is slower on standard GHA runners
     # than macOS; 120 minutes avoids timeout failures on cold Linux builds.
@@ -1512,6 +1525,100 @@ jobs:
             echo "::error::the server in the tarball answered, but its sidecar did not analyse the file (A3)"; exit 1; }
           echo "OK: the server tarball runs on a clean ubuntu:22.04 and analyses with its sidecar."
 
+      # ── Build provenance (macOS and Linux) ───────────────────────────────
+      # A signed SLSA provenance statement for every file this job publishes
+      # that SHA256SUMS.txt lists: the installers, the updater archive and
+      # the server tarball. It says which workflow, commit and run built
+      # them, and users check it with
+      #   gh attestation verify <file> -R Jura-Labs/jura-trace-dev
+      # The attestation lives on this repository, not on jura-trace.
+      #
+      # Placed after the last step that changes the bytes (notarisation
+      # staples the DMG; the updater .sig gate and the tarball test above),
+      # and BEFORE upload, so a failure to attest stops this platform's
+      # upload and leaves the release a draft rather than publishing files
+      # with no provenance. Sigstore or the attestation API being briefly
+      # unavailable should not cost an hour's rebuild, so the attest step is
+      # tried twice, a minute apart.
+      #
+      # The subjects are written as a checksums file so each one carries the
+      # name it is published under (the friendly JuraTrace-... names; GitHub
+      # turns the space in "Jura Trace.app.tar.gz" into a dot), without
+      # copying ~2 GB on a Linux runner that is short of disk. Exactly one of
+      # each expected file must exist, so a missing installer fails here
+      # instead of being quietly left out of the attestation.
+      #
+      # A macOS release built on Paul's Mac and attached by hand does not
+      # pass through here and has no attestation. Its checksum is still in
+      # SHA256SUMS.txt.
+      - name: List the files to attest (macOS and Linux)
+        if: runner.os != 'Windows'
+        id: attest_subjects
+        shell: bash
+        env:
+          SERVER_TARBALL: ${{ steps.server_tarball.outputs.name }}
+        run: |
+          set -euo pipefail
+          tag="${{ github.event.inputs.tag || github.ref_name }}"
+          ver="${tag#v}"
+          bundle_dir="src-tauri/target/${{ matrix.target }}/release/bundle"
+          out="$RUNNER_TEMP/attest-subjects.txt"
+          : > "$out"
+
+          sha() { if command -v sha256sum >/dev/null; then sha256sum "$1"; else shasum -a 256 "$1"; fi | cut -d' ' -f1; }
+          # add <glob under the bundle dir> <published name>
+          add() {
+            local matches=()
+            while IFS= read -r f; do matches+=("$f"); done < <(find "$bundle_dir" -maxdepth 2 -path "$bundle_dir/$1" -type f | sort)
+            if [ "${#matches[@]}" -ne 1 ]; then
+              echo "::error::expected exactly one $1 under $bundle_dir, found ${#matches[@]}"
+              exit 1
+            fi
+            printf '%s  %s\n' "$(sha "${matches[0]}")" "$2" >> "$out"
+          }
+
+          case "${{ matrix.target }}" in
+            aarch64-apple-darwin)
+              add 'dmg/*.dmg'            "JuraTrace-${ver}-macOS-AppleSilicon.dmg"
+              add 'macos/*.app.tar.gz'   "Jura.Trace.app.tar.gz"
+              ;;
+            x86_64-unknown-linux-gnu)
+              add 'appimage/*.AppImage'  "JuraTrace-${ver}-Linux-x86_64.AppImage"
+              add 'deb/*.deb'            "JuraTrace-${ver}-Linux-x86_64.deb"
+              t="$RUNNER_TEMP/${SERVER_TARBALL}.tar.gz"
+              [ -f "$t" ] || { echo "::error::server tarball not found at $t"; exit 1; }
+              printf '%s  %s\n' "$(sha "$t")" "${SERVER_TARBALL}.tar.gz" >> "$out"
+              ;;
+            *)
+              echo "::error::no attestation subjects defined for ${{ matrix.target }}"
+              exit 1
+              ;;
+          esac
+          echo "Subjects to attest:"
+          cat "$out"
+          echo "path=$out" >> "$GITHUB_OUTPUT"
+
+      - name: Attest build provenance (macOS and Linux)
+        if: runner.os != 'Windows'
+        id: attest_unix
+        continue-on-error: true
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-checksums: ${{ steps.attest_subjects.outputs.path }}
+
+      - name: Wait before the second attestation attempt (macOS and Linux)
+        if: runner.os != 'Windows' && steps.attest_unix.outcome == 'failure'
+        shell: bash
+        run: |
+          echo "::warning::The first attestation attempt failed. Trying once more in 60 seconds."
+          sleep 60
+
+      - name: Attest build provenance, second attempt (macOS and Linux)
+        if: runner.os != 'Windows' && steps.attest_unix.outcome == 'failure'
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-checksums: ${{ steps.attest_subjects.outputs.path }}
+
       - name: Upload the Linux server tarball to jura-trace
         if: matrix.target == 'x86_64-unknown-linux-gnu'
         shell: bash
@@ -1905,6 +2012,57 @@ jobs:
           }
           if ($failed -gt 0) { throw "unsigned code inside $failed installer(s). Do not upload." }
 
+      # ── Build provenance (Windows) ───────────────────────────────────────
+      # The same as the macOS and Linux steps above: one signed provenance
+      # statement for the MSI and setup.exe, under their published names,
+      # after Azure signing and the B1 gate (the last steps that touch the
+      # bytes) and before upload, tried twice.
+      - name: List the files to attest (Windows)
+        if: runner.os == 'Windows'
+        id: attest_subjects_win
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $tag = if ("${{ github.event.inputs.tag }}") { "${{ github.event.inputs.tag }}" } else { "${{ github.ref_name }}" }
+          $ver = $tag -replace '^v', ''
+          $bundle = "src-tauri\target\${{ matrix.target }}\release\bundle"
+          $want = [ordered]@{
+            "msi\*.msi"         = "JuraTrace-$ver-Windows-x64.msi"
+            "nsis\*-setup.exe"  = "JuraTrace-$ver-Windows-x64-setup.exe"
+          }
+          $lines = foreach ($k in $want.Keys) {
+            $m = @(Get-ChildItem "$bundle\$k" -File -ErrorAction SilentlyContinue)
+            if ($m.Count -ne 1) { throw "expected exactly one $k under $bundle, found $($m.Count)" }
+            "$((Get-FileHash $m[0].FullName -Algorithm SHA256).Hash.ToLower())  $($want[$k])"
+          }
+          $out = Join-Path $env:RUNNER_TEMP "attest-subjects.txt"
+          # LF line endings and no BOM, the format shasum writes.
+          [System.IO.File]::WriteAllText($out, (($lines -join "`n") + "`n"))
+          Write-Host "Subjects to attest:"
+          Get-Content $out
+          "path=$out" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: Attest build provenance (Windows)
+        if: runner.os == 'Windows'
+        id: attest_win
+        continue-on-error: true
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-checksums: ${{ steps.attest_subjects_win.outputs.path }}
+
+      - name: Wait before the second attestation attempt (Windows)
+        if: runner.os == 'Windows' && steps.attest_win.outcome == 'failure'
+        shell: pwsh
+        run: |
+          Write-Host "::warning::The first attestation attempt failed. Trying once more in 60 seconds."
+          Start-Sleep -Seconds 60
+
+      - name: Attest build provenance, second attempt (Windows)
+        if: runner.os == 'Windows' && steps.attest_win.outcome == 'failure'
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-checksums: ${{ steps.attest_subjects_win.outputs.path }}
+
       # Upload the signed Windows artefacts to the draft release on
       # juralabs/jura-trace (the PUBLIC releases repo) via RELEASE_PAT.
       #
@@ -1990,10 +2148,157 @@ jobs:
         if: always() && matrix.target == 'aarch64-apple-darwin' && runner.environment == 'github-hosted'
         run: security delete-keychain "$RUNNER_TEMP/jura-signing.keychain-db" 2>/dev/null || true
 
+  # ── Phase 2c: Software bill of materials ────────────────────────────────
+  # Three CycloneDX JSON files, one per part of the app, made from the lock
+  # files at this commit, which are what the build jobs install from:
+  #   Rust app   src-tauri/Cargo.lock, with --features api,cli and every
+  #              target, so one file covers all three platforms (a crate
+  #              used on one platform only is listed too)
+  #   sidecar    sidecar/requirements.lock, the hashed lock the build
+  #              installs with --require-hashes
+  #   UI         ui/package-lock.json, dev dependencies included and marked
+  #              "optional", because the build tools (Vite, the Svelte
+  #              compiler) produce the shipped UI
+  # Each is checked for shape and a floor of components, given a provenance
+  # attestation, and attached to the release.
+  #
+  # Why this blocks publishing: publish-release needs this job to succeed,
+  # so a release cannot go public without its SBOMs. That is not a release
+  # broken for no reason, because nothing here depends on the platform
+  # builds: it reads three lock files on a hosted runner in a few minutes,
+  # runs in parallel with the builds, and if it fails it can be re-run on
+  # its own ("Re-run failed jobs") without rebuilding any installer.
+  sbom:
+    name: Software bill of materials
+    needs: [create-release]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    env:
+      RELEASE_TAG: ${{ needs.create-release.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install Rust 1.96
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable @ 2026-09
+        with:
+          toolchain: "1.96"
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.12"
+
+      - name: Setup Node 20
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 20
+
+      # cargo-cyclonedx built from crates.io with its own lock file, an exact
+      # version; cyclonedx-bom from a hashed lock in its own venv, so it
+      # cannot disturb or be disturbed by the sidecar's pins. npm's own
+      # `npm sbom` needs nothing installed.
+      - name: Install the SBOM tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo install cargo-cyclonedx --locked --version "0.5.9"
+          python -m venv "$RUNNER_TEMP/cyclonedx"
+          "$RUNNER_TEMP/cyclonedx/bin/pip" install --require-hashes -r .github/requirements/cyclonedx-bom.txt
+          cargo cyclonedx --version
+          "$RUNNER_TEMP/cyclonedx/bin/cyclonedx-py" --version
+          npm --version
+
+      - name: Generate the SBOMs
+        id: generate
+        shell: bash
+        run: |
+          set -euo pipefail
+          ver="${RELEASE_TAG#v}"
+          out="$RUNNER_TEMP/sbom"
+          mkdir -p "$out"
+          # The commit time as the SBOM timestamp, which cargo-cyclonedx and
+          # cyclonedx-py honour. npm sbom does not, so the UI file carries
+          # the run's own time and serial number.
+          SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)"
+          export SOURCE_DATE_EPOCH
+
+          rust="JuraTrace-${ver}-sbom-rust.cdx.json"
+          sidecar="JuraTrace-${ver}-sbom-sidecar.cdx.json"
+          ui="JuraTrace-${ver}-sbom-ui.cdx.json"
+
+          # cargo-cyclonedx writes <override>.json beside Cargo.toml.
+          cargo cyclonedx --manifest-path src-tauri/Cargo.toml --format json \
+            --spec-version 1.5 --target all --features api,cli \
+            --override-filename jura-trace-sbom
+          mv src-tauri/jura-trace-sbom.json "$out/$rust"
+
+          "$RUNNER_TEMP/cyclonedx/bin/cyclonedx-py" requirements \
+            --mc-type application --output-reproducible --of JSON \
+            -o "$out/$sidecar" sidecar/requirements.lock
+
+          (cd ui && npm sbom --sbom-format cyclonedx --package-lock-only) > "$out/$ui"
+
+          echo "dir=$out" >> "$GITHUB_OUTPUT"
+          ls -l "$out"
+
+      # A file that parses but lists nothing looks exactly like an SBOM. The
+      # floors are well under today's counts (904 Rust, 53 sidecar and 342
+      # UI components on 29 October 2026) and well over zero.
+      - name: Check the SBOMs are complete
+        shell: bash
+        env:
+          SBOM_DIR: ${{ steps.generate.outputs.dir }}
+        run: |
+          set -euo pipefail
+          python3 - "$SBOM_DIR" <<'PY'
+          import json, pathlib, sys
+          floors = {"-sbom-rust.cdx.json": 300, "-sbom-sidecar.cdx.json": 30, "-sbom-ui.cdx.json": 100}
+          d = pathlib.Path(sys.argv[1])
+          files = sorted(d.glob("*.cdx.json"))
+          bad = []
+          if len(files) != len(floors):
+              bad.append(f"expected {len(floors)} SBOM files, found {len(files)}")
+          for f in files:
+              floor = next((n for s, n in floors.items() if f.name.endswith(s)), None)
+              if floor is None:
+                  bad.append(f"{f.name}: unexpected file")
+                  continue
+              doc = json.loads(f.read_text(encoding="utf-8"))
+              n = len(doc.get("components") or [])
+              print(f"{f.name}: {doc.get('bomFormat')} {doc.get('specVersion')}, {n} components")
+              if doc.get("bomFormat") != "CycloneDX":
+                  bad.append(f"{f.name}: bomFormat is {doc.get('bomFormat')!r}, not CycloneDX")
+              if n < floor:
+                  bad.append(f"{f.name}: {n} components, fewer than the floor of {floor}")
+          for b in bad:
+              print(f"::error::{b}")
+          sys.exit(1 if bad else 0)
+          PY
+
+      - name: Attest the SBOMs' provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: ${{ steps.generate.outputs.dir }}/*.cdx.json
+
+      - name: Attach the SBOMs to the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
+          SBOM_DIR: ${{ steps.generate.outputs.dir }}
+        run: |
+          set -euo pipefail
+          gh release upload "$RELEASE_TAG" "$SBOM_DIR"/*.cdx.json \
+            --repo juralabs/jura-trace --clobber
+          echo "Attached:"; ls -1 "$SBOM_DIR"
+
   # ── Phase 3: Publish the draft release once all platform builds succeed ──
   publish-release:
     name: Publish Release
-    needs: [create-release, build]
+    needs: [create-release, build, sbom]
     runs-on: ubuntu-latest
     # Run even when the build matrix has failures (e.g. the known macOS Phase 5
     # codesign failure — macOS ships via local build and manual upload).
@@ -2001,7 +2306,9 @@ jobs:
     # a partial release (Windows + Linux only) still needs SHA256SUMS.txt.
     # Security is preserved: only assets actually present on the release are
     # hashed — a missing platform produces a warning, not silence.
-    if: ${{ always() && needs.create-release.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'failure') }}
+    # The SBOM job, unlike the build matrix, must have succeeded: a release
+    # does not publish without its SBOMs. See the comment on that job.
+    if: ${{ always() && needs.create-release.result == 'success' && needs.sbom.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'failure') }}
     # Protect production release publishing behind an environment approval gate.
     # Configure the "production" environment at:
     #   Settings > Environments > production > Required reviewers
@@ -2073,9 +2380,11 @@ jobs:
               per_page: 100,
             });
 
-            // Only hash installer artefacts — skip any existing SHA256SUMS.txt
-            // (idempotent re-runs) and update manifests (*.json).
-            const installerExts = ['.dmg', '.msi', '.exe', '.AppImage', '.deb', '.tar.gz'];
+            // Only hash installer artefacts and the SBOMs. Skip any existing
+            // SHA256SUMS.txt (idempotent re-runs), update manifests and model
+            // cards (*.json): '.cdx.json' matches the SBOMs and nothing else.
+            // Keep this list equal to the one in the assertion below.
+            const installerExts = ['.dmg', '.msi', '.exe', '.AppImage', '.deb', '.tar.gz', '.cdx.json'];
             const toHash = assets.filter(a =>
               installerExts.some(ext => a.name.endsWith(ext))
             );
@@ -2173,7 +2482,8 @@ jobs:
               release_id: releaseId, per_page: 100,
             });
 
-            const installerExts = ['.dmg', '.msi', '.exe', '.AppImage', '.deb', '.tar.gz'];
+            // The same list as the step above, SBOMs included.
+            const installerExts = ['.dmg', '.msi', '.exe', '.AppImage', '.deb', '.tar.gz', '.cdx.json'];
             const installers = assets
               .filter(a => installerExts.some(ext => a.name.endsWith(ext)))
               .map(a => a.name);
@@ -2831,6 +3141,17 @@ jobs:
 
             console.log('Assets on the release:');
             for (const n of names.sort()) console.log(`  ${n}`);
+
+            // The SBOMs are not a platform that can legitimately arrive later
+            // by hand: the sbom job attaches them, and this job only runs when
+            // that job succeeded. If they are missing anyway, something
+            // removed or renamed them, so fail rather than publish without.
+            const sbomParts = ['rust', 'sidecar', 'ui'];
+            const sbomMissing = sbomParts.filter(p => !has(new RegExp(`-sbom-${p}\\.cdx\\.json$`)));
+            if (sbomMissing.length) {
+              core.setFailed('No SBOM attached for: ' + sbomMissing.join(', ') + '. Re-run the sbom job, then this one.');
+              return;
+            }
 
             if (missing.length) {
               core.notice(

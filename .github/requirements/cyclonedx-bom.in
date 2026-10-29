@@ -1,0 +1,3 @@
+# CycloneDX SBOM generator for the sidecar, used by release.yml (sbom job).
+# 7.5.0, not 7.6.0: 7.6.0 was two days old when this was pinned.
+cyclonedx-bom==7.5.0

@@ -169,6 +169,8 @@ gh release upload v0.9.0-rc.X --repo Jura-Labs/jura-trace \
   "src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Jura Trace.app.tar.gz.sig"
 ```
 
+Files uploaded by hand have no build provenance attestation: only the release workflow can attest, and only what it built. So `gh attestation verify` finds nothing for a locally built DMG or `Jura.Trace.app.tar.gz`, and if you replace a DMG the workflow built and attested, its attestation no longer matches the file on the release. That is expected and documented for users in `SECURITY.md`, "Verifying a download". The checksum still covers these files, because `SHA256SUMS.txt` is generated in `publish-release` from what is attached, so re-run that job after uploading.
+
 Check the draft release on `Jura-Labs/jura-trace` and confirm both Windows (`.msi`, `.exe`) and macOS (`.dmg`, `.app.tar.gz`, `.app.tar.gz.sig`) assets are present. Then publish the draft.
 
 After publishing, change the version in the counted download links on the website. The download page links `https://juralabs.org/dl/<version>/<slug>`, and nothing updates `<version>` automatically. Check every page that links installers (the download page, the jura-trace product page, getting-started, the FAQ, the pilot guide), then confirm each link lands on the new file:
