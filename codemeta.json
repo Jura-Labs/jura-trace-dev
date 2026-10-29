@@ -59,5 +59,8 @@
   "sameAs": [
     "https://www.wikidata.org/wiki/Q141880620"
   ],
-  "identifier": "https://doi.org/10.5281/zenodo.23674914"
+  "identifier": [
+    "https://doi.org/10.5281/zenodo.23674914",
+    "swh:1:rel:79ec24b4c0f581da6caf7636dfbcc6c2fc3422c7"
+  ]
 }

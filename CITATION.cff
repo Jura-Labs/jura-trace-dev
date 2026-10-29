@@ -32,6 +32,9 @@ identifiers:
   - type: doi
     value: "10.5281/zenodo.23674915"
     description: "Version 1.2.0"
+  - type: swh
+    value: "swh:1:rel:79ec24b4c0f581da6caf7636dfbcc6c2fc3422c7"
+    description: "Version 1.2.0 in the Software Heritage archive"
 keywords:
   - C2PA
   - Content Credentials
