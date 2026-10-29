@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# OSV-Scanner configuration for the lockfile in this directory. Read by the
+# OSV-Scanner workflow and, if it honours it, by OpenSSF Scorecard.
+#
+# The rule from src-tauri/.cargo/audit.toml applies: an entry here hides an
+# advisory, so adding one is a decision, not a cleanup. Each entry names the
+# advisory, says why the exposure does not apply to Jura Trace or why no fix
+# exists yet, and expires on ignoreUntil, after which it is reported again
+# and has to be re-checked. Never add one to make a scan pass.
+#
+# Proposed 28 October 2026. Approved by Paul at the terminal, 29 October
+# 2026 ("approve 215").
+
+# The UI is built with adapter-static into files the desktop app loads. There
+# is no SvelteKit server at run time: no hooks.server, no +server or
+# +page.server routes, no form actions, and no HTTP responses for kit to set
+# headers or cookies on. All four entries clear with SvelteKit 3 (#184).
+[[IgnoredVulns]]
+id = "CVE-2026-114060"
+ignoreUntil = 2027-01-31T00:00:00Z
+reason = "SvelteKit 2 enhanced-form redirect (GHSA-pfhg-q3qv-9q6r); static build, no form actions or use:enhance; fixed in kit 3"
+
+[[IgnoredVulns]]
+id = "CVE-2026-114061"
+ignoreUntil = 2027-01-31T00:00:00Z
+reason = "SvelteKit 2 cache-control header XSS on prerendered pages (GHSA-27mw-82g8-phjj); no server sets headers, files load locally; fixed in kit 3"
+
+[[IgnoredVulns]]
+id = "CVE-2024-47764"
+ignoreUntil = 2027-01-31T00:00:00Z
+reason = "cookie 0.6 name/path parsing (GHSA-pxg6-pf52-xh8x); used by kit's server, which the static build does not run; kit 2 requires cookie 0.6"
+
+[[IgnoredVulns]]
+id = "CVE-2026-93753"
+ignoreUntil = 2027-01-31T00:00:00Z
+reason = "deepmerge prototype poisoning (GHSA-gcqx-w48m-w2h4); used by vite-plugin-svelte at build time on our own config; no fixed release"

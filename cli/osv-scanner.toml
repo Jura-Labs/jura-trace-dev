@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# OSV-Scanner configuration for the lockfile in this directory. Read by the
+# OSV-Scanner workflow and, if it honours it, by OpenSSF Scorecard.
+#
+# The rule from src-tauri/.cargo/audit.toml applies: an entry here hides an
+# advisory, so adding one is a decision, not a cleanup. Each entry names the
+# advisory, says why the exposure does not apply to Jura Trace or why no fix
+# exists yet, and expires on ignoreUntil, after which it is reported again
+# and has to be re-checked. Never add one to make a scan pass.
+#
+# Proposed 28 October 2026. Approved by Paul at the terminal, 29 October
+# 2026 ("approve 215").
+
+# zvariant, zvariant_derive and zbus_names are unmaintained (no known flaw).
+# They come from zbus, under keyring's Linux Secret Service store, which the
+# jura CLI uses to keep the API key. No maintained replacement in keyring 4.
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0370"
+ignoreUntil = 2027-01-31T00:00:00Z
+reason = "zvariant unmaintained; via zbus under keyring's Linux Secret Service store; no known flaw"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0371"
+ignoreUntil = 2027-01-31T00:00:00Z
+reason = "zbus_names unmaintained; via zbus under keyring's Linux Secret Service store; no known flaw"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0372"
+ignoreUntil = 2027-01-31T00:00:00Z
+reason = "zvariant_derive unmaintained; via zbus under keyring's Linux Secret Service store; no known flaw"
