@@ -56,6 +56,16 @@ Downloads:
   were built locally and attached by hand. See `SECURITY.md`, "Verifying a
   download".
 
+Documentation:
+
+- Published model cards for the two detection models,
+  [`docs/model-cards/v10onnx.md`](docs/model-cards/v10onnx.md) and
+  [`docs/model-cards/gbm-v4.md`](docs/model-cards/gbm-v4.md). Every figure
+  names its source file. They state that the UnivFD test split shares source
+  images with its training set, that GBM v4's false positive figures were
+  probably measured on its training images, and that no fairness evaluation
+  by skin tone or device exists for either model.
+
 ## 20 October 2026: v1.2.0, Verification Record
 
 Updating to v1.2.0:

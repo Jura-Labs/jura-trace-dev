@@ -124,6 +124,8 @@ and the command line" covers the same ground.
 - [Architecture](docs/ARCHITECTURE.md) — system design, data flow, four-layer stack
 - [Technical Architecture](docs/ARCHITECTURE.md) — system design
 - [Brand Guidelines](docs/BRAND_GUIDELINES.md) — visual identity
+- [Model card: UnivFD probe v10onnx](docs/model-cards/v10onnx.md), the AI-image detector: training data, evaluation, limitations
+- [Model card: GBM v4](docs/model-cards/gbm-v4.md), the forensic-feature classifier: training data, evaluation, limitations
 
 ## Licence
 
