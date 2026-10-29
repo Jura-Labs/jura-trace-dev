@@ -1,0 +1,37 @@
+# ClusterFuzzLite weekly batch run over every target in src-tauri/fuzz/.
+#
+# Longer than the pull-request run (cflite_pr.yml) and not limited to
+# changed code. No corpus is stored between runs, so each week starts from
+# nothing; a crash fails the run and its artefacts hold the input.
+
+name: ClusterFuzzLite (weekly)
+
+on:
+  schedule:
+    - cron: '30 3 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    name: Fuzz (${{ matrix.sanitizer }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitizer: [address]
+    steps:
+      - name: Build fuzzers
+        uses: google/clusterfuzzlite/actions/build_fuzzers@884713a6c30a92e5e8544c39945cd7cb630abcd1 # v1
+        with:
+          language: rust
+          sanitizer: ${{ matrix.sanitizer }}
+      - name: Run fuzzers
+        uses: google/clusterfuzzlite/actions/run_fuzzers@884713a6c30a92e5e8544c39945cd7cb630abcd1 # v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          fuzz-seconds: 1800
+          mode: batch
+          sanitizer: ${{ matrix.sanitizer }}

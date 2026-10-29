@@ -1,0 +1,47 @@
+# ClusterFuzzLite on pull requests that touch the fuzzed parsers.
+#
+# Builds the targets in src-tauri/fuzz/ (metadata.rs and pdf_provenance.rs,
+# the code that reads the images and PDFs a user opens) with
+# AddressSanitizer and fuzzes them for five minutes. A crash fails the job
+# and the run's artefacts hold the input that caused it. The weekly batch
+# run is cflite_batch.yml.
+
+name: ClusterFuzzLite (PR)
+
+on:
+  pull_request:
+    paths:
+      - 'src-tauri/src/metadata.rs'
+      - 'src-tauri/src/pdf_provenance.rs'
+      - 'src-tauri/fuzz/**'
+      - '.clusterfuzzlite/**'
+      - '.github/workflows/cflite_pr.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    name: Fuzz (${{ matrix.sanitizer }})
+    runs-on: ubuntu-latest
+    concurrency:
+      group: ${{ github.workflow }}-${{ matrix.sanitizer }}-${{ github.ref }}
+      cancel-in-progress: true
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitizer: [address]
+    steps:
+      - name: Build fuzzers
+        uses: google/clusterfuzzlite/actions/build_fuzzers@884713a6c30a92e5e8544c39945cd7cb630abcd1 # v1
+        with:
+          language: rust
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          sanitizer: ${{ matrix.sanitizer }}
+      - name: Run fuzzers
+        uses: google/clusterfuzzlite/actions/run_fuzzers@884713a6c30a92e5e8544c39945cd7cb630abcd1 # v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          fuzz-seconds: 300
+          mode: code-change
+          sanitizer: ${{ matrix.sanitizer }}
