@@ -3,6 +3,8 @@
 **Know What's Real.**
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23674914.svg)](https://doi.org/10.5281/zenodo.23674914)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/16054/badge)](https://www.bestpractices.dev/projects/16054)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/Jura-Labs/jura-trace-dev/badge)](https://securityscorecards.dev/viewer/?uri=github.com/Jura-Labs/jura-trace-dev)
 
 In a world of synthetic media, evidence matters. Jura Trace helps cultural institutions protect their digital assets from unauthorised AI extraction, and helps communities weigh up the media they encounter.
 
