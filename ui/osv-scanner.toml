@@ -9,7 +9,8 @@
 # exists yet, and expires on ignoreUntil, after which it is reported again
 # and has to be re-checked. Never add one to make a scan pass.
 #
-# Proposed 28 October 2026. Not in force until Paul approves it.
+# Proposed 28 October 2026. Approved by Paul at the terminal, 29 October
+# 2026 ("approve 215").
 
 # The UI is built with adapter-static into files the desktop app loads. There
 # is no SvelteKit server at run time: no hooks.server, no +server or
