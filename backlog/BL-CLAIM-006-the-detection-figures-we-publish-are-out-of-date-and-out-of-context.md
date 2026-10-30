@@ -1,6 +1,10 @@
 # BL-CLAIM-006: the detection figures we publish are out of date and out of context
 
-**Status**: Open. Target v1.3.0.
+**Status**: Open. Target v1.3.0. Steps 1 and 2 done in the repository on
+30 October 2026 (user guides, ARCHITECTURE.md, the CLIP result summary);
+the website, the press pack and claims.md were not checked. Steps 3 to 5
+are open, though getting-started.md no longer says "most AI-generated
+images across 14 generator families".
 **Raised**: 22 October 2026, from the pre-v1.3.0 review of detection
 research.
 **Severity**: Critical. Public accuracy figures describe a superseded model,

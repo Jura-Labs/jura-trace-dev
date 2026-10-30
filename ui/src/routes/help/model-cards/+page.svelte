@@ -84,7 +84,7 @@
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">File size</dt>
-          <dd class="muted-help">~1.2 MB</dd>
+          <dd class="muted-help">474 KB</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Shipped in</dt>
@@ -105,9 +105,9 @@
     <!-- Purpose -->
     <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Purpose</h3>
     <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-6">
-      The GBM classifier analyses an 80-dimensional feature vector extracted from
-      images by the forensic pipeline (ELA statistics, noise patterns, frequency
-      domain features, copy-move indicators, and more). It produces a probability
+      The GBM classifier analyses 80 hand-crafted statistical features of an
+      image (noise, frequency content, colour, local texture and compression
+      traces). It produces a probability
       score indicating how likely an image is to be AI-generated. This score runs
       as one head of a two-head AI-detection ensemble alongside the UnivFD probe;
       the combined output feeds the final trust assessment.
@@ -119,7 +119,7 @@
       <dl class="space-y-3 text-sm">
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Total images</dt>
-          <dd class="muted-help">over 10,000 (balanced authentic and AI-generated)</dd>
+          <dd class="muted-help">10,712 (5,727 authentic, 4,985 AI-generated)</dd>
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Authentic sources</dt>
@@ -131,20 +131,19 @@
         </div>
         <div>
           <dt class="font-medium text-text-light dark:text-quartz">Feature vector</dt>
-          <dd class="muted-help">80 features grouped into the following classes:
+          <dd class="muted-help">80 features (the pipeline extracts 84; this model uses 80), in these groups:
             <ul class="list-disc pl-4 mt-1 space-y-0.5">
-              <li>ELA (mean, std, max, entropy)</li>
-              <li>Noise analysis</li>
-              <li>Copy-move detection</li>
-              <li>Frequency domain</li>
-              <li>JPEG ghost</li>
-              <li>NPR (neighbouring pixel relationship)</li>
-              <li>Segmented ELA</li>
-              <li>Shadow consistency</li>
-              <li>Colour temperature</li>
-              <li>Splice boundary</li>
-              <li><strong>PRNU sensor pattern consistency</strong> — spatial autocorrelation of the noise residual + horizontal/vertical symmetry test (Lukáš, Fridrich &amp; Goljan 2006 framework). Real camera sensors produce roughly symmetric autocorrelation; diffusion-model outputs produce strongly asymmetric patterns. The "PRNU sensor pattern symmetry" named indicator surfaces in the verify-page detector list when this triggers.</li>
-              <li>Camera discrimination: demosaic peak count, inter-channel coherence, blocking strength variance, MakerNote authenticity</li>
+              <li>Spectral decay and frequency-band energy</li>
+              <li>Noise residual statistics and autocorrelation</li>
+              <li>Per-channel colour statistics, correlations and saturation</li>
+              <li>Local binary patterns and grey-level co-occurrence texture</li>
+              <li>DCT coefficient statistics and Benford divergence</li>
+              <li>JPEG blocking strength</li>
+              <li>Edge and Laplacian sharpness, and multi-scale gradients</li>
+              <li>Cross-channel noise correlation</li>
+              <li>VAE grid-energy ratio and chromatic aberration trend</li>
+              <li>Least-significant-bit randomness and entropy</li>
+              <li>Demosaicing peaks</li>
             </ul>
           </dd>
         </div>
@@ -167,16 +166,16 @@
             <td class="py-2 pr-4 font-mono">0.9868</td>
           </tr>
           <tr class="border-b border-border-light/50 dark:border-border-dark/50">
-            <td class="py-2 pr-4">Authentic false positive rate</td>
+            <td class="py-2 pr-4">Authentic false positive rate (threshold 0.5, measured on the training images)</td>
             <td class="py-2 pr-4 font-mono">4.54%</td>
           </tr>
           <tr class="border-b border-border-light/50 dark:border-border-dark/50">
-            <td class="py-2 pr-4">AI detection rate (recall)</td>
+            <td class="py-2 pr-4">AI detection rate (recall; threshold 0.5, measured on the training images)</td>
             <td class="py-2 pr-4 font-mono">92.52%</td>
           </tr>
           <tr class="border-b border-border-light/50 dark:border-border-dark/50">
-            <td class="py-2 pr-4">Calibrated threshold</td>
-            <td class="py-2 pr-4 font-mono">0.49 (FP 4.79%, recall 92.68%)</td>
+            <td class="py-2 pr-4">Verdict thresholds used by the app</td>
+            <td class="py-2 pr-4 font-mono">synthetic above 0.58, authentic below 0.25</td>
           </tr>
           <tr>
             <td class="py-2 pr-4">Cross-validation folds</td>
@@ -185,6 +184,11 @@
         </tbody>
       </table>
     </div>
+    <p class="text-xs muted-help leading-relaxed -mt-3 mb-6 italic">
+      Only the AUC-ROC is measured out of sample. The false positive rate and
+      recall come from a check run over the same images the model was trained
+      on, so they are likely optimistic. GBM v4 has no separate held-out test set.
+    </p>
 
     <!-- Known limitations -->
     <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Known Limitations</h3>
@@ -344,6 +348,12 @@
         </tbody>
       </table>
     </div>
+    <p class="text-xs muted-help leading-relaxed -mt-3 mb-6 italic">
+      The test set was split by file, not by source image, so most test images
+      are re-encoded copies of images used in training, and it comes from the
+      same generators as the training data. The figures are therefore likely to
+      be optimistic, and generators released in 2026 have not been measured.
+    </p>
 
     <!-- Known limitations -->
     <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Known Limitations</h3>
@@ -353,7 +363,7 @@
       <li><strong>Wildlife and macro photography:</strong> The <code>wikimedia_photos</code> subset (wildlife, insect macro) is the top FP source. iNaturalist photographs are being added to the authentic corpus to address this.</li>
       <li><strong>High-end camera photos:</strong> Images from DJI drones and Sony DSC cameras with very clean noise profiles are occasionally flagged. MakerNote EXIF data provides a partial mitigation at inference time.</li>
       <li><strong>Generator coverage:</strong> Trained on 14 generator families up to April 2026. New generators may produce outputs that fall outside the learned decision boundary. Quarterly retraining planned.</li>
-      <li><strong>Demographic bias:</strong> CLIP-proxy demographic audit completed April 2026. Dark-skin proxy group FP rate 7.8% vs 4.1% overall (1.9&times; ratio — below the 2&times; failure threshold but notable). Light-skin FP 5.0%. No-people FP 3.1%. Full results in the fairness documentation. Audit uses CLIP text-image similarity as a computational proxy, not human-annotated ground truth.</li>
+      <li><strong>Demographic bias:</strong> A CLIP-proxy demographic audit was run in April 2026 on the previous probe, v9, and has not been re-run on the shipped v10onnx probe, so these figures do not describe it. On v9: dark-skin proxy group FP rate 7.8% vs 4.1% overall (1.9&times; ratio — below the 2&times; failure threshold but notable). Light-skin FP 5.0%. No-people FP 3.1%. Full results in the fairness documentation. Audit uses CLIP text-image similarity as a computational proxy, not human-annotated ground truth.</li>
       <li><strong>Global Majority device coverage:</strong> Device-specific false-positive rates for individual Global Majority handset families have not been individually characterised at this release. See the <a href="#device-coverage" class="text-lapis dark:text-lapis-light underline hover:no-underline">Device Coverage</a> section for details.</li>
     </ul>
 
@@ -434,12 +444,12 @@
     </ul>
 
     <!-- Validated FP rates -->
-    <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">Validated false-positive rates by device category</h3>
+    <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">False-positive rates by device category</h3>
     <p class="text-sm text-text-light dark:text-quartz leading-relaxed mb-3">
-      The following figures are measured on the v1.0 training and test corpus.
-      "False positive" here means an authentic photograph that both classifiers
-      (GBM v4 and UnivFD v10onnx) and the EXIF pipeline together assessed as
-      AI-generated, after the MakerNote bonus is applied.
+      The following figures are GBM v4 alone, at a threshold of 0.5, from a
+      check run over its own training images in April 2026, so they are likely
+      optimistic. They do not include the UnivFD probe, the EXIF pipeline or
+      the MakerNote bonus.
     </p>
     <div class="overflow-x-auto mb-6">
       <table class="w-full text-sm border-collapse">
@@ -447,7 +457,7 @@
           <tr class="border-b border-border-light dark:border-border-dark">
             <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">Device category</th>
             <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">Example devices</th>
-            <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">FP rate (post-bonus)</th>
+            <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">FP rate (GBM v4)</th>
             <th class="py-2 pr-4 text-left font-medium text-text-light dark:text-quartz">Validation status</th>
           </tr>
         </thead>
@@ -456,13 +466,13 @@
             <td class="py-2 pr-4">Consumer smartphone</td>
             <td class="py-2 pr-4">Google Pixel, Apple iPhone</td>
             <td class="py-2 pr-4 font-mono">8.81%</td>
-            <td class="py-2 pr-4">Validated on corpus (n&gt;500)</td>
+            <td class="py-2 pr-4">Measured on training images (26 of 295)</td>
           </tr>
           <tr class="border-b border-border-light/50 dark:border-border-dark/50">
             <td class="py-2 pr-4">High-end camera / drone</td>
             <td class="py-2 pr-4">DJI Mavic/Mini, Sony DSC</td>
             <td class="py-2 pr-4 font-mono">10.32%</td>
-            <td class="py-2 pr-4">Validated on corpus (n&gt;500)</td>
+            <td class="py-2 pr-4">Measured on training images (13 of 126)</td>
           </tr>
           <tr>
             <td class="py-2 pr-4">Global Majority handset</td>
@@ -510,14 +520,14 @@
     <h3 class="font-medium text-base text-text-light dark:text-quartz mb-2">What the models do validate</h3>
     <ul class="list-disc pl-5 space-y-2 text-sm text-text-light dark:text-quartz leading-relaxed mb-4">
       <li>
-        <strong>Cross-generator generalisation.</strong> Both classifiers are trained
+        <strong>Generator families.</strong> Both classifiers are trained
         on approximately 14 AI-generator families spanning commercial closed-source
-        and open-weights diffusion and GAN models. The UnivFD probe's CLIP-based
-        approach in particular generalises well to generator outputs it was not
-        trained on (AUC-ROC 0.9929 on the held-out test set).
+        and open-weights diffusion and GAN models. The UnivFD probe scores AUC-ROC
+        0.9929 on a test set drawn from those same families; how well it does on
+        generators it was not trained on has not been measured.
       </li>
       <li>
-        <strong>Platform-forwarded images.</strong> Both classifiers were trained on
+        <strong>Platform-forwarded images.</strong> The UnivFD probe was trained on
         re-compressed variants simulating WhatsApp (Q=85), Twitter (Q=75), and
         cross-platform forwarding chains (Q=85 then Q=75). This is especially relevant
         for field contexts where photographs are shared via messaging apps before
@@ -532,11 +542,9 @@
     </ul>
 
     <p class="text-xs muted-help leading-relaxed italic">
-      FP rate figures above are measured on the internal held-out test corpus and reflect
-      the combined pipeline (both classifiers plus EXIF analysis) after the MakerNote
-      authenticity bonus is applied. They describe aggregate device-category performance,
-      not per-model performance. Source: <code>CLAUDE.md</code> "Models in production" +
-      <code>docs/backlog.md</code> JTV-127/128 entries (v1.0 corpus gap record).
+      FP rate figures above are GBM v4's by-source check at threshold 0.5, run over its
+      training images, not the combined pipeline. Source:
+      <code>docs/model-cards/gbm-v4.md</code> section 6.3.
     </p>
   </section>
 

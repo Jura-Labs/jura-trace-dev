@@ -533,7 +533,7 @@ test.describe('AI card — CLIP / UnivFD row', () => {
     // The "EXPERIMENTAL — informational only" pill was dropped from the
     // CLIP row on 2026-05-18 (verify-page UX sweep, agent review).
     // The UnivFD v10onnx probe behind the row is a trained, calibrated,
-    // trust-bearing signal (AUC 0.9933, FP 3.87%) — the pill mislabelled
+    // trust-bearing signal (AUC 0.9929, FP 3.87%) — the pill mislabelled
     // it as advisory and was the single highest-impact source of pilot
     // confusion. This test guards against re-introducing the pill.
     const r = baseResult();

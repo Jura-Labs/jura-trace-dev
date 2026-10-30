@@ -5,7 +5,7 @@ Jura Trace Sidecar — CLIP-based AI Image Detection.
 
 Uses CLIP ViT-B/32 embeddings (via ONNX runtime) with zero-shot
 classification AND a trained UnivFD LogReg probe to detect AI-generated
-images. The probe (6 KB joblib, AUC 0.9933, FP 4.12%, recall 95.70%)
+images. The probe (5 KB joblib, AUC 0.9929, FP 3.87%, recall 95.77%)
 is the load-bearing detection signal; zero-shot text similarity is the
 auxiliary readout shown as the 5-bar class breakdown in Expert View.
 
@@ -81,7 +81,7 @@ _TEXT_PROMPTS = [
 ]
 
 # Verdict thresholds.  These are the load-bearing decision boundaries
-# for the CLIP/UnivFD verdict; the trained UnivFD probe (AUC 0.9933)
+# for the CLIP/UnivFD verdict; the trained UnivFD probe (AUC 0.9929)
 # produces the headline score and these constants determine which
 # verdict_level applies.  Surfaced on every ClipDetectionResponse via
 # `verdict_thresholds` so the UI consumes live values rather than
@@ -554,7 +554,7 @@ def perform_clip_detection(image_bytes: bytes) -> ClipDetectionResponse:
     # Summary.
     #
     # When the trained UnivFD probe is available it is the load-bearing
-    # signal: a binary logistic regression on CLIP embeddings (AUC 0.9933)
+    # signal: a binary logistic regression on CLIP embeddings (AUC 0.9929)
     # producing the headline `score`.  The zero-shot `class_probs` are
     # softmax over CLIP text-similarity to the label prompts and are not
     # arithmetically related to the probe score — quoting them next to the
@@ -565,14 +565,14 @@ def perform_clip_detection(image_bytes: bytes) -> ClipDetectionResponse:
         if verdict_level == "synthetic":
             summary = (
                 f"CLIP UnivFD probe classifies this image as likely "
-                f"AI-generated (probe score={score:.2f}, AUC 0.9933). "
+                f"AI-generated (probe score={score:.2f}, AUC 0.9929). "
                 f"Zero-shot CLIP labels below are auxiliary text-similarity "
                 f"scores and are not arithmetically related to the probe score."
             )
         elif verdict_level == "authentic":
             summary = (
                 f"CLIP UnivFD probe classifies this image as likely a real "
-                f"photograph (probe score={score:.2f}, AUC 0.9933). "
+                f"photograph (probe score={score:.2f}, AUC 0.9929). "
                 f"Zero-shot CLIP labels below are auxiliary text-similarity "
                 f"scores and are not arithmetically related to the probe score."
             )
