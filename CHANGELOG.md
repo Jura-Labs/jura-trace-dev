@@ -44,6 +44,18 @@ The update check:
   204 No Content, and the app shows up to date. In Standard network mode
   nothing changes: the automatic check stays off.
 
+The headless server:
+
+- Starting `jura-trace-api` no longer ends the analysis engine of another
+  `jura-trace-api` that is already running. At start-up the server ends
+  analysis engines left over from earlier runs, and until now it picked
+  them by name alone, so a second server ended the first one's engine
+  mid-run. The first server carried on with degraded results; the only
+  sign was `degraded: true`. On 5 October 2026 this cost a test run its
+  CLIP results on 63 of 217 images. Now only an engine with no running
+  Jura Trace app or server above it is ended. The desktop app was already
+  protected, by a check on port 8300, which this replaces.
+
 Downloads:
 
 - Each file the release workflow builds now carries a signed build

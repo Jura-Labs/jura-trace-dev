@@ -404,104 +404,194 @@ pub fn models_dir_for(sidecar_binary: &Path) -> Option<PathBuf> {
 ///    but the orphan from step 2 is still alive, eating ~300–500 MB RAM
 ///    and showing up in Activity Monitor as a confusing duplicate.
 ///
-/// This function runs at startup BEFORE the spawn_sidecar call, sends
-/// SIGKILL to any process whose name matches `jura-sidecar`, and waits
+/// This function runs at startup BEFORE the spawn_sidecar call, kills every
+/// `jura-sidecar` process that no live Jura Trace process owns, and waits
 /// briefly for the kernel to reap them. The fresh spawn then has a clean
 /// process tree.
 ///
+/// # Which sidecars are orphans
+///
+/// A sidecar is owned by the nearest ancestor process named `jura-trace`
+/// (the desktop app) or `jura-trace-api` (the headless server). It is swept
+/// when it has no such ancestor, because its owner died and it was
+/// reparented, or when the owner is this process, which is about to start a
+/// replacement (the desktop's respawn path) or is shutting down.
+///
+/// Until 5 October 2026 the sweep killed every process NAMED jura-sidecar.
+/// Starting a second `jura-trace-api` then killed the first one's live
+/// sidecar mid-run: a golden-verdict capture lost CLIP on 63 of 217 images,
+/// through nothing louder than `degraded: true`. `jura-trace-api` guarded
+/// only the desktop app's sidecar, by asking whether port 8300 answered.
+/// Owned sidecars are now left alone whoever owns them.
+///
 /// # Cross-platform notes
 ///
-/// - macOS / Linux: `pkill -KILL -x jura-sidecar` matches the process
-///   name exactly. Every sidecar process has that name: on macOS the
-///   launcher stub execs the bundle's `jura-sidecar`, and on Linux the
-///   `--onefile` bootloader's Python child is the same executable. Our own
-///   `jura-trace` and `jura-trace-api` are not matched. Until 2 October 2026
-///   this used `-f`, which matched any process whose command line mentioned
-///   the name and killed unrelated processes.
-/// - Windows: every process whose image name is `jura-sidecar.exe`, found
-///   with a Toolhelp snapshot and ended with `TerminateProcess`, in process.
-///   That covers both the B1 launcher and the onedir bootloader it runs,
-///   which share the name. Until 23 September 2026 this ran
-///   `taskkill /F /IM jura-sidecar.exe` with `.output()`, and on
+/// - macOS / Linux: the process table comes from `ps -A -o pid= -o ppid=
+///   -o comm=`, and orphans get `kill -KILL`. Every sidecar process is
+///   named jura-sidecar: on macOS the launcher stub execs the bundle's
+///   `jura-sidecar`, and on Linux the `--onefile` bootloader's Python child
+///   is the same executable, whose parent is the bootloader, so the walk up
+///   finds the owner through it. Until 2 October 2026 this used
+///   `pkill -f`, which matched any process whose command line mentioned the
+///   name and killed unrelated processes; matching is on the process name.
+/// - Windows: the table comes from a Toolhelp snapshot and orphans are ended
+///   with `TerminateProcess`, in process. That covers both the B1 launcher
+///   and the onedir bootloader it runs, which share the name: once the
+///   launcher has ended, the bootloader has no owner. Until 23 September 2026
+///   this ran `taskkill /F /IM jura-sidecar.exe` with `.output()`, and on
 ///   `windows-latest` that child lived 4 to 5 s when the app started it
 ///   (0.04 s run by hand), blocking setup, the sidecar spawn and the local
 ///   API for the whole time (BL-PERF-001). The sweep must stay BEFORE the
-///   spawn: it matches by name, so run later it would kill the new sidecar.
+///   spawn: run later, it would kill the new sidecar, which this process
+///   owns.
 ///
-/// Best-effort: if `pkill` is absent (extremely unusual), the snapshot
-/// fails, or nothing matches, we log at DEBUG and proceed — orphans staying alive
-/// is a memory / disk concern, not a correctness one. The fresh sidecar
-/// will pick a different ephemeral port via Option C either way.
+/// Best-effort: if the process table cannot be read, or nothing matches, we
+/// log at DEBUG and proceed. Orphans staying alive is a memory / disk
+/// concern, not a correctness one. The fresh sidecar picks a different
+/// ephemeral port via Option C either way.
 pub(crate) fn kill_orphan_sidecars() {
-    #[cfg(unix)]
-    {
-        // -x: the process NAME must be exactly jura-sidecar. This was -f,
-        // which matches anywhere in any process's full command line, so
-        // starting the app killed unrelated processes that merely mentioned
-        // the name (a shell running `tail -f .../jura-sidecar.log`, say).
-        // Seen on 2 October 2026: the sweep killed the shell that had just
-        // launched the app. The bundle's process name is jura-sidecar on
-        // macOS (the launcher execs it) and Linux (well under the 15-byte
-        // comm limit).
-        let output = std::process::Command::new("pkill")
-            .args(["-KILL", "-x", "jura-sidecar"])
-            .output();
-        match output {
-            Ok(o) if o.status.code() == Some(0) => {
-                log::info!(
-                    "Orphan-kill: SIGKILL sent to stale jura-sidecar process(es) \
-                     from a previous Jura Trace instance"
-                );
-                std::thread::sleep(std::time::Duration::from_millis(300));
-            }
-            Ok(_) => {
-                log::debug!("Orphan-kill: no stale jura-sidecar processes to terminate");
-            }
-            Err(e) => {
-                log::debug!("Orphan-kill: pkill unavailable ({e}); skipping");
-            }
+    let started = std::time::Instant::now();
+    let table = match process_table() {
+        Ok(t) => t,
+        Err(e) => {
+            log::debug!("Orphan-kill: could not read the process table ({e}); skipping");
+            return;
         }
+    };
+    let orphans = orphan_sidecars(&table, std::process::id());
+    let owned = table
+        .iter()
+        .filter(|p| is_named(&p.name, SIDECAR_NAME))
+        .count()
+        - orphans.len();
+    if orphans.is_empty() {
+        log::debug!(
+            "Orphan-kill: no orphan jura-sidecar processes ({owned} owned by a running Jura Trace left alone, {} ms)",
+            started.elapsed().as_millis()
+        );
+        return;
     }
-    #[cfg(windows)]
-    {
-        let started = std::time::Instant::now();
-        match terminate_processes_named("jura-sidecar.exe") {
-            Ok(0) => {
-                log::debug!(
-                    "Orphan-kill: no stale jura-sidecar.exe processes to terminate ({} ms)",
-                    started.elapsed().as_millis()
-                );
-            }
-            Ok(n) => {
-                log::info!(
-                    "Orphan-kill: terminated {n} stale jura-sidecar.exe process(es) \
-                     from a previous Jura Trace instance ({} ms)",
-                    started.elapsed().as_millis()
-                );
-                std::thread::sleep(std::time::Duration::from_millis(300));
-            }
-            Err(e) => {
-                log::debug!("Orphan-kill: process snapshot failed ({e}); skipping");
-            }
-        }
-    }
+    let ended = terminate(&orphans);
+    log::info!(
+        "Orphan-kill: ended {ended} of {} orphan jura-sidecar process(es) {orphans:?}; \
+         {owned} owned by a running Jura Trace left alone ({} ms)",
+        orphans.len(),
+        started.elapsed().as_millis()
+    );
+    std::thread::sleep(std::time::Duration::from_millis(300));
 }
 
-/// End every process whose executable image name equals `image`
-/// (case-insensitive), other than this one. Returns how many were ended.
-/// See [`kill_orphan_sidecars`] for why this replaced `taskkill`.
+/// The sidecar's process name, without `.exe`.
+const SIDECAR_NAME: &str = "jura-sidecar";
+
+/// Process names that own a sidecar: the desktop app and the headless server.
+const SIDECAR_OWNERS: [&str; 2] = ["jura-trace", "jura-trace-api"];
+
+/// One row of the process table.
+#[derive(Debug, Clone)]
+struct Proc {
+    pid: u32,
+    ppid: u32,
+    /// The executable's name or path, as the platform reports it.
+    name: String,
+}
+
+/// Whether a process name (a bare name, a path, with or without `.exe`, any
+/// case) is `want`.
+fn is_named(name: &str, want: &str) -> bool {
+    let base = name.rsplit(['/', '\\']).next().unwrap_or(name);
+    let base = base
+        .strip_suffix(".exe")
+        .or_else(|| base.strip_suffix(".EXE"))
+        .unwrap_or(base);
+    base.eq_ignore_ascii_case(want)
+}
+
+/// The pids of the sidecars in `table` that are orphans: no ancestor is a
+/// Jura Trace process, or the nearest one is `own_pid`. See
+/// [`kill_orphan_sidecars`].
+fn orphan_sidecars(table: &[Proc], own_pid: u32) -> Vec<u32> {
+    let by_pid: std::collections::HashMap<u32, &Proc> = table.iter().map(|p| (p.pid, p)).collect();
+    let owner = |p: &Proc| -> Option<u32> {
+        let mut cur = p.ppid;
+        // Bounded: a reused pid can make the parent links loop.
+        for _ in 0..64 {
+            let parent = by_pid.get(&cur)?;
+            if SIDECAR_OWNERS.iter().any(|o| is_named(&parent.name, o)) {
+                return Some(parent.pid);
+            }
+            if parent.ppid == parent.pid || parent.ppid == 0 {
+                return None;
+            }
+            cur = parent.ppid;
+        }
+        None
+    };
+    table
+        .iter()
+        .filter(|p| p.pid != own_pid && is_named(&p.name, SIDECAR_NAME))
+        .filter(|p| match owner(p) {
+            None => true,
+            Some(o) => o == own_pid,
+        })
+        .map(|p| p.pid)
+        .collect()
+}
+
+/// `ps -A -o pid= -o ppid= -o comm=`. On macOS `comm` is the executable's
+/// full path, which may contain spaces, so it is the rest of the line.
+#[cfg(unix)]
+fn process_table() -> std::io::Result<Vec<Proc>> {
+    let out = std::process::Command::new("ps")
+        .args(["-A", "-o", "pid=", "-o", "ppid=", "-o", "comm="])
+        .output()?;
+    if !out.status.success() {
+        return Err(std::io::Error::other(format!("ps exited {}", out.status)));
+    }
+    Ok(parse_ps(&String::from_utf8_lossy(&out.stdout)))
+}
+
+#[cfg(unix)]
+fn parse_ps(text: &str) -> Vec<Proc> {
+    text.lines()
+        .filter_map(|line| {
+            let line = line.trim_start();
+            let (pid, rest) = line.split_once(char::is_whitespace)?;
+            let rest = rest.trim_start();
+            let (ppid, name) = rest.split_once(char::is_whitespace)?;
+            Some(Proc {
+                pid: pid.parse().ok()?,
+                ppid: ppid.parse().ok()?,
+                name: name.trim().to_string(),
+            })
+        })
+        .collect()
+}
+
+#[cfg(unix)]
+fn terminate(pids: &[u32]) -> usize {
+    pids.iter()
+        .filter(|pid| {
+            std::process::Command::new("kill")
+                .args(["-KILL", &pid.to_string()])
+                .output()
+                .is_ok_and(|o| o.status.success())
+        })
+        .count()
+}
+
+/// Every process, from a Toolhelp snapshot. See [`kill_orphan_sidecars`] for
+/// why this replaced `taskkill`.
 #[cfg(windows)]
-fn terminate_processes_named(image: &str) -> std::io::Result<u32> {
+fn process_table() -> std::io::Result<Vec<Proc>> {
     use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
     use windows_sys::Win32::System::Diagnostics::ToolHelp::{
         CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
         TH32CS_SNAPPROCESS,
     };
-    use windows_sys::Win32::System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE};
 
-    let own_pid = std::process::id();
     // SAFETY: plain Win32 calls. The snapshot handle is checked before use
-    // and closed on every path out; each process handle is closed after use.
+    // and closed on the way out.
     unsafe {
         let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
         if snapshot == INVALID_HANDLE_VALUE {
@@ -509,7 +599,7 @@ fn terminate_processes_named(image: &str) -> std::io::Result<u32> {
         }
         let mut entry: PROCESSENTRY32W = std::mem::zeroed();
         entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
-        let mut ended = 0;
+        let mut table = Vec::new();
         let mut more = Process32FirstW(snapshot, &mut entry) != 0;
         while more {
             let len = entry
@@ -517,21 +607,37 @@ fn terminate_processes_named(image: &str) -> std::io::Result<u32> {
                 .iter()
                 .position(|&c| c == 0)
                 .unwrap_or(entry.szExeFile.len());
-            let name = String::from_utf16_lossy(&entry.szExeFile[..len]);
-            if entry.th32ProcessID != own_pid && name.eq_ignore_ascii_case(image) {
-                let process = OpenProcess(PROCESS_TERMINATE, 0, entry.th32ProcessID);
-                if !process.is_null() {
-                    if TerminateProcess(process, 1) != 0 {
-                        ended += 1;
-                    }
-                    CloseHandle(process);
-                }
-            }
+            table.push(Proc {
+                pid: entry.th32ProcessID,
+                ppid: entry.th32ParentProcessID,
+                name: String::from_utf16_lossy(&entry.szExeFile[..len]),
+            });
             more = Process32NextW(snapshot, &mut entry) != 0;
         }
         CloseHandle(snapshot);
-        Ok(ended)
+        Ok(table)
     }
+}
+
+#[cfg(windows)]
+fn terminate(pids: &[u32]) -> usize {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE};
+
+    let mut ended = 0;
+    for &pid in pids {
+        // SAFETY: the handle is checked before use and closed after.
+        unsafe {
+            let process = OpenProcess(PROCESS_TERMINATE, 0, pid);
+            if !process.is_null() {
+                if TerminateProcess(process, 1) != 0 {
+                    ended += 1;
+                }
+                CloseHandle(process);
+            }
+        }
+    }
+    ended
 }
 
 /// JTV-184 Phase 3 — sweep stale `_MEIxxxxxx` PyInstaller extraction
@@ -670,6 +776,118 @@ pub(crate) fn pick_ephemeral_port() -> Option<u16> {
 
 #[cfg(test)]
 mod tests {
+
+    fn proc(pid: u32, ppid: u32, name: &str) -> Proc {
+        Proc {
+            pid,
+            ppid,
+            name: name.to_string(),
+        }
+    }
+
+    #[test]
+    fn orphan_sweep_spares_sidecars_another_jura_trace_owns() {
+        // Two servers, each with a sidecar; the second one (pid 20) sweeps.
+        // Seen 5 October 2026: the name-only sweep killed pid 11.
+        let table = [
+            proc(1, 0, "/sbin/launchd"),
+            proc(
+                10,
+                5,
+                "/Volumes/MAC SSD/dev/cargo-target/debug/jura-trace-api",
+            ),
+            proc(
+                11,
+                10,
+                "/Applications/Jura Trace.app/Contents/MacOS/jura-sidecar",
+            ),
+            proc(
+                20,
+                5,
+                "/Volumes/MAC SSD/dev/cargo-target/debug/jura-trace-api",
+            ),
+            proc(
+                30,
+                1,
+                "/Applications/Jura Trace.app/Contents/MacOS/jura-trace",
+            ),
+            proc(
+                31,
+                30,
+                "/Applications/Jura Trace.app/Contents/MacOS/jura-sidecar",
+            ),
+        ];
+        assert!(orphan_sidecars(&table, 20).is_empty());
+    }
+
+    #[test]
+    fn orphan_sweep_takes_reparented_sidecars_and_its_own() {
+        let table = [
+            proc(1, 0, "launchd"),
+            // An owner that died: reparented to pid 1.
+            proc(40, 1, "jura-sidecar"),
+            // A Linux --onefile pair whose owner died: the child's parent is
+            // the bootloader, so both are orphans.
+            proc(50, 1, "jura-sidecar"),
+            proc(51, 50, "jura-sidecar"),
+            // This process's own sidecar (desktop respawn; headless shutdown).
+            proc(60, 1, "jura-trace"),
+            proc(61, 60, "jura-sidecar"),
+            // A Windows bootloader whose launcher has ended: parent pid gone.
+            proc(70, 999, "jura-sidecar.exe"),
+            // Not a sidecar.
+            proc(80, 1, "tail"),
+        ];
+        let mut got = orphan_sidecars(&table, 60);
+        got.sort();
+        assert_eq!(got, vec![40, 50, 51, 61, 70]);
+    }
+
+    #[test]
+    fn orphan_sweep_finds_the_owner_through_a_launcher_and_a_bootloader() {
+        // Windows: app -> B1 launcher -> onedir bootloader, all live.
+        let table = [
+            proc(4, 0, "System"),
+            proc(100, 4, "Jura-Trace-Api.EXE"),
+            proc(101, 100, "jura-sidecar.exe"),
+            proc(102, 101, "jura-sidecar.exe"),
+        ];
+        assert!(orphan_sidecars(&table, 999).is_empty());
+        // A pid-reuse loop terminates.
+        let looped = [proc(7, 8, "jura-sidecar"), proc(8, 7, "sh")];
+        assert_eq!(orphan_sidecars(&looped, 1), vec![7]);
+    }
+
+    #[test]
+    fn process_names_match_exactly() {
+        assert!(is_named("jura-sidecar", "jura-sidecar"));
+        assert!(is_named(
+            "C:\\Program Files\\Jura Trace\\jura-sidecar.exe",
+            "jura-sidecar"
+        ));
+        assert!(!is_named("jura-sidecar.log", "jura-sidecar"));
+        assert!(!is_named("jura-trace-api", "jura-trace"));
+        assert!(!is_named("tail", "jura-sidecar"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn ps_output_parses_paths_with_spaces() {
+        let table = parse_ps(
+            "    1     0 /sbin/launchd\n24157 24143 /Volumes/MAC SSD/dev/cargo-target/debug/jura-trace-api\n garbage\n",
+        );
+        assert_eq!(table.len(), 2);
+        assert_eq!(table[1].pid, 24157);
+        assert_eq!(table[1].ppid, 24143);
+        assert!(is_named(&table[1].name, "jura-trace-api"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_real_process_table_contains_this_process() {
+        let table = process_table().unwrap();
+        assert!(table.iter().any(|p| p.pid == std::process::id()));
+    }
     use super::*;
 
     /// Each installer's layout, built in a temporary directory.
