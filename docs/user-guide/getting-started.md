@@ -228,7 +228,7 @@ Video and audio analysis requires FFmpeg to be installed. See the [install guide
 
 **How accurate is the AI detection?**
 
-The deepfake and AI-generation detector is an ensemble of two trained classifiers: GBM v4 (trained on 10,709 images, cross-validation AUC-ROC 0.9868, authentic false-positive rate 4.54%) and the UnivFD v9 probe on CLIP embeddings (AUC-ROC 0.9933, FP 4.12%, recall 95.70%). In plain terms: it correctly identifies most AI-generated images across 14 generator families, and flags authentic images as fake roughly 4% of the time — typically on heavily-compressed phone photos, social media re-uploads, and extreme macro or wildlife shots.
+The deepfake and AI-generation detector is an ensemble of two trained classifiers: GBM v4 (trained on 10,712 images, cross-validation AUC-ROC 0.9868) and the UnivFD v10onnx probe on CLIP embeddings (AUC-ROC 0.9929, false positives 3.87%, recall 95.77%). These figures were measured on images from the same sources and generator families the models were trained on, which date from 2025 and earlier; generators released in 2026 have not been measured, and accuracy on them is likely to be lower. On those test images it flags authentic images as AI-generated roughly 4% of the time — typically on heavily-compressed phone photos, social media re-uploads, and extreme macro or wildlife shots.
 
 However, no detector is infallible. Detection accuracy depends on image quality, the AI tool used to generate the content, and how much the image has been compressed or edited since generation. Jura Trace gives you evidence — not certainty. Always combine results with your own judgement and, where the stakes are high, use Deep mode for the full detector suite.
 

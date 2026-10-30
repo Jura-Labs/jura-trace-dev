@@ -1,7 +1,9 @@
 # BL-CLAIM-005: the in-app model card shows the previous model's figures
 
-**Status**: Open. Found 12 October 2026, checking figures for an interview
-against the app and the model metadata.
+**Status**: Fixed on 30 October 2026, except step 4 (a test that fails
+when the page and the metadata disagree), which is still open. Found 12
+October 2026, checking figures for an interview against the app and the
+model metadata.
 **Raised**: 13 October 2026
 **Severity**: Medium. The error flatters nothing: the shipped model has a
 lower false positive rate than the card says. But the card is where the

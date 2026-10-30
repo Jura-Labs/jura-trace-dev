@@ -65,6 +65,18 @@ Documentation:
   images with its training set, that GBM v4's false positive figures were
   probably measured on its training images, and that no fairness evaluation
   by skin tone or device exists for either model.
+- The in-app Model Cards page and the user guides now give the shipped
+  models' figures. The guides quoted the previous probe, v9 (AUC 0.9933,
+  false positives 4.12%, recall 95.70%); the shipped v10onnx figures are
+  0.9929, 3.87% and 95.77%. On the Model Cards page: the GBM file size is
+  474 KB, not about 1.2 MB; its feature list now matches the 80 features the
+  model uses; its false positive and recall figures say they were measured
+  on its training images; the threshold row shows the app's thresholds
+  (0.58 and 0.25), not 0.49; the April demographic check is labelled as run
+  on v9; and the device-category rates are labelled as GBM v4 alone on its
+  training images (26 of 295 and 13 of 126), not "both classifiers, n>500".
+  The verify guide's verdict thresholds were 0.65 and 0.30; the code uses
+  0.58 and 0.25. The UnivFD result summary now quotes AUC 0.9929.
 
 ## 20 October 2026: v1.2.0, Verification Record
 
