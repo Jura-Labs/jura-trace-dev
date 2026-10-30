@@ -302,22 +302,6 @@ fn keys_list(db: Option<PathBuf>) -> i32 {
     }
 }
 
-/// Is a Jura Trace API answering on the desktop's port? Used to avoid
-/// sweeping the desktop app's sidecar when we run beside it on another port.
-fn desktop_api_answers() -> bool {
-    reqwest::blocking::Client::builder()
-        .timeout(Duration::from_secs(2))
-        .build()
-        .ok()
-        .and_then(|c| {
-            c.get(format!("http://127.0.0.1:{DESKTOP_PORT}/api/v1/health"))
-                .send()
-                .ok()
-        })
-        .map(|r| r.status().is_success())
-        .unwrap_or(false)
-}
-
 fn serve(args: ServeArgs) -> i32 {
     let runtime = match tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -442,14 +426,9 @@ fn serve(args: ServeArgs) -> i32 {
                 None
             }
             Some(binary) => {
-                // The sweep kills every jura-sidecar by name. Beside a running
-                // desktop app (we are on another port and its API answers on
-                // 8300) that would kill the app's sidecar, so skip it.
-                if port != DESKTOP_PORT && desktop_api_answers() {
-                    log::warn!("The Jura Trace app is running; not sweeping for orphan sidecars");
-                } else {
-                    sidecar_supervisor::kill_orphan_sidecars();
-                }
+                // Only sidecars no running Jura Trace owns: the desktop app's
+                // and another server's are left alone.
+                sidecar_supervisor::kill_orphan_sidecars();
                 sidecar_supervisor::cleanup_stale_mei_dirs();
                 if models_dir.is_none() {
                     models_dir = sidecar_supervisor::models_dir_for(&binary);
@@ -566,12 +545,9 @@ fn serve(args: ServeArgs) -> i32 {
     if let Some(sup) = supervisor {
         sup.shutdown();
         // Windows: ending the launcher does not end the onedir bootloader it
-        // started, which has the same image name. Sweep, unless the desktop
-        // app is running, whose sidecar the sweep would also end.
+        // started, which has the same image name and now has no owner.
         #[cfg(windows)]
-        if !desktop_api_answers() {
-            sidecar_supervisor::kill_orphan_sidecars();
-        }
+        sidecar_supervisor::kill_orphan_sidecars();
     }
     // The runtime holds the last references to the database; drop it first
     // so the file is closed (Windows will not delete an open file).
