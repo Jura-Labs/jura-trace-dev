@@ -10,12 +10,12 @@
 # Rust and Node come from their official images, pinned by digest, instead
 # of `curl | sh` installers (OpenSSF Scorecard, Pinned-Dependencies). Both
 # toolchains run on Ubuntu 22.04's glibc.
-FROM rust:1.96.1-bookworm@sha256:a339861ae23e9abb272cea45dfafde21760d2ce6577a70f8a926153677902663 AS rust
-FROM node:20.20.2-bookworm-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0 AS node
+FROM rust:1.99.1-bookworm@sha256:9181b56c2a21ab1d5e73cffe04fc762426d30aa7fac3c91141dd033f49a7fc8b AS rust
+FROM node:26.13.0-bookworm-slim@sha256:bc0a2afd3b74ce12222fc8bab99271e66257f021078f5f4a5d687a77d280c1d9 AS node
 
 # Pinned by digest (OpenSSF Scorecard, Pinned-Dependencies); the tag is kept
 # for readers. Dependabot's docker updates move both together.
-FROM ubuntu:22.04@sha256:e0f80c829509ef4df9e76bd8944eb7b8ec25cbb379b112a7f9448b2c77a77c9b
+FROM ubuntu:25.10@sha256:7cc5e35f6567ee8c66d2abb4aab0fd866669e6207c237c3a8f0947a5c7f17092
 
 ENV DEBIAN_FRONTEND=noninteractive
 
