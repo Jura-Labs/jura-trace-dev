@@ -1,6 +1,6 @@
 # BL-I18N-001: the app can only speak English
 
-**Status**: Open. Target v1.3.0 for the groundwork and the process; the
+**Status**: Open. Target v1.4.0 (moved from v1.3.0 on 5 November 2026) for the groundwork and the process; the
 translations themselves follow (Paul, 22 October 2026: "start process for
 translations").
 **Raised**: 22 October 2026, from the pre-v1.3.0 adoption review.
@@ -43,3 +43,8 @@ The process, in order:
 - Do not translate the API band names or JSON fields. They are a contract.
 - Do not ship a partly translated result screen. A language is shown only
   when the core path is complete in it.
+
+## Update, 5 November 2026: target v1.4.0
+
+Moved from v1.3.0 to v1.4.0 when Paul accepted the v1.3.0 plan's split
+(`docs/release/v1.3.0-plan.md`, "Tier C: only with room").

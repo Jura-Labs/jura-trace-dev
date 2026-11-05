@@ -1,6 +1,6 @@
 # BL-TEST-004: the real updater has never updated a Windows install made with the .exe
 
-**Status**: Open. Target v1.3.0.
+**Status**: Open. Target v1.4.0 (moved from v1.3.0 on 5 November 2026).
 **Raised**: 22 October 2026, reviewing the download page's choice of
 installer.
 **Severity**: Medium. Nothing is known to be broken. But juralabs.org/download
@@ -56,3 +56,8 @@ this, and the hand-run test has not seen it since.
   The `.exe` leads for clarity (website commit `d3ade43`, 11 Sep 2026), and
   the evidence so far does not show the split. Decide after the new leg has
   run.
+
+## Update, 5 November 2026: target v1.4.0
+
+Moved from v1.3.0 to v1.4.0 when Paul accepted the v1.3.0 plan's split
+(`docs/release/v1.3.0-plan.md`, "Tier C: only with room").

@@ -1,6 +1,6 @@
 # BL-REC-002: the Verification Record can only be made in the desktop app
 
-**Status**: Open. Target v1.3.0 (Paul, 22 October 2026). First step of
+**Status**: Open. Target v1.4.0 (moved from v1.3.0 on 5 November 2026) (Paul, 22 October 2026). First step of
 the HURIDOCS/Uwazi work (BL-INT-001) and of the newsroom setup
 (BL-DOC-006).
 **Raised**: 22 October 2026, from the pre-v1.3.0 adoption and Uwazi
@@ -39,3 +39,8 @@ system such as Uwazi cannot attach a record to what it checked.
   ZIP; the client decides where it goes.
 - Analyst names are personal data. They stay in the record the user
   exports and are not logged.
+
+## Update, 5 November 2026: target v1.4.0
+
+Moved from v1.3.0 to v1.4.0 when Paul accepted the v1.3.0 plan's split
+(`docs/release/v1.3.0-plan.md`, "Tier C: only with room").
