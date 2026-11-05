@@ -1,6 +1,6 @@
 # BL-C2PA-005: revocation is never checked, even when the user allows network access
 
-**Status**: Open. Target v1.3.0.
+**Status**: Open. Target v1.4.0 (moved from v1.3.0 on 5 November 2026).
 **Raised**: 22 October 2026, from the pre-v1.3.0 review of C2PA
 developments.
 **Severity**: Medium. A signing certificate that has been revoked still
@@ -36,3 +36,8 @@ some conforming validators accept known compromised credentials.
 
 - Do not turn it on in Standard mode. Trace's default makes no such
   connection, and that is a public claim.
+
+## Update, 5 November 2026: target v1.4.0
+
+Moved from v1.3.0 to v1.4.0 when Paul accepted the v1.3.0 plan's split
+(`docs/release/v1.3.0-plan.md`, "Tier C: only with room").

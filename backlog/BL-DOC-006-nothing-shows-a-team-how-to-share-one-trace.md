@@ -1,6 +1,6 @@
 # BL-DOC-006: nothing shows a team how to share one Jura Trace
 
-**Status**: Open. Target v1.3.0 (Paul, 22 October 2026). After BL-REC-002.
+**Status**: Open. Target v1.4.0 (moved from v1.3.0 on 5 November 2026) (Paul, 22 October 2026). After BL-REC-002.
 **Raised**: 22 October 2026, from the pre-v1.3.0 adoption review.
 **Severity**: Medium. Newsrooms and human-rights teams work as desks, and
 the pieces exist without a page that puts them together.
@@ -37,3 +37,8 @@ One page, "One server, many desks":
   in BL-DOC-005.
 - Do not add multi-user accounts to the API for this. Keys per person are
   enough until someone asks for more.
+
+## Update, 5 November 2026: target v1.4.0
+
+Moved from v1.3.0 to v1.4.0 when Paul accepted the v1.3.0 plan's split
+(`docs/release/v1.3.0-plan.md`, "Tier C: only with room").

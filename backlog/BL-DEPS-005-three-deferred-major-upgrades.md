@@ -1,6 +1,6 @@
 # BL-DEPS-005: three major upgrades were deferred and are still waiting
 
-**Status**: Open. Target v1.3.0.
+**Status**: Open. Target v1.4.0 (moved from v1.3.0 on 5 November 2026).
 **Raised**: 22 October 2026, from the pre-v1.3.0 backlog review.
 **Severity**: Medium. Each is easier now than when an advisory forces it.
 
@@ -32,3 +32,8 @@ One branch each, in this order:
 
 - Do not merge #25 or #91 as Dependabot opened them. Both need the checks
   above.
+
+## Update, 5 November 2026: target v1.4.0
+
+Moved from v1.3.0 to v1.4.0 when Paul accepted the v1.3.0 plan's split
+(`docs/release/v1.3.0-plan.md`, "Tier C: only with room").

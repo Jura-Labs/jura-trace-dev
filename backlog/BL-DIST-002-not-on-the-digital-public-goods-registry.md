@@ -1,6 +1,6 @@
 # BL-DIST-002: Jura Trace is not on the Digital Public Goods registry
 
-**Status**: Open. Target v1.3.0 for the product and documentation changes
+**Status**: Open. Target v1.4.0 (moved from v1.3.0 on 5 November 2026) for the product and documentation changes
 the application needs (Paul, 22 October 2026). The application itself is
 an outward-facing act and waits for Paul.
 **Raised**: 22 October 2026, from the pre-v1.3.0 adoption review.
@@ -33,3 +33,8 @@ renewal each year. Gaps in Trace:
 ## What not to do
 
 - Do not submit until Paul has approved the ownership wording.
+
+## Update, 5 November 2026: target v1.4.0
+
+Moved from v1.3.0 to v1.4.0 when Paul accepted the v1.3.0 plan's split
+(`docs/release/v1.3.0-plan.md`, "Tier C: only with room").

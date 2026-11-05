@@ -205,3 +205,8 @@ that agrees with them regardless of what they do.
 
 Findings 1 to 3 remain (for example `sidecar_port` still in
 `sidecar/config.py:13`). Targeted at v1.3.0 (Paul, 22 October 2026).
+
+## Update, 5 November 2026: target v1.4.0
+
+Moved from v1.3.0 to v1.4.0 when Paul accepted the v1.3.0 plan's split
+(`docs/release/v1.3.0-plan.md`, "Tier C: only with room").
