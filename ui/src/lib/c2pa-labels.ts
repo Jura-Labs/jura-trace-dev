@@ -90,23 +90,36 @@ export function formatSoftwareAgent(agent: unknown): string | null {
 // BL-C2PA-004 the summary checked the pass first and showed "file has not
 // been modified" under a red "invalid" badge. A fail now always wins.
 
-export type DataIntegrityState = 'confirmed' | 'failed' | 'not-covered' | 'not-checked';
+export type DataIntegrityState =
+  | 'confirmed'
+  | 'failed'
+  | 'not-covered'
+  | 'partly-not-covered'
+  | 'not-checked';
 
 export const DATA_INTEGRITY_TEXT: Record<DataIntegrityState, string> = {
   'confirmed': 'Data integrity confirmed: file has not been modified',
   'failed': 'Data integrity failed: file has been modified since signing',
   'not-covered': 'Data integrity failed: the signature does not cover the image',
+  'partly-not-covered': 'Data integrity failed: part of the image is not covered by the signature',
   'not-checked': 'Data hash not checked',
 };
 
 export function dataIntegrityState(
   checks: ReadonlyArray<{ code: string; outcome: string; explanation?: string }>,
+  unsignedBytes?: number,
 ): DataIntegrityState {
   const fails = checks.filter(c => c.code.includes('dataHash.mismatch') && c.outcome === 'fail');
   if (fails.length > 0) {
     // c2pa-rs words the exclusion failure "data hash exclusion does not
     // match the manifest location in the asset" (claim.rs, 0.91).
     return fails.some(c => /exclusion/i.test(c.explanation ?? '')) ? 'not-covered' : 'failed';
+  }
+  // c2pa-rs passes an exact manifest exclusion plus a second range over the
+  // pixels, with only an informational code. Trace measures the gap itself
+  // (ManifestInfo.unsigned_bytes in src-tauri/src/c2pa.rs).
+  if (unsignedBytes !== undefined && unsignedBytes > 0) {
+    return 'partly-not-covered';
   }
   if (checks.some(c => c.code === 'assertion.dataHash.match' && c.outcome === 'pass')) {
     return 'confirmed';

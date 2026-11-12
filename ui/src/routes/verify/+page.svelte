@@ -3859,7 +3859,7 @@
                                       : idx === manifests.length - 1 ? 'Origin'
                                       : `Step ${idx} of ${manifests.length - 1}`}
                                     {@const isSelected = selectedManifestIndex === idx}
-                                    {@const isValid = manifest.isValid}
+                                    {@const isValid = manifest.isValid && !manifest.unsignedBytes}
                                     <button
                                       role="tab"
                                       aria-selected={isSelected}
@@ -3910,7 +3910,7 @@
                                   {#if sm && sm.validationChecks && sm.validationChecks.length > 0}
                                     {@const checks = sm.validationChecks}
                                     {@const sigValid = checks.some(c => c.code === 'claimSignature.validated' && c.outcome === 'pass')}
-                                    {@const integrity = dataIntegrityState(checks)}
+                                    {@const integrity = dataIntegrityState(checks, sm.unsignedBytes)}
                                     {@const tsValid = checks.some(c => (c.code === 'timeStamp.validated' || c.code === 'timeStamp.trusted') && c.outcome === 'pass')}
                                     <!-- certExpired / certUntrusted removed from L3 display (always-on noise); raw codes in L4 -->
                                     {@const passCount = checks.filter(c => c.outcome === 'pass').length}

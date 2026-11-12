@@ -44,6 +44,31 @@ The update check:
   204 No Content, and the app shows up to date. In Standard network mode
   nothing changes: the automatic check stays off.
 
+
+Content Credentials (BL-C2PA-004):
+
+- A Content Credential whose data hash leaves part of the image out of
+  the hash is no longer read as valid. In "How to Hack Time, With C2PA"
+  (2 October 2026), David Buchanan showed a signed photo whose hash
+  exclusion covers the whole file, so the signature covers no pixels.
+  c2pa-rs already rejects that layout. It still passes a manifest that
+  excludes its own location exactly plus a second range over the pixels,
+  even after those pixels change, reporting only the informational
+  `assertion.dataHash.additionalExclusionsPresent`. Trace now measures
+  the excluded bytes against the manifest store itself. When the gap is
+  more than container overhead (64 bytes plus 1 per KiB of manifest;
+  every legitimate file measured excludes 4 to 12), the result's
+  `c2paValid` is false, the trust score gets no provenance bonus, and the
+  validation summary says part of the image is not covered by the
+  signature. The manifest's own `isValid` and validation codes are
+  reported exactly as c2pa-rs gives them.
+- The validation summary no longer says "Data integrity confirmed: file
+  has not been modified" when c2pa-rs reports a data hash failure next to
+  a data hash pass, as it does for Buchanan's file. A failure always wins.
+- `[schema]` A manifest in a verification result has a new optional
+  `unsignedBytes`: the bytes its data hash leaves unsigned beyond the
+  manifest store, present only when that is more than container overhead.
+
 Downloads:
 
 - Each file the release workflow builds now carries a signed build

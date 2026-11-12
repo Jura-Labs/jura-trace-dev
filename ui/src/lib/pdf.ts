@@ -736,7 +736,7 @@ export async function generateTrustReport(result: VerificationResult, meta: Repo
         checks.some(c => c.code === code && c.outcome === outcome);
 
       const sigValid = has('claimSignature.validated', 'pass');
-      const integrity = dataIntegrityState(checks);
+      const integrity = dataIntegrityState(checks, m.unsignedBytes);
       const tsValid =
         has('timeStamp.validated', 'pass') || has('timeStamp.trusted', 'pass');
 

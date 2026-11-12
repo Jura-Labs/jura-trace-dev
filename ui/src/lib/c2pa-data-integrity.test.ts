@@ -50,3 +50,22 @@ describe('dataIntegrityState', () => {
     );
   });
 });
+
+describe('dataIntegrityState with unsigned bytes', () => {
+  // c2pa-rs 0.91.3 passes an exact manifest exclusion plus a range over the
+  // pixels: every check below is a pass or informational. Trace's own
+  // measurement (unsignedBytes) is the only signal.
+  const MANIFEST_PLUS_PIXELS = [
+    { code: 'claimSignature.validated', outcome: 'pass' },
+    { code: 'assertion.dataHash.match', outcome: 'pass', explanation: 'data hash valid' },
+    { code: 'assertion.dataHash.additionalExclusionsPresent', outcome: 'info' },
+  ];
+
+  it('does not confirm integrity when part of the image is unsigned', () => {
+    expect(dataIntegrityState(MANIFEST_PLUS_PIXELS, 6167)).toBe('partly-not-covered');
+  });
+
+  it('still confirms integrity when nothing is unsigned', () => {
+    expect(dataIntegrityState(MANIFEST_PLUS_PIXELS)).toBe('confirmed');
+  });
+});
