@@ -1,11 +1,42 @@
 # BL-C2PA-004: a manifest that excludes the whole file from its hash
 
-**Status**: Open. Target v1.3.0. Untested: nobody has yet run the attack
-against Trace.
+**Status**: Fixed for `c2pa.hash.data` (JPEG, PNG, TIFF, WebP) on 12 November
+2026; box and BMFF hashes still to check. Step 4 (report to C2PA) is open.
 **Raised**: 22 October 2026, from the pre-v1.3.0 review of C2PA
 developments.
 **Severity**: Critical until tested. If Trace shows such a file as validly
 signed, it shows a signature over nothing as a signature over the image.
+
+## What testing found (12 November 2026)
+
+- **Whole-file exclusion** (Buchanan's own sample, and a fixture built the
+  same way): c2pa-rs 0.91.3 rejects it with `assertion.dataHash.mismatch`,
+  so `c2paValid` was already false. But the validation summary also saw the
+  `assertion.dataHash.match` pass that c2pa-rs reports beside the failure,
+  and said "Data integrity confirmed: file has not been modified" under the
+  red badge. Fixed in #241.
+- **Exact manifest exclusion plus a range over the scan data**, with pixels
+  changed after signing: c2pa-rs passes it (`is_valid` true, only the
+  informational `additionalExclusionsPresent`), and Trace showed it as
+  valid, with the provenance bonus. Fixed by measuring the excluded bytes
+  against the manifest store (`unsigned_bytes` in `src-tauri/src/c2pa.rs`).
+- Calibration: every Trace-signed JPEG, PNG, TIFF and WebP, and all six
+  conformance test vectors, exclude 4 to 12 bytes beyond the store.
+- The code that builds both attack files is kept out of this repository
+  until C2PA has responded (decided by Paul, 13 November 2026), as "What
+  not to do" below asks. The public tests cover the measurement
+  (`unsigned_gap_allows_container_overhead_only`) and the calibration
+  (`trace_signed_files_have_no_unsigned_bytes`).
+
+## Still open
+
+- `c2pa.hash.boxes` and `c2pa.hash.bmff` exclusions are not measured.
+- Step 4 below: report the second layout to C2PA / c2pa-rs (issue #2645
+  asks for central hardening of `verify_hash_binding`).
+- A file whose manifest is rejected still gets a forensic-only verdict,
+  which can be "trusted" (Buchanan's file scored 0.78). Whether a rejected
+  or partly unsigned manifest should cap the verdict is a trust-weighting
+  decision, not taken here.
 
 ## What is wrong
 

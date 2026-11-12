@@ -819,7 +819,14 @@ pub fn verify_content_inner(
     let t_c2pa = std::time::Instant::now();
     let c2pa_chain = c2pa::read_manifest_chain(&path, false).ok().flatten();
     let c2pa_manifest = c2pa_chain.as_ref().map(|ch| ch.active.clone());
-    let c2pa_valid = c2pa_manifest.as_ref().map(|m| m.is_valid);
+    // A manifest whose data hash leaves part of the file unsigned
+    // (BL-C2PA-004) is not valid provenance for that file, even when
+    // c2pa-rs passes it: c2pa-rs reports extra exclusions only as
+    // informational. `ManifestInfo.is_valid` and the validation codes stay
+    // exactly as the library reports them; this is Trace's own reading.
+    let c2pa_valid = c2pa_manifest
+        .as_ref()
+        .map(|m| m.is_valid && m.unsigned_bytes.is_none());
     // C2PA verification always executes at this point regardless of whether a
     // manifest is present. "No manifest" is a valid finding (unsigned file),
     // not "detector did not run". Track that the stage executed so that
