@@ -25,6 +25,19 @@ pub struct ManifestInfo {
     /// Google Pixel Camera.
     #[serde(default)]
     pub valid_at_signing: bool,
+    /// Bytes of the file that the active manifest's `c2pa.hash.data`
+    /// assertion leaves out of its hash, beyond the manifest store itself
+    /// (BL-C2PA-004). Set only when that gap is larger than container
+    /// overhead can explain, which means part of the image is not covered
+    /// by the signature and can be changed without the hash noticing.
+    ///
+    /// c2pa-rs reports extra exclusions only as the informational
+    /// `assertion.dataHash.additionalExclusionsPresent`, and Trace's own
+    /// TIFF signing produces that code legitimately, so the code alone is
+    /// not the signal: the measured size is. `None` for ingredients, for
+    /// box and BMFF hashes, and when every excluded byte is the manifest.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unsigned_bytes: Option<u64>,
     /// True when the leaf signing certificate's `notAfter` is in the past at
     /// the time of this verification.  Independent of `is_valid`: a manifest
     /// can be fully valid (trusted chain + trusted timestamp) AND have a
@@ -1288,6 +1301,7 @@ fn extract_manifest_info(
         assertions,
         is_valid,
         valid_at_signing,
+        unsigned_bytes: None,
         // Populated in `read_manifest` / `read_manifest_chain` from the
         // typed Reader API — the reader JSON omits `cert_chain`, so the
         // info constructed here leaves this as `None` and the caller
@@ -1592,6 +1606,77 @@ fn open_reader(path: &Path) -> Result<Option<c2pa::Reader>, String> {
     }
 }
 
+/// Container overhead allowed on top of the raw manifest store when
+/// comparing it with the manifest's exclusion range. A JPEG splits the store
+/// across APP11 segments of at most 64 KiB, each with about 20 bytes of
+/// header; PNG and WebP add one chunk header; TIFF's extra exclusions are
+/// IFD pointers of a few bytes. Calibrated in
+/// `trace_signed_files_have_no_unsigned_bytes`.
+const EXCLUSION_OVERHEAD_FIXED: u64 = 64;
+const EXCLUSION_OVERHEAD_PER_KIB: u64 = 1;
+
+/// Measure how many bytes the active manifest's `c2pa.hash.data`
+/// exclusions leave unhashed beyond the manifest store (BL-C2PA-004).
+///
+/// Returns `None` when there is no data hash assertion, or when the gap is
+/// within container overhead. Fails closed: when exclusions are present but
+/// the manifest store cannot be measured, every excluded byte counts.
+fn measure_unsigned_bytes(reader: &c2pa::Reader, path: &Path) -> Option<u64> {
+    let (excluded, store_len) = data_hash_exclusion_sizes(reader, path)?;
+    unsigned_gap(excluded, store_len)
+}
+
+/// Bytes excluded beyond the manifest store, when that is more than
+/// container overhead can explain.
+fn unsigned_gap(excluded: u64, store_len: u64) -> Option<u64> {
+    let allowance = EXCLUSION_OVERHEAD_FIXED + (store_len / 1024) * EXCLUSION_OVERHEAD_PER_KIB;
+    let gap = excluded.saturating_sub(store_len);
+    (gap > allowance).then_some(gap)
+}
+
+/// `(bytes excluded by c2pa.hash.data, bytes of the manifest store)` for the
+/// active manifest, or `None` when it has no data hash or excludes nothing.
+/// The store length is 0 when it cannot be read, so the caller fails closed.
+fn data_hash_exclusion_sizes(reader: &c2pa::Reader, path: &Path) -> Option<(u64, u64)> {
+    let detailed: serde_json::Value = serde_json::from_str(&reader.detailed_json()).ok()?;
+    let label = reader.active_label()?;
+    let store = detailed
+        .get("manifests")?
+        .get(label)?
+        .get("assertion_store")?
+        .as_object()?;
+
+    let mut excluded: u64 = 0;
+    let mut found = false;
+    for (key, value) in store {
+        if !key.starts_with("c2pa.hash.data") {
+            continue;
+        }
+        found = true;
+        if let Some(list) = value.get("exclusions").and_then(|v| v.as_array()) {
+            for range in list {
+                let length = range.get("length").and_then(|v| v.as_u64()).unwrap_or(0);
+                excluded = excluded.saturating_add(length);
+            }
+        }
+    }
+    if !found || excluded == 0 {
+        return None;
+    }
+
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .unwrap_or_default();
+    let store_len = std::fs::File::open(path)
+        .ok()
+        .and_then(|mut f| c2pa::jumbf_io::load_jumbf_from_stream(&ext, &mut f).ok())
+        .map(|b| b.len() as u64)
+        .unwrap_or(0);
+    Some((excluded, store_len))
+}
+
 /// Read a C2PA manifest from a file.
 ///
 /// Returns `None` if the file contains no C2PA manifest (not an error).
@@ -1649,6 +1734,7 @@ pub fn read_manifest(path: &Path, enhanced: bool) -> Result<Option<ManifestInfo>
         info.cert_not_before = Some(v.not_before_rfc3339);
         info.cert_not_after = Some(v.not_after_rfc3339);
     }
+    info.unsigned_bytes = measure_unsigned_bytes(&reader, path);
 
     Ok(Some(info))
 }
@@ -1735,6 +1821,7 @@ pub fn read_manifest_chain(path: &Path, enhanced: bool) -> Result<Option<Manifes
         active.cert_not_before = Some(v.not_before_rfc3339);
         active.cert_not_after = Some(v.not_after_rfc3339);
     }
+    active.unsigned_bytes = measure_unsigned_bytes(&reader, path);
 
     // Build a lookup map from ingredient assertion URI → validationDeltas so
     // we can enrich ingredient manifests with their actual validation results.
@@ -2778,6 +2865,7 @@ mod tests {
             }],
             is_valid: true,
             valid_at_signing: false,
+            unsigned_bytes: None,
             certificate_expired: None,
             cert_not_before: None,
             cert_not_after: None,
@@ -3083,6 +3171,7 @@ mod tests {
             assertions: vec![],
             is_valid: true,
             valid_at_signing: false,
+            unsigned_bytes: None,
             certificate_expired: None,
             cert_not_before: None,
             cert_not_after: None,
@@ -4588,6 +4677,7 @@ mod tests {
             assertions: vec![],
             is_valid: true,
             valid_at_signing: false,
+            unsigned_bytes: None,
             certificate_expired: None,
             cert_not_before: None,
             cert_not_after: None,
@@ -4624,6 +4714,7 @@ mod tests {
             assertions: vec![],
             is_valid: true,
             valid_at_signing: false,
+            unsigned_bytes: None,
             certificate_expired: None,
             cert_not_before: None,
             cert_not_after: None,
@@ -4657,6 +4748,7 @@ mod tests {
                 assertions: vec![],
                 is_valid: true,
                 valid_at_signing: false,
+                unsigned_bytes: None,
                 certificate_expired: None,
                 cert_not_before: None,
                 cert_not_after: None,
@@ -4809,6 +4901,7 @@ mod tests {
             assertions: vec![],
             is_valid: true,
             valid_at_signing: false,
+            unsigned_bytes: None,
             certificate_expired: None,
             cert_not_before: None,
             cert_not_after: None,
@@ -5102,6 +5195,88 @@ mod tests {
         assert_eq!(
             leaf_cert_expired("-----BEGIN CERTIFICATE-----\nnot-base64\n-----END CERTIFICATE-----"),
             None
+        );
+    }
+
+    // ── BL-C2PA-004: hash exclusions that leave the image unsigned ─────────
+
+    /// The allowance arithmetic. Numbers from the 12 November 2026
+    /// measurements: legitimate files exclude 4 to 12 bytes beyond the
+    /// store; a manifest that also excludes the scan data of a 256 x 256
+    /// JPEG leaves about 6 KB unsigned; Buchanan's whole-file sample leaves
+    /// 3,982,096 bytes.
+    #[test]
+    fn unsigned_gap_allows_container_overhead_only() {
+        assert_eq!(unsigned_gap(4232, 4220), None, "JPEG APP11 overhead");
+        assert_eq!(unsigned_gap(3_439_701, 3_439_689), None, "3.4 MB PNG store");
+        assert_eq!(
+            unsigned_gap(9478, 3311),
+            Some(6167),
+            "manifest plus scan data"
+        );
+        assert_eq!(
+            unsigned_gap(3_995_383, 13_287),
+            Some(3_982_096),
+            "whole file"
+        );
+        // Fail closed: a store that could not be read counts as zero bytes.
+        assert_eq!(unsigned_gap(5000, 0), Some(5000));
+        // Remote manifests exclude nothing.
+        assert_eq!(unsigned_gap(0, 0), None);
+    }
+
+    /// Calibration for the overhead allowance: files Trace signs itself, in
+    /// every format it signs, and the conformance test vectors, must never
+    /// be flagged. Measured on 12 November 2026: every one of them excludes
+    /// 4 to 12 bytes beyond the manifest store, including a 3.4 MB store.
+    #[test]
+    fn trace_signed_files_have_no_unsigned_bytes() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let (cert, key) = ensure_certificate(tmp.path()).expect("cert");
+        for ext in ["jpg", "png", "tif", "webp"] {
+            let src = tmp.path().join(format!("src.{ext}"));
+            image::RgbImage::from_fn(640, 480, |x, y| {
+                image::Rgb([x as u8, y as u8, (x ^ y) as u8])
+            })
+            .save(&src)
+            .expect("save");
+            let out = tmp.path().join(format!("signed.{ext}"));
+            sign_file(
+                &src,
+                &out,
+                "Calibration",
+                None,
+                SignAction::Created,
+                &cert,
+                &key,
+                None,
+            )
+            .unwrap_or_else(|e| panic!("sign {ext}: {e}"));
+            let m = read_manifest(&out, false).unwrap().unwrap();
+            assert_eq!(
+                m.unsigned_bytes, None,
+                "Trace-signed .{ext} must not be flagged"
+            );
+        }
+
+        let vectors =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../docs/c2pa-conformance/test-vectors");
+        let mut read = 0;
+        for entry in std::fs::read_dir(&vectors).expect("test vectors") {
+            let path = entry.expect("entry").path();
+            if let Ok(Some(m)) = read_manifest(&path, false) {
+                assert_eq!(
+                    m.unsigned_bytes,
+                    None,
+                    "{} must not be flagged",
+                    path.display()
+                );
+                read += 1;
+            }
+        }
+        assert!(
+            read >= 6,
+            "expected the six signed test vectors, read {read}"
         );
     }
 }
