@@ -80,6 +80,40 @@ export function formatSoftwareAgent(agent: unknown): string | null {
 // each validation-failure mode. Use these constants rather than inventing
 // synonyms.
 
+// ── Data integrity line (validation summary, L3 and PDF) ──────────────────
+//
+// c2pa-rs can report `assertion.dataHash.match` (pass) and
+// `assertion.dataHash.mismatch` (fail) for the same manifest: the bytes it
+// hashed match, but the exclusion ranges do not fit the manifest store. In
+// David Buchanan's "How to Hack Time, With C2PA" (2 October 2026) one
+// exclusion covers the whole file, so the hash is over nothing. Until
+// BL-C2PA-004 the summary checked the pass first and showed "file has not
+// been modified" under a red "invalid" badge. A fail now always wins.
+
+export type DataIntegrityState = 'confirmed' | 'failed' | 'not-covered' | 'not-checked';
+
+export const DATA_INTEGRITY_TEXT: Record<DataIntegrityState, string> = {
+  'confirmed': 'Data integrity confirmed: file has not been modified',
+  'failed': 'Data integrity failed: file has been modified since signing',
+  'not-covered': 'Data integrity failed: the signature does not cover the image',
+  'not-checked': 'Data hash not checked',
+};
+
+export function dataIntegrityState(
+  checks: ReadonlyArray<{ code: string; outcome: string; explanation?: string }>,
+): DataIntegrityState {
+  const fails = checks.filter(c => c.code.includes('dataHash.mismatch') && c.outcome === 'fail');
+  if (fails.length > 0) {
+    // c2pa-rs words the exclusion failure "data hash exclusion does not
+    // match the manifest location in the asset" (claim.rs, 0.91).
+    return fails.some(c => /exclusion/i.test(c.explanation ?? '')) ? 'not-covered' : 'failed';
+  }
+  if (checks.some(c => c.code === 'assertion.dataHash.match' && c.outcome === 'pass')) {
+    return 'confirmed';
+  }
+  return 'not-checked';
+}
+
 /** Table 4 row 1 — manifest tampered or inaccessible. */
 export const C2PA_STATUS_INVALID = 'Content Credential unavailable or invalid';
 

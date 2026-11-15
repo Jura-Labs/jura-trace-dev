@@ -13,6 +13,8 @@ import {
   C2PA_ACTION_LABELS,
   C2PA_UNKNOWN_ACTION_LABEL,
   C2PA_STATUS_INVALID,
+  DATA_INTEGRITY_TEXT,
+  dataIntegrityState,
 } from './c2pa-labels';
 // ── Single source of truth for the expected-detector matrix ──────────────
 // Generated from src-tauri/src/gen_detectors.rs (MODE_MATRIX const).
@@ -732,14 +734,11 @@ export async function generateTrustReport(result: VerificationResult, meta: Repo
       const checks = m.validationChecks;
       const has = (code: string, outcome: 'pass' | 'fail' | 'info') =>
         checks.some(c => c.code === code && c.outcome === outcome);
-      const hasMatch = (frag: string, outcome: 'pass' | 'fail' | 'info') =>
-        checks.some(c => c.code.includes(frag) && c.outcome === outcome);
 
       const sigValid = has('claimSignature.validated', 'pass');
-      const dataValid = has('assertion.dataHash.match', 'pass');
+      const integrity = dataIntegrityState(checks);
       const tsValid =
         has('timeStamp.validated', 'pass') || has('timeStamp.trusted', 'pass');
-      const hashFail = hasMatch('dataHash.mismatch', 'fail');
 
       y += 3;
       checkPage(12);
@@ -778,13 +777,9 @@ export async function generateTrustReport(result: VerificationResult, meta: Repo
         sigValid ? 'Signature valid' : C2PA_STATUS_INVALID,
       );
       summaryLine(
-        dataValid ? '[OK]' : hashFail ? '[FAIL]' : '[-]',
-        ...(dataValid ? OK : hashFail ? FAIL : INFO),
-        dataValid
-          ? 'Data integrity confirmed - file has not been modified'
-          : hashFail
-            ? 'Data integrity failed - file has been modified since signing'
-            : 'Data hash not checked',
+        integrity === 'confirmed' ? '[OK]' : integrity === 'not-checked' ? '[-]' : '[FAIL]',
+        ...(integrity === 'confirmed' ? OK : integrity === 'not-checked' ? INFO : FAIL),
+        DATA_INTEGRITY_TEXT[integrity],
       );
       if (tsValid) {
         summaryLine('[OK]', ...OK, 'Timestamp verified');

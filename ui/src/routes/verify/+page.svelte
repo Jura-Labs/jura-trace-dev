@@ -32,6 +32,8 @@
   import {
     C2PA_ACTION_LABELS,
     C2PA_STATUS_INVALID,
+    DATA_INTEGRITY_TEXT,
+    dataIntegrityState,
     C2PA_STATUS_INVALID_SHORT,
     C2PA_STATUS_VALID_AT_SIGNING,
     C2PA_MSG_VALID_AT_SIGNING_DETAIL,
@@ -3908,10 +3910,9 @@
                                   {#if sm && sm.validationChecks && sm.validationChecks.length > 0}
                                     {@const checks = sm.validationChecks}
                                     {@const sigValid = checks.some(c => c.code === 'claimSignature.validated' && c.outcome === 'pass')}
-                                    {@const dataValid = checks.some(c => c.code === 'assertion.dataHash.match' && c.outcome === 'pass')}
+                                    {@const integrity = dataIntegrityState(checks)}
                                     {@const tsValid = checks.some(c => (c.code === 'timeStamp.validated' || c.code === 'timeStamp.trusted') && c.outcome === 'pass')}
                                     <!-- certExpired / certUntrusted removed from L3 display (always-on noise); raw codes in L4 -->
-                                    {@const hashFail = checks.some(c => c.code.includes('dataHash.mismatch') && c.outcome === 'fail')}
                                     {@const passCount = checks.filter(c => c.outcome === 'pass').length}
                                     {@const failCount = checks.filter(c => c.outcome === 'fail').length}
                                     {@const infoCount = checks.filter(c => c.outcome === 'info').length}
@@ -3928,8 +3929,8 @@
                                           <span class="text-obsidian dark:text-quartz">{sigValid ? 'Signature valid' : C2PA_STATUS_INVALID}</span>
                                         </div>
                                         <div class="flex items-center gap-2 text-xs">
-                                          <span class="w-4 text-center {dataValid ? 'text-malachite-dark dark:text-malachite-light' : hashFail ? 'text-cinnabar-dark dark:text-cinnabar-light' : 'text-flint-dark dark:text-flint-light'}">{dataValid ? '\u2713' : hashFail ? '\u2717' : '\u2014'}</span>
-                                          <span class="text-obsidian dark:text-quartz">{dataValid ? 'Data integrity confirmed: file has not been modified' : hashFail ? 'Data integrity failed: file has been modified since signing' : 'Data hash not checked'}</span>
+                                          <span class="w-4 text-center {integrity === 'confirmed' ? 'text-malachite-dark dark:text-malachite-light' : integrity === 'not-checked' ? 'text-flint-dark dark:text-flint-light' : 'text-cinnabar-dark dark:text-cinnabar-light'}">{integrity === 'confirmed' ? '\u2713' : integrity === 'not-checked' ? '\u2014' : '\u2717'}</span>
+                                          <span class="text-obsidian dark:text-quartz">{DATA_INTEGRITY_TEXT[integrity]}</span>
                                         </div>
                                         {#if tsValid}
                                           <div class="flex items-center gap-2 text-xs">
