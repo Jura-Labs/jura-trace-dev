@@ -1067,6 +1067,9 @@ export interface ManifestInfo {
   signedByIssuer?: string;
   /** Individual validation checks from c2pa-rs, grouped by outcome. */
   validationChecks?: ValidationCheck[];
+  /** Bytes the data hash leaves unsigned beyond the manifest store
+   *  (BL-C2PA-004). Present only when part of the image is not covered. */
+  unsignedBytes?: number;
   /** Verification mode used for this manifest: "standard" or "enhanced". */
   verificationMode?: string;
   /** The app or device that produced this content (e.g. "Pixel Camera", "Google Photos"). */
