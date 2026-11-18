@@ -1,6 +1,6 @@
 # BL-INT-001: test a Uwazi recipe before building anything further
 
-**Status**: Open. Target v1.3.0, after BL-REC-002 (Paul, 22 October 2026:
+**Status**: Open. Target v1.4.0 (moved from v1.3.0 on 5 November 2026), after BL-REC-002 (Paul, 22 October 2026:
 "proceed with 1 and then recommend a recipe test initially before
 proceeding further"). HURIDOCS is open to joint funding.
 **Raised**: 22 October 2026, from the Uwazi integration review (brain
@@ -52,3 +52,8 @@ organisation, a joint funding application).
 - Do not add a `jura uwazi` command to Trace until Uwazi's 2.0 API is
   known.
 - Do not commit to anything with HURIDOCS in this item; that is Paul's.
+
+## Update, 5 November 2026: target v1.4.0
+
+Moved from v1.3.0 to v1.4.0 when Paul accepted the v1.3.0 plan's split
+(`docs/release/v1.3.0-plan.md`, "Tier C: only with room").

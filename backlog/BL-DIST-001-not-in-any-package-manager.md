@@ -1,6 +1,6 @@
 # BL-DIST-001: Jura Trace is in no package manager
 
-**Status**: Open. Target v1.3.0 (Paul, 22 October 2026): winget and a
+**Status**: Open. Target v1.4.0 (moved from v1.3.0 on 5 November 2026) (Paul, 22 October 2026): winget and a
 Homebrew tap.
 **Raised**: 22 October 2026, from the pre-v1.3.0 adoption review.
 **Severity**: Medium for reach. Windows is 55 to 65% of downloads of every
@@ -33,3 +33,8 @@ Homebrew, Snap or Flathub entry.
   AI-generated code (docs.flathub.org, read 22 Oct 2026). Snap, built from
   the `.deb`, is the Linux route if one is wanted.
 - Do not hand-edit manifests per release; automate or they will drift.
+
+## Update, 5 November 2026: target v1.4.0
+
+Moved from v1.3.0 to v1.4.0 when Paul accepted the v1.3.0 plan's split
+(`docs/release/v1.3.0-plan.md`, "Tier C: only with room").

@@ -1,6 +1,6 @@
 # BL-REL-009: the release page and the download page recommend different Windows installers
 
-**Status**: Open. Target v1.3.0.
+**Status**: Open. Target v1.4.0 (moved from v1.3.0 on 5 November 2026).
 **Raised**: 22 October 2026, reviewing the download page after v1.2.0.
 **Severity**: Low. Both installers work. A reader comparing the two pages
 gets opposite advice.
@@ -26,3 +26,8 @@ so this has to land before the v1.3.0 tag.
 Do not change it before BL-TEST-004 has run. If the `.exe` path turns out
 to make a second copy on update, the download page changes instead, and
 this item flips direction.
+
+## Update, 5 November 2026: target v1.4.0
+
+Moved from v1.3.0 to v1.4.0 when Paul accepted the v1.3.0 plan's split
+(`docs/release/v1.3.0-plan.md`, "Tier C: only with room").

@@ -1,6 +1,6 @@
 # BL-REC-001: the Verification Record cannot show when it was made
 
-**Status**: Open. Target v1.3.0.
+**Status**: Open. Target v1.4.0 (moved from v1.3.0 on 5 November 2026).
 **Raised**: 22 October 2026, from the pre-v1.3.0 review of legislation.
 **Severity**: Medium. The record's time is the user's own clock, which
 anyone can set.
@@ -38,3 +38,8 @@ The record already has the first two.
 
 - Do not change the record's signing key or mode. The timestamp is added
   alongside; a record without one stays valid.
+
+## Update, 5 November 2026: target v1.4.0
+
+Moved from v1.3.0 to v1.4.0 when Paul accepted the v1.3.0 plan's split
+(`docs/release/v1.3.0-plan.md`, "Tier C: only with room").

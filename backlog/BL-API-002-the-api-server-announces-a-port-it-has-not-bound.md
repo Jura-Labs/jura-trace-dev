@@ -150,3 +150,8 @@ What remains is step 3.
 Step 3 remains: the desktop app cannot show that the local API is not
 running. With the CLI now in every installer, users will hit this.
 Targeted at v1.3.0 (Paul, 22 October 2026).
+
+## Update, 5 November 2026: target v1.4.0
+
+Moved from v1.3.0 to v1.4.0 when Paul accepted the v1.3.0 plan's split
+(`docs/release/v1.3.0-plan.md`, "Tier C: only with room").

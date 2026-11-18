@@ -1,7 +1,7 @@
 # BL-MON-001: Watched Locations is built and hidden
 
 **Status**: Open. Target v1.3.0, by Paul's decision of 22 October 2026.
-One question for Paul below.
+The question below was answered on 5 November 2026.
 **Raised**: 22 October 2026.
 **Severity**: Medium. The Monitor tab ships empty of its main feature.
 
@@ -32,17 +32,26 @@ Pro exists?
 
 ## What would fix it
 
-1. Remove the Pro/Enterprise gate in `monitor_scheduler.rs`, replaced by
-   the Community limit Paul chooses.
+1. Remove the Pro/Enterprise gate in `monitor_scheduler.rs`. No Community
+   limit (Paul, 5 November 2026).
 2. Turn on the flag, with the reframing above: it watches a page where
    your image is published and tells you if its Content Credentials are
    stripped or changed.
 3. Enhanced mode only; in Standard mode the section explains why it is off.
 4. The check interval and what is fetched are stated in Settings.
-5. Check the 23 tests still pass and add one for the Community limit.
+5. Check the 23 tests still pass and add one that the scheduler runs on
+   Community.
 
 ## What not to do
 
 - Do not describe it as finding copies of an image elsewhere. That is
   reverse image search (BL-RIS-001). The name changed from "URL Watchlist"
   in April 2026 for exactly that reason.
+
+## Decision, 5 November 2026
+
+Paul: no limit on Watched Locations until Pro exists. Community users can
+watch any number of pages. Watched Locations makes no paid calls and uses
+no key; it fetches the listed pages over the user's own connection. If Pro
+ships with "unlimited Watched Locations", a Community limit is a separate
+decision at that time.
