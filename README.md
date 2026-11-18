@@ -90,10 +90,13 @@ To develop it:
 
 Optional, and neither required nor bundled:
 
-- [Ollama](https://ollama.com/) with the `llava:7b` model. This serves the
-  auto-catalogue descriptions and nothing else. It stays off until you enable
-  it in Settings, the application is fully functional without it, and it has no
-  role in verification or in any verdict.
+- [Ollama](https://ollama.com/) with the `llava:7b` model. This serves two
+  things only: the auto-catalogue descriptions, and the "extract text" button
+  on the verify page, which transcribes visible text in an image. Both run only
+  on your machine, and only if you have installed Ollama and the model
+  yourself; the descriptions also stay off until you enable them in Settings.
+  The application is fully functional without it, and it has no role in
+  verification or in any verdict.
 
 ## Quick Start (Development)
 
