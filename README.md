@@ -40,7 +40,12 @@ lookup. The timestamp request made when you sign is not covered by that switch
 today.
 
 ## Status
-V1.1.0 (public release September 2026)
+v1.2.0 (public release 20 October 2026) is the current release
+- Verification Record: a signed, tamper-evident record of the checks run on a file
+- `jura` command-line client and `jura-trace-api`, the analysis server without the window, in every installer
+- Linux server download for machines without a desktop
+
+v1.1.0 (public release September 2026)
 - Linux AppImage
 - Security updates
 
