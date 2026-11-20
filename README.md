@@ -66,9 +66,6 @@ v1.0.0 (public release, June 2026)
 **PROTECT** — Safeguard digital assets
 - C2PA signing: Embed tamper-evident provenance manifests recording origin and rights
 - Fingerprinting: Perceptual hashes that survive crop, resize, and recompression
-- Auto-catalogue *(optional, off by default)*: descriptions and tags for bulk
-  archives, written by a local multimodal model. Cataloguing only. It plays no
-  part in verification
 
 **VERIFY** — Check content authenticity
 - Image forensics: Error Level Analysis, noise patterns, metadata anomalies
@@ -78,9 +75,7 @@ v1.0.0 (public release, June 2026)
 - Provenance reading: Verify C2PA provenance manifests on any file
 
 **No language model is in the verdict pipeline.** Every verdict comes from the
-forensic detectors and thresholds set by a human. The optional auto-catalogue
-model writes a description field for the archive and is never an input to a
-detector, a score, or a verdict. See "On the use of Generative AI in this
+forensic detectors and thresholds set by a human. See "On the use of Generative AI in this
 codebase" below.
 
 ## Prerequisites
@@ -97,16 +92,6 @@ To develop it:
 
 - [Rust](https://rustup.rs/) 1.96+
 - [Node.js](https://nodejs.org/) 20+
-
-Optional, and neither required nor bundled:
-
-- [Ollama](https://ollama.com/) with the `llava:7b` model. This serves two
-  things only: the auto-catalogue descriptions, and the "extract text" button
-  on the verify page, which transcribes visible text in an image. Both run only
-  on your machine, and only if you have installed Ollama and the model
-  yourself; the descriptions also stay off until you enable them in Settings.
-  The application is fully functional without it, and it has no role in
-  verification or in any verdict.
 
 ## Quick Start (Development)
 
