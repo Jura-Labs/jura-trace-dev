@@ -7,7 +7,21 @@
 [![Software Heritage](https://archive.softwareheritage.org/badge/origin/https://github.com/Jura-Labs/jura-trace-dev/)](https://archive.softwareheritage.org/browse/origin/?origin_url=https://github.com/Jura-Labs/jura-trace-dev)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/Jura-Labs/jura-trace-dev/badge)](https://securityscorecards.dev/viewer/?uri=github.com/Jura-Labs/jura-trace-dev)
 
-In a world of synthetic media, evidence matters. Jura Trace helps cultural institutions protect their digital assets from unauthorised AI extraction, and helps communities weigh up the media they encounter.
+**Reviewers, start here:**
+- **Download:** installers for macOS (Apple silicon), Windows and Linux at [juralabs.org/download](https://juralabs.org/download), or from the [v1.2.0 release](https://github.com/Jura-Labs/jura-trace/releases/tag/v1.2.0).
+- **See it:** [a check result](docs/screenshots/verify-result.png), shown below.
+- **How it works:** the [verify guide](docs/user-guide/verify-guide.md) (trust scores, checks, limits) and the model cards for the [AI-image check](docs/model-cards/v10onnx.md) and the [forensic classifier](docs/model-cards/gbm-v4.md).
+
+Jura Trace helps human rights groups and journalists check photos on their
+own laptop, without uploading them. It reads Content Credentials, looks for
+signs of editing and AI generation, shows the evidence, and leaves the
+decision to a person.
+
+Jura Labs CIC won the [Security award at the OpenUK Awards 2026](https://juralabs.org/updates/openuk-awards-2026-security-winner)
+for Jura Trace. Jura Trace is on the [C2PA Conforming Products List](https://spec.c2pa.org/conformance-explorer/)
+as a validator. Website: [juralabs.org/jura-trace](https://juralabs.org/jura-trace).
+
+![Jura Trace check result for an AI-generated image: Low Trust, with the signal map of checks run](docs/screenshots/verify-result.png)
 
 Your files are analysed on your own machine. Nothing you open, sign or check
 is uploaded anywhere.
@@ -56,10 +70,6 @@ v1.0.0 (public release, June 2026)
 **PROTECT** — Safeguard digital assets
 - C2PA signing: Embed tamper-evident provenance manifests recording origin and rights
 - Fingerprinting: Perceptual hashes that survive crop, resize, and recompression
-- Auto-catalogue *(optional, off by default)*: descriptions and tags for bulk
-  archives, written by a local multimodal model. Cataloguing only. It plays no
-  part in verification
-- Watermarking *(planned)*: invisible watermarks for scrape detection
 
 **VERIFY** — Check content authenticity
 - Image forensics: Error Level Analysis, noise patterns, metadata anomalies
@@ -69,16 +79,31 @@ v1.0.0 (public release, June 2026)
 - Provenance reading: Verify C2PA provenance manifests on any file
 
 **No language model is in the verdict pipeline.** Every verdict comes from the
-forensic detectors and thresholds set by a human. The optional auto-catalogue
-model writes a description field for the archive and is never an input to a
-detector, a score, or a verdict. See "On the use of Generative AI in this
+forensic detectors and thresholds set by a human. See "On the use of Generative AI in this
 codebase" below.
+
+## Download
+
+The current release is v1.2.0. Download it from
+[juralabs.org/download](https://juralabs.org/download) or the
+[GitHub release](https://github.com/Jura-Labs/jura-trace/releases/tag/v1.2.0):
+
+| Platform | Installer | Signed |
+| :-- | :-- | :-- |
+| macOS (Apple silicon) | `JuraTrace-1.2.0-macOS-AppleSilicon.dmg` | Apple Developer ID, notarised |
+| Windows 10+ (x64) | `JuraTrace-1.2.0-Windows-x64-setup.exe` or `.msi` | Microsoft (Azure Trusted Signing) |
+| Linux (x86_64) | `JuraTrace-1.2.0-Linux-x86_64.AppImage` or `.deb` | Checksum only |
+| Linux server, no desktop | `JuraTrace-1.2.0-Linux-x86_64-server.tar.gz` | Checksum only |
+
+Every release publishes `SHA256SUMS.txt`, and updates are signed. See
+[verifying your download](docs/install-guides/verify-downloads.md).
 
 ## Prerequisites
 
 To run Jura Trace:
 
-- macOS 12+, Windows 10+, or Linux (Ubuntu 22.04+)
+- macOS 12+ (Apple silicon), Windows 10+, or Linux (Ubuntu 22.04+)
+- 4 GB of memory (8 GB recommended). No graphics card needed.
 
 Nothing else. Verification and signing work offline, with no model to download
 and no service to start.
@@ -87,16 +112,6 @@ To develop it:
 
 - [Rust](https://rustup.rs/) 1.96+
 - [Node.js](https://nodejs.org/) 20+
-
-Optional, and neither required nor bundled:
-
-- [Ollama](https://ollama.com/) with the `llava:7b` model. This serves two
-  things only: the auto-catalogue descriptions, and the "extract text" button
-  on the verify page, which transcribes visible text in an image. Both run only
-  on your machine, and only if you have installed Ollama and the model
-  yourself; the descriptions also stay off until you enable them in Settings.
-  The application is fully functional without it, and it has no role in
-  verification or in any verdict.
 
 ## Quick Start (Development)
 
