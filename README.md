@@ -7,7 +7,17 @@
 [![Software Heritage](https://archive.softwareheritage.org/badge/origin/https://github.com/Jura-Labs/jura-trace-dev/)](https://archive.softwareheritage.org/browse/origin/?origin_url=https://github.com/Jura-Labs/jura-trace-dev)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/Jura-Labs/jura-trace-dev/badge)](https://securityscorecards.dev/viewer/?uri=github.com/Jura-Labs/jura-trace-dev)
 
-In a world of synthetic media, evidence matters. Jura Trace helps cultural institutions protect their digital assets from unauthorised AI extraction, and helps communities weigh up the media they encounter.
+**Reviewers, start here:**
+- **Download:** installers for macOS (Apple silicon), Windows and Linux at [juralabs.org/download](https://juralabs.org/download), or from the [v1.2.0 release](https://github.com/Jura-Labs/jura-trace/releases/tag/v1.2.0).
+- **See it:** [a check result](docs/screenshots/verify-result.png), shown below.
+- **How it works:** the [verify guide](docs/user-guide/verify-guide.md) (trust scores, checks, limits) and the model cards for the [AI-image check](docs/model-cards/v10onnx.md) and the [forensic classifier](docs/model-cards/gbm-v4.md).
+
+Jura Trace helps human rights groups and journalists check photos on their
+own laptop, without uploading them. It reads Content Credentials, looks for
+signs of editing and AI generation, shows the evidence, and leaves the
+decision to a person.
+
+![Jura Trace check result for an AI-generated image: Low Trust, with the signal map of checks run](docs/screenshots/verify-result.png)
 
 Your files are analysed on your own machine. Nothing you open, sign or check
 is uploaded anywhere.
@@ -59,7 +69,6 @@ v1.0.0 (public release, June 2026)
 - Auto-catalogue *(optional, off by default)*: descriptions and tags for bulk
   archives, written by a local multimodal model. Cataloguing only. It plays no
   part in verification
-- Watermarking *(planned)*: invisible watermarks for scrape detection
 
 **VERIFY** — Check content authenticity
 - Image forensics: Error Level Analysis, noise patterns, metadata anomalies
@@ -78,7 +87,8 @@ codebase" below.
 
 To run Jura Trace:
 
-- macOS 12+, Windows 10+, or Linux (Ubuntu 22.04+)
+- macOS 12+ (Apple silicon), Windows 10+, or Linux (Ubuntu 22.04+)
+- 4 GB of memory (8 GB recommended). No graphics card needed.
 
 Nothing else. Verification and signing work offline, with no model to download
 and no service to start.
