@@ -17,6 +17,10 @@ own laptop, without uploading them. It reads Content Credentials, looks for
 signs of editing and AI generation, shows the evidence, and leaves the
 decision to a person.
 
+Jura Labs CIC won the [Security award at the OpenUK Awards 2026](https://juralabs.org/updates/openuk-awards-2026-security-winner)
+for Jura Trace. Jura Trace is on the [C2PA Conforming Products List](https://spec.c2pa.org/conformance-explorer/)
+as a validator. Website: [juralabs.org/jura-trace](https://juralabs.org/jura-trace).
+
 ![Jura Trace check result for an AI-generated image: Low Trust, with the signal map of checks run](docs/screenshots/verify-result.png)
 
 Your files are analysed on your own machine. Nothing you open, sign or check
@@ -77,6 +81,22 @@ v1.0.0 (public release, June 2026)
 **No language model is in the verdict pipeline.** Every verdict comes from the
 forensic detectors and thresholds set by a human. See "On the use of Generative AI in this
 codebase" below.
+
+## Download
+
+The current release is v1.2.0. Download it from
+[juralabs.org/download](https://juralabs.org/download) or the
+[GitHub release](https://github.com/Jura-Labs/jura-trace/releases/tag/v1.2.0):
+
+| Platform | Installer | Signed |
+| :-- | :-- | :-- |
+| macOS (Apple silicon) | `JuraTrace-1.2.0-macOS-AppleSilicon.dmg` | Apple Developer ID, notarised |
+| Windows 10+ (x64) | `JuraTrace-1.2.0-Windows-x64-setup.exe` or `.msi` | Microsoft (Azure Trusted Signing) |
+| Linux (x86_64) | `JuraTrace-1.2.0-Linux-x86_64.AppImage` or `.deb` | Checksum only |
+| Linux server, no desktop | `JuraTrace-1.2.0-Linux-x86_64-server.tar.gz` | Checksum only |
+
+Every release publishes `SHA256SUMS.txt`, and updates are signed. See
+[verifying your download](docs/install-guides/verify-downloads.md).
 
 ## Prerequisites
 
